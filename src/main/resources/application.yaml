@@ -1,0 +1,35 @@
+spring:
+  application:
+    name: Testing Automation
+
+
+server:
+  port: 8080
+
+#autotest:
+#  browser: chrome
+#  headless: false
+#  screenshot-dir: ./screenshots
+#  scanner:
+#    timeout-seconds: 15
+#    user-agent: "AutoTestScannerClient/1.0"
+
+logging:
+  level:
+    root: INFO
+    com.testingautomation.autotest: DEBUG
+
+autotest:
+  browser: chrome
+  headless: false
+
+  results:
+    base-dir: ./test-results
+
+  screenshot-dir: screenshots
+
+  screenshot-on-step: true
+
+  scanner:
+    timeout-seconds: 15
+    user-agent: "AutoTestScannerClient/1.0"
