@@ -1,16 +1,16 @@
-name,username,companyIdentifier,user-email,user-country,phone-number,password,confirm-password
-Amit Kumar,amit.k_01,CMP001,amit@mail.com,Germany,9123456780,Strong@123,Strong@123
-,amit.k_01,,amit@mail.com,Germany,,Strong@123,Strong@123
-Rohit,wrong#user,CMP001,amit@mail.com,Germany,9123456780,,Strong@123
-Rohit,,CMP001,,,9123456780,Strong@123,Strong@123
-Rohit,rohit.01,,amit@mail.com,Germany,9123456780,Strong@123,Strong@123
-Rohit,,CMP001,wrongmail,Germany,,Strong@123,Strong@123
-Rohit,rohit.01,CMP001,,Select Country,9123456780,,Strong@123
-Rohit,rohit.01,CMP001,amit@mail.com,Brazil,98AB456780,Strong@123,Strong@123
-,rohit.01,CMP001,amit@mail.com,Brazil,9123456780,weak,weak
-Rohit,,CMP001,amit@mail.com,Brazil,9123456780,Strong@123,Wrong@123
-,' OR '1'='1,CMP001,amit@mail.com,Brazil,,Strong@123,Strong@123
-<script>alert(1)</script>,rohit.01,CMP001,amit@mail.com,Brazil,9123456780,Strong@123,
-Rohit,rohit.01,,,,9123456780,Strong@123,
-Rohit,rohit.01,CMP001,amit@mail.com,,9123456780,Strong111@123,Strong@123
-,rohit.01,CMP001,amit@mail.com,Brazil,,Strong@123,Strong@123
+name,username,user-email,user-country,phone-number,password,confirm-password
+Amit Kumar,amit.k_01,amit@mail.com,Germany,9123456780,Strong@123,Strong@123
+,amit.k_01,amit@mail.com,Germany,,Strong@123,Strong@123
+Rohit,wrong#user,amit@mail.com,Germany,9123456780,,Strong@123
+Rohit,,,,9123456780,Strong@123,Strong@123
+Rohit,rohit.01,amit@mail.com,Germany,9123456780,Strong@123,Strong@123
+Rohit,,wrongmail,Germany,,Strong@123,Strong@123
+Rohit,rohit.01,,Select Country,9123456780,,Strong@123
+Rohit,rohit.01,amit@mail.com,Brazil,98AB456780,Strong@123,Strong@123
+,rohit.01,amit@mail.com,Brazil,9123456780,weak,weak
+Rohit,,amit@mail.com,Brazil,9123456780,Strong@123,Wrong@123
+,' OR '1'='1,amit@mail.com,Brazil,,Strong@123,Strong@123
+<script>alert(1)</script>,rohit.01,amit@mail.com,Brazil,9123456780,Strong@123,
+Rohit,rohit.01,,,9123456780,Strong@123,
+Rohit,rohit.01,amit@mail.com,,9123456780,Strong111@123,Strong@123
+,rohit.01,amit@mail.com,Brazil,,Strong@123,Strong@123

@@ -47,10 +47,11 @@ public class StepGenerator {
 
             } else if ("button".equalsIgnoreCase(f.tag) || "a".equalsIgnoreCase(f.tag)) {
                 // For buttons/links: click only if it's a submit OR CSV explicitly asks for "click"
-                boolean isSubmit = f.type != null && "submit".equalsIgnoreCase(f.type);
-                boolean csvSaysClick = value != null && "click".equalsIgnoreCase(value.trim());
+                boolean isSubmit = f.type != null ;
+//                boolean csvSaysClick = value != null ;
 
-                if (isSubmit || csvSaysClick) {
+                if (isSubmit) {
+                    logger.info("click button clicked");
                     String actionDescription = String.format("Click on %s (text=%s)", locator, f.text);
                     steps.add(new StepAction(StepAction.ActionType.CLICK, locatorType, locator, null, actionDescription));
                 } else {
