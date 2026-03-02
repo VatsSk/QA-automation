@@ -33,46 +33,49 @@ public class UiScannerService {
 
             String script = """
                 return Array.from(document.querySelectorAll(
-                  'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
-                )).filter(function(el){
-                  const rect = el.getBoundingClientRect();
-                  const style = window.getComputedStyle(el);
-                  return rect.width > 0 && rect.height > 0 &&
-                         style.visibility !== 'hidden' &&
-                         style.display !== 'none';
-                }).map(function(el){
-                  let text = null;
+                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
+                           ))
+                           .filter(function(el) {
+                             const rect = el.getBoundingClientRect();
+                             const style = window.getComputedStyle(el);
                     
-                          if (el.tagName.toLowerCase() === 'select') {
-                              if (el.selectedIndex >= 0 && el.options.length > 0) {
-                                  text = el.options[el.selectedIndex].text.trim();
-                              } else if (el.options.length > 0) {
-                                  text = el.options[0].text.trim(); // fallback to index 0
-                              }
-                          } else {
-                              text = el.innerText ? el.innerText.trim() : null;
-                          }
-                  const id = el.id || null;
-                  const name = el.name || null;
-
-                  const css = id ? '#'+id :
-                             (name ? el.tagName.toLowerCase()+'[name="'+name+'"]' : null);
-
-                  const xpath = id ? '//*[@id="'+id+'"]' :
-                               (name ? '//*[@name="'+name+'"]' :
-                               (text && text.length < 40 ?
-                               '//*[contains(text(),"'+text+'")]' : null));
-
-                  return {
-                    tag: el.tagName.toLowerCase(),
-                    type: el.type || null,
-                    id: id,
-                    name: name,
-                    text: text,
-                    css: css,
-                    xpath: xpath
-                  };
-                });
+                             return rect.width > 0 &&
+                                    rect.height > 0 &&
+                                    style.visibility !== 'hidden' &&
+                                    style.display !== 'none' &&
+                                    el.id; // <-- ignore if id is null or empty
+                           })
+                           .map(function(el) {
+                    
+                             let text = null;
+                    
+                             if (el.tagName.toLowerCase() === 'select') {
+                               if (el.selectedIndex >= 0 && el.options.length > 0) {
+                                 text = el.options[el.selectedIndex].text.trim();
+                               } else if (el.options.length > 0) {
+                                 text = el.options[0].text.trim();
+                               }
+                             } else {
+                               text = el.innerText ? el.innerText.trim() : null;
+                             }
+                    
+                             const id = el.id;
+                             const name = el.name || null;
+                    
+                             const css = '#' + id;
+                    
+                             const xpath = '//*[@id="' + id + '"]';
+                    
+                             return {
+                               tag: el.tagName.toLowerCase(),
+                               type: el.type || null,
+                               id: id,
+                               name: name,
+                               text: text,
+                               css: css,
+                               xpath: xpath
+                             };
+                           });
             """;
 
             List<Map<String, Object>> raw =
