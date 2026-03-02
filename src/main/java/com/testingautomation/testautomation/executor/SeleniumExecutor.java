@@ -3,6 +3,8 @@ package com.testingautomation.testautomation.executor;
 import com.testingautomation.testautomation.model.StepAction;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -12,6 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -166,6 +169,7 @@ public class SeleniumExecutor {
             case TYPE:
                 if (s.getPayload() != null && !s.getPayload().isBlank()) {
                     WebElement el = driver.findElement(by);
+                    waitUntilEditable(el);
                     el.clear();
                     el.sendKeys(s.getPayload());
                 } else {
@@ -175,7 +179,17 @@ public class SeleniumExecutor {
                 break;
 
             case CLICK:
-                driver.findElement(by).click();
+                WebElement el = new WebDriverWait(driver, Duration.ofSeconds(10))
+                        .until(ExpectedConditions.elementToBeClickable(by));
+
+                scrollIntoView(el);
+
+                try {
+                    el.click();
+                } catch (ElementClickInterceptedException e) {
+                    logger.warn("Normal click failed, retrying via JS");
+                    ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
+                }
                 break;
 
             case SELECT:
@@ -315,5 +329,13 @@ public class SeleniumExecutor {
         } catch (Exception e) {
             logger.warn("UI render wait timeout — continuing: {}", e.getMessage());
         }
+    }
+    private void scrollIntoView(WebElement el) {
+        ((JavascriptExecutor) driver)
+                .executeScript("arguments[0].scrollIntoView({block:'center'});", el);
+    }
+    private void waitUntilEditable(WebElement el) {
+        new WebDriverWait(driver, Duration.ofSeconds(5))
+                .until(d -> el.isDisplayed() && el.isEnabled());
     }
 }
