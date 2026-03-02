@@ -41,7 +41,17 @@ public class UiScannerService {
                          style.visibility !== 'hidden' &&
                          style.display !== 'none';
                 }).map(function(el){
-                  const text = el.innerText ? el.innerText.trim() : null;
+                  let text = null;
+                    
+                          if (el.tagName.toLowerCase() === 'select') {
+                              if (el.selectedIndex >= 0 && el.options.length > 0) {
+                                  text = el.options[el.selectedIndex].text.trim();
+                              } else if (el.options.length > 0) {
+                                  text = el.options[0].text.trim(); // fallback to index 0
+                              }
+                          } else {
+                              text = el.innerText ? el.innerText.trim() : null;
+                          }
                   const id = el.id || null;
                   const name = el.name || null;
 
@@ -91,3 +101,4 @@ public class UiScannerService {
         }
     }
 }
+

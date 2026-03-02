@@ -7,6 +7,15 @@ public class TestCase {
     private String url;
     private Map<String,String> values; // columnName -> value
 
+    @Override
+    public String toString() {
+        return "TestCase{" +
+                "id='" + id + '\'' +
+                ", url='" + url + '\'' +
+                ", values=" + values +
+                '}';
+    }
+
     public TestCase(String id, String url, Map<String, String> values) {
         this.id = id;
         this.url = url;

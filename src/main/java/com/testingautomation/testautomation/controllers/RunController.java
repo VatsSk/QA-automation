@@ -41,7 +41,10 @@ public class RunController {
     public String runTests(@RequestParam String targetUrl,@RequestParam String csvPath) {
         try {
             List<FieldDescriptor> fields = scannerService.scanPage(targetUrl);
+            logger.info("scannerService scannerService scannerService scannerService scannerService");
+            logger.info("Length of fields :"+fields.size());
             System.out.println("Data from fields:  "+fields);
+
             List<TestCase> testCases = csvLoader.load(csvPath);
             System.out.println("Data from test cases:  "+testCases);
             for (TestCase tc : testCases) {
@@ -49,6 +52,8 @@ public class RunController {
                 String url = (tc.getUrl() != null && !tc.getUrl().isBlank()) ? tc.getUrl() : targetUrl;
                 System.out.println(url);
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
+                logger.info("Steps to execute :  "+steps.size());
+                logger.info("Steps to execute :  "+steps);
                 executor.run(url, steps, tc.getId());
             }
             return "Run completed";

@@ -1,0 +1,12 @@
+companyIdentifier,username,password
+ABC123,sugam_testing,ValidPass@123
+ABC123,sugam_testing,WrongPass
+ABC123,wrong_user,ValidPass@123
+ABC123,,ValidPass@123
+ABC123,sugam_testing,
+,sugam_testing,ValidPass@123
+TRACK01,admin_user,Admin@2026
+TFINDIA,manager01,Manager#123
+ABC123,' OR '1'='1,test
+ABC123,<script>alert(1)</script>,test
+wildcraft,portugal_rm,breakingbad

@@ -6,6 +6,11 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 public class FieldDescriptor {
     public String tag;
     public String type;
+    public String id;
+    public String name;
+    public String text;
+    public String css;
+    public String xpath;
 
     @Override
     public String toString() {
@@ -20,11 +25,6 @@ public class FieldDescriptor {
                 '}';
     }
 
-    public String id;
-    public String name;
-    public String text;
-    public String css;
-    public String xpath;
 
     // getters/setters or keep public fields for brevity
 }
