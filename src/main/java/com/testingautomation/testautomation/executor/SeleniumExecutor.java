@@ -29,9 +29,9 @@ public class SeleniumExecutor {
     private final String resultsBaseDir;
     private final boolean screenshotOnStep;
 
-    public SeleniumExecutor(WebDriver driver, org.springframework.core.env.Environment env) {
-        this.driver = driver;
+    public SeleniumExecutor(WebDriver driver,org.springframework.core.env.Environment env) {
         // Base folder where run folders will be created (per-run timestamped subfolder created in run())
+        this.driver=driver;
         this.resultsBaseDir = env.getProperty("autotest.results.base-dir", "./test-results");
         this.screenshotOnStep = Boolean.parseBoolean(env.getProperty("autotest.screenshot-on-step", "false"));
     }
@@ -161,6 +161,98 @@ public class SeleniumExecutor {
         }
     }
 
+    public void run(WebDriver driver, String startUrl, List<StepAction> steps, String testCaseId) {
+        System.out.println("saket confirmed");
+        runInternal(driver, startUrl, steps, testCaseId);
+    }
+
+    private void runInternal(WebDriver driver,String startUrl,List<StepAction> steps,String testCaseId) {
+        String timestamp = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+
+        Path runDir = Paths.get(resultsBaseDir, testCaseId + "_" + timestamp);
+        Path screenshotsDir = runDir.resolve("screenshots");
+        Path resultsCsv = runDir.resolve("results.csv");
+
+        try {
+            Files.createDirectories(screenshotsDir);
+            if (Files.notExists(resultsCsv)) {
+                Files.createFile(resultsCsv);
+                writeCsvLine(resultsCsv,
+                        "testCaseId,stepNo,stepDescription,locatorType,locator,payload,status,errorMessage,screenshotPath,pageUrl,timestamp");
+            }
+            logger.info("[{}] Run folder created: {}", testCaseId, runDir.toAbsolutePath());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create run directory", e);
+        }
+
+        logger.info("[{}] Starting run at {}", testCaseId, startUrl);
+
+        int stepNo = 0;
+        int passed = 0, failed = 0, skipped = 0;
+        boolean testPassed = true;
+
+        try {
+            driver.manage().window().setSize(new Dimension(1366, 900));
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+            driver.get(startUrl);
+
+            waitForPageToRender(driver);
+
+            logger.info("[{}] Page loaded: {}", testCaseId, driver.getCurrentUrl());
+
+            for (StepAction s : steps) {
+                stepNo++;
+                String screenshotPath = "";
+                String status = "PASSED";
+                String errorMessage = "";
+
+                try {
+                    logger.info("[{}] Step {}: {}", testCaseId, stepNo, s.getDescription());
+                    performAction(driver, s);
+
+                    if (screenshotOnStep) {
+                        screenshotPath = takeScreenshot(driver,
+                                testCaseId + "_step" + stepNo, screenshotsDir);
+                    }
+
+                    passed++;
+
+                } catch (RuntimeException ex) {
+                    if ("SKIPPED".equals(ex.getMessage())) {
+                        status = "SKIPPED";
+                        skipped++;
+                        writeStepResultRow(driver,resultsCsv, testCaseId,
+                                stepNo, s, status, "", "");
+                        continue;
+                    }
+
+                    testPassed = false;
+                    status = "FAILED";
+                    errorMessage = safe(ex.getMessage());
+                    screenshotPath = takeScreenshot(driver,testCaseId + "_step" + stepNo, screenshotsDir);
+                    failed++;
+
+                    writeStepResultRow(driver,resultsCsv, testCaseId, stepNo, s, status, errorMessage, screenshotPath);
+                    break;
+                }
+
+                writeStepResultRow( driver,resultsCsv, testCaseId, stepNo, s, status, errorMessage, screenshotPath);
+            }
+
+            logger.info("[{}] Test finished (passed={} skipped={} failed={})",
+                    testCaseId, passed, skipped, failed);
+
+        } finally {
+            writeCsvLine(resultsCsv, String.format(
+                    "%s,SUMMARY,SUMMARY,,,,%s,,,%s,%s",
+                    testCaseId,
+                    testPassed ? "PASSED" : "FAILED",
+                    safe(driver.getCurrentUrl()),
+                    Instant.now()
+            ));
+        }
+    }
     private void performAction(StepAction s) {
         By by = locatorFrom(s.getLocatorType(), s.getLocator());
 
@@ -219,6 +311,55 @@ public class SeleniumExecutor {
         }
     }
 
+    private void performAction(WebDriver driver, StepAction s) {
+        By by = locatorFrom(s.getLocatorType(), s.getLocator());
+
+        switch (s.getType()) {
+            case TYPE -> {
+                if (s.getPayload() == null || s.getPayload().isBlank())
+                    throw new RuntimeException("SKIPPED");
+
+                WebElement el = driver.findElement(by);
+                waitUntilEditable(driver, el);
+                el.clear();
+                el.sendKeys(s.getPayload());
+            }
+
+            case CLICK -> {
+                WebElement el = new WebDriverWait(driver, Duration.ofSeconds(15))
+                        .until(ExpectedConditions.visibilityOfElementLocated(by));
+                scrollIntoView(driver, el);
+                try {
+                    el.click();
+                } catch (ElementClickInterceptedException e) {
+                    ((JavascriptExecutor) driver)
+                            .executeScript("arguments[0].click();", el);
+                }
+            }
+
+            case SELECT -> {
+                if (s.getPayload() == null || s.getPayload().isBlank())
+                    throw new RuntimeException("SKIPPED");
+
+                new org.openqa.selenium.support.ui.Select(
+                        driver.findElement(by)
+                ).selectByVisibleText(s.getPayload());
+            }
+
+            case VERIFY_TEXT -> {
+                String text = driver.findElement(by).getText();
+                if (!text.contains(s.getPayload())) {
+                    throw new RuntimeException("Expected text not found: " + s.getPayload());
+                }
+            }
+
+            case WAIT -> {
+                try { Thread.sleep(Long.parseLong(s.getPayload())); }
+                catch (InterruptedException ignored) {}
+            }
+        }
+    }
+
     private By locatorFrom(String locatorType, String locator) {
         if ("css".equalsIgnoreCase(locatorType)) return By.cssSelector(locator);
         return By.xpath(locator);
@@ -247,11 +388,53 @@ public class SeleniumExecutor {
             return "";
         }
     }
+    private String takeScreenshot(WebDriver driver,String name, Path screenshotsDir) {
+        try {
+            // ensure top-left visible and allow repaint
+            try {
+                ((JavascriptExecutor) driver).executeScript("window.scrollTo(0,0)");
+                Thread.sleep(300);
+            } catch (Exception ignored) {}
+
+            File src = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+            String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now()).replace(":", "-");
+            String filename = screenshotsDir.resolve(name + "_" + timestamp + ".png").toString();
+            FileUtils.copyFile(src, new File(filename));
+            logger.info("Saved screenshot: {}", filename);
+            return filename;
+        } catch (Exception ex) {
+            logger.error("Failed to take screenshot: {}", ex.getMessage(), ex);
+            return "";
+        }
+    }
 
     /**
      * Writes a CSV row describing a single step result to the given CSV path.
      */
     private void writeStepResultRow(Path resultsCsv, String testCaseId, int stepNo, StepAction s,
+                                    String status, String errorMessage, String screenshotPath) {
+        String desc = s.getDescription() != null ? s.getDescription().replaceAll(",", " ") : "";
+        String locatorType = s.getLocatorType() != null ? s.getLocatorType() : "";
+        String locator = s.getLocator() != null ? s.getLocator().replaceAll(",", " ") : "";
+        String payload = s.getPayload() != null ? s.getPayload().replaceAll(",", " ") : "";
+        String pageUrl = driver != null ? safe(driver.getCurrentUrl()) : "";
+        String timestamp = safe(Instant.now().toString());
+        String line = String.format("%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+                testCaseId,
+                stepNo,
+                desc,
+                locatorType,
+                locator,
+                payload,
+                status,
+                errorMessage,
+                screenshotPath,
+                pageUrl,
+                timestamp
+        );
+        writeCsvLine(resultsCsv, line);
+    }
+    private void writeStepResultRow(WebDriver driver,Path resultsCsv, String testCaseId, int stepNo, StepAction s,
                                     String status, String errorMessage, String screenshotPath) {
         String desc = s.getDescription() != null ? s.getDescription().replaceAll(",", " ") : "";
         String locatorType = s.getLocatorType() != null ? s.getLocatorType() : "";
@@ -330,11 +513,51 @@ public class SeleniumExecutor {
             logger.warn("UI render wait timeout — continuing: {}", e.getMessage());
         }
     }
+    private void waitForPageToRender(WebDriver driver) {
+        try {
+            new org.openqa.selenium.support.ui.WebDriverWait(driver, java.time.Duration.ofSeconds(15))
+                    .until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
+
+            // wait for one of the meaningful elements to be visible (login button, username, etc.)
+            List<By> anchors = Arrays.asList(
+                    By.cssSelector("#app-login-btn"),
+                    By.cssSelector("#username"),
+                    By.cssSelector("#companyIdentifier"),
+                    By.cssSelector("input")
+            );
+
+            new org.openqa.selenium.support.ui.WebDriverWait(driver, java.time.Duration.ofSeconds(15))
+                    .until(d -> {
+                        for (By b : anchors) {
+                            try {
+                                if (!d.findElements(b).isEmpty() && d.findElement(b).isDisplayed()) {
+                                    return true;
+                                }
+                            } catch (Exception ignored) {}
+                        }
+                        return false;
+                    });
+
+            // small render buffer to allow CSS/animations/fonts to paint
+            Thread.sleep(700);
+
+        } catch (Exception e) {
+            logger.warn("UI render wait timeout — continuing: {}", e.getMessage());
+        }
+    }
     private void scrollIntoView(WebElement el) {
         ((JavascriptExecutor) driver)
                 .executeScript("arguments[0].scrollIntoView({block:'center'});", el);
     }
     private void waitUntilEditable(WebElement el) {
+        new WebDriverWait(driver, Duration.ofSeconds(5))
+                .until(d -> el.isDisplayed() && el.isEnabled());
+    }
+    private void scrollIntoView(WebDriver driver,WebElement el) {
+        ((JavascriptExecutor) driver)
+                .executeScript("arguments[0].scrollIntoView({block:'center'});", el);
+    }
+    private void waitUntilEditable(WebDriver driver,WebElement el) {
         new WebDriverWait(driver, Duration.ofSeconds(5))
                 .until(d -> el.isDisplayed() && el.isEnabled());
     }
