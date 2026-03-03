@@ -38,4 +38,4 @@ out/
 
 test-results/
 .logs
-.results.csv
+finalResult.csv

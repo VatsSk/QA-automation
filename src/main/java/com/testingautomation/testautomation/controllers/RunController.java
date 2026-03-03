@@ -49,22 +49,37 @@ public class RunController {
             logger.info("Length of fields :"+fields.size());
             System.out.println("Data from fields:  "+fields);
 
+
             List<TestCase> testCases = csvLoader.load(csvPath);
             System.out.println("Data from test cases:  "+testCases);
             for (TestCase tc : testCases) {
+                ChromeOptions options = new ChromeOptions();
+//                options.addArguments("--headless=new");
+//                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
+                options.addArguments("--disable-gpu");
+                options.addArguments("--window-size=1366,768");
+                WebDriver driver = new ChromeDriver(options);;
+                try {
                 // If CSV row provides a url override, use it
-                String url = (tc.getUrl() != null && !tc.getUrl().isBlank()) ? tc.getUrl() : targetUrl;
-                System.out.println(url);
-                List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
-                logger.info("Steps to execute :  "+steps.size());
-                logger.info("Steps to execute :  "+steps);
-                executor.run(url, steps, tc.getId());
+                    String url = (tc.getUrl() != null && !tc.getUrl().isBlank())
+                            ? tc.getUrl()
+                            : targetUrl;
+
+                    List<StepAction> steps =
+                            stepGenerator.generateSteps(fields, tc);
+
+                    executor.run(driver, url, steps, tc.getId());
+
+                } finally {
+                    driver.quit();   // 🔥 THIS IS REQUIRED
+                }
             }
             return "Run completed";
         } catch (Exception e) {
             logger.error("Run failed", e);
             return "Run failed: " + e.getMessage();
         }
+
     }
 
     /**
@@ -99,8 +114,9 @@ public class RunController {
                 System.out.println("tc"+tc);
 
                 ChromeOptions options = new ChromeOptions();
-                options.addArguments("--headless=new");
-                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
+//                options.addArguments("--headless=new");
+//                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
+                options.addArguments("--disable-gpu");
                 options.addArguments("--window-size=1366,768");
                 WebDriver driver = new ChromeDriver(options);; // 👈 single session
 
@@ -141,5 +157,6 @@ public class RunController {
             logger.error("Run failed", e);
             return "Run failed: " + e.getMessage();
         }
+
     }
 }
