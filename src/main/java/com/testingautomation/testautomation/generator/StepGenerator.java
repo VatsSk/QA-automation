@@ -46,18 +46,27 @@ public class StepGenerator {
                 }
 
             } else if ("button".equalsIgnoreCase(f.tag) || "a".equalsIgnoreCase(f.tag)) {
-                // For buttons/links: click only if it's a submit OR CSV explicitly asks for "click"
-                boolean isSubmit = f.type != null ;
-//                boolean csvSaysClick = value != null ;
 
-                if (isSubmit) {
-                    logger.info("click button clicked");
-                    String actionDescription = String.format("Click on %s (text=%s)", locator, f.text);
-                    steps.add(new StepAction(StepAction.ActionType.CLICK, locatorType, locator, null, actionDescription));
+                // click ONLY if CSV explicitly says "click"
+                boolean csvSaysClick =
+                        value != null && value.trim().equalsIgnoreCase("click");
+
+                if (csvSaysClick) {
+                    String actionDescription =
+                            String.format("Click on %s (id=%s)", locator, f.id);
+
+                    steps.add(new StepAction(
+                            StepAction.ActionType.CLICK,
+                            locatorType,
+                            locator,
+                            null,
+                            actionDescription
+                    ));
+
                 } else {
-                    logger.debug("Skipping click {} (not submit and no CSV click)", f.id != null ? f.id : locator);
+                    logger.debug("Skipping click {} (CSV did not request click)",
+                            f.id != null ? f.id : locator);
                 }
-
             }else if ("span".equalsIgnoreCase(f.tag)) {
 
                 // Only verify if CSV explicitly provides expected value
