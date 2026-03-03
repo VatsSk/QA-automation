@@ -1,5 +1,6 @@
 companyIdentifier,username,password
 ABC123,sugam_testing,ValidPass@123
+wildcraft,portugal_rm,breakingbad
 ABC123,sugam_testing,WrongPass
 wildcraft,portugal_rm,breakingbad
 ABC123,wrong_user,ValidPass@123
