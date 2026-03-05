@@ -98,65 +98,136 @@ public class RunController {
             @RequestParam String targetUrl,
             @RequestParam String csvPath
     ) {
+        logger.info("========== AUTHENTICATED RUN STARTED ==========");
+        logger.info("Login URL: {}", loginUrl);
+        logger.info("Target URL: {}", targetUrl);
+
         try {
             List<TestCase> testCases = csvLoader.load(csvPath);
             List<TestCase> validCredentials = csvLoader.load(trueCred);
-            TestCase testCaseValid = validCredentials.get(0);
-            System.out.println("test case for valid credentials "+testCaseValid);
+            List<TestCase> validTaskTests = csvLoader.load("newTaskTests.csv");
 
-            if(testCaseValid ==null){
-                throw new RuntimeException("Please provide one valid credential for login ");
+            logger.info("Loaded {} main test cases", testCases.size());
+            logger.info("Loaded {} task form test cases", validTaskTests.size());
+
+            if (validCredentials.isEmpty()) {
+                throw new RuntimeException("No valid login credential provided");
             }
-            System.out.println("testCases"+ testCases.size());
+
+            TestCase testCaseValid = validCredentials.get(0);
+            logger.info("Using login credential: {}", testCaseValid.getId());
 
             for (TestCase tc : testCases) {
+
+                logger.info("--------------------------------------------------");
+                logger.info("Starting TestCase: {}", tc.getId());
+
                 WebDriverManager.chromedriver().setup();
-                System.out.println("tc"+tc);
 
                 ChromeOptions options = new ChromeOptions();
-//                options.addArguments("--headless=new");
-//                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
                 options.addArguments("--disable-gpu");
                 options.addArguments("--window-size=1366,768");
-                WebDriver driver = new ChromeDriver(options);; // 👈 single session
+
+                WebDriver driver = new ChromeDriver(options);
 
                 try {
-                    // 1️⃣ LOGIN
-                    List<FieldDescriptor> loginFields = scannerService.scanPage(loginUrl, driver);
+
+                    logger.info("[{}] Step 1: Scanning Login Page", tc.getId());
+                    List<FieldDescriptor> loginFields =
+                            scannerService.scanPage(loginUrl, driver);
+
+                    logger.info("[{}] Found {} login elements",
+                            tc.getId(), loginFields.size());
+
                     List<StepAction> loginSteps =
                             stepGenerator.generateSteps(loginFields, testCaseValid);
 
-                    executor.run(driver,loginUrl, loginSteps, tc.getId() + "_LOGIN");
+                    logger.info("[{}] Executing Login Steps ({})",
+                            tc.getId(), loginSteps.size());
 
-                    // 2️⃣ TARGET PAGE
+                    executor.run(driver,
+                            loginUrl,
+                            loginSteps,
+                            tc.getId() + "_LOGIN");
+
+                    logger.info("[{}] Login completed. Current URL: {}",
+                            tc.getId(), driver.getCurrentUrl());
+
+                    // TARGET PAGE
+                    logger.info("[{}] Step 2: Scanning Target Page", tc.getId());
+
                     List<FieldDescriptor> targetFields =
                             scannerService.scanPage(targetUrl, driver);
 
-                    System.out.println("no of fieldDescriptor : "+ targetFields.size());
-                    for(FieldDescriptor f:targetFields){
-                        if(f.text !=null && f.text.equalsIgnoreCase("add")){
-                            System.out.println("add is present : "+f);
-                        }
-                    }
-
-                    System.out.println(targetFields);
+                    logger.info("[{}] Found {} target elements",
+                            tc.getId(), targetFields.size());
 
                     List<StepAction> testSteps =
                             stepGenerator.generateSteps(targetFields, tc);
 
-                    executor.run(driver,targetUrl, testSteps, tc.getId());
+                    logger.info("[{}] Executing Add Task Button Steps ({})",
+                            tc.getId(), testSteps.size());
 
+                    executor.run(driver,
+                            targetUrl,
+                            testSteps,
+                            tc.getId() + "_add_task_button");
+
+                    logger.info("[{}] Add button executed. Current URL: {}",
+                            tc.getId(), driver.getCurrentUrl());
+
+                    // MODAL SCAN
+                    logger.info("[{}] Scanning modal fields from current DOM",
+                            tc.getId());
+
+                    List<FieldDescriptor> newFields =
+                            scannerService.scanCurrentPage(driver);
+
+                    logger.info("[{}] Found {} modal fields",
+                            tc.getId(), newFields.size());
+
+                    // FORM TEST EXECUTION LOOP
+                    for (TestCase testTasks : validTaskTests) {
+
+                        logger.info("[{}] Executing Task Form Test: {}",
+                                tc.getId(), testTasks.getId());
+
+                        List<StepAction> formFillSteps =
+                                stepGenerator.generateSteps(newFields, testTasks);
+
+                        logger.info("[{}] Generated {} form steps size",
+                                testTasks.getId(), formFillSteps.size());
+                        logger.info("[{}] Generated {} form steps",
+                                testTasks.getId(), formFillSteps);
+
+                        executor.runOnRenderedPage(
+                                driver,
+                                formFillSteps,
+                                testTasks.getId() + "_task_form"
+                        );
+
+                        logger.info("[{}] Completed Task Form Test",
+                                testTasks.getId());
+                    }
+
+                    logger.info("[{}] All form scenarios completed",
+                            tc.getId());
+
+                } catch (Exception e) {
+                    logger.error("[{}] Test execution failed: {}",
+                            tc.getId(), e.getMessage(), e);
                 } finally {
+                    logger.info("[{}] Closing browser session", tc.getId());
                     driver.quit();
                 }
             }
 
+            logger.info("========== AUTHENTICATED RUN COMPLETED ==========");
             return "Authenticated run completed";
 
         } catch (Exception e) {
-            logger.error("Run failed", e);
+            logger.error("RUN FAILED: {}", e.getMessage(), e);
             return "Run failed: " + e.getMessage();
         }
-
     }
 }

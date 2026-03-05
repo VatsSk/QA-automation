@@ -27,5 +27,6 @@ public class StepAction {
     public StepAction(ActionType type, String locatorType, String locator, String payload, String description) {
         this.type = type; this.locatorType = locatorType; this.locator = locator; this.payload = payload; this.description = description;
     }
+
     // getters...
 }
