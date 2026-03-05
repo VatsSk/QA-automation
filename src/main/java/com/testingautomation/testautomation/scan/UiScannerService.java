@@ -206,5 +206,95 @@ public class UiScannerService {
             throw new RuntimeException(e);
         }
     }
+
+    public List<FieldDescriptor> scanCurrentPage(WebDriver driver) {
+        System.out.println("Scan Current DOM (no refresh)");
+
+        try {
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(15));
+
+            // Wait for page ready (no navigation)
+            wait.until(d ->
+                    ((JavascriptExecutor) d)
+                            .executeScript("return document.readyState")
+                            .equals("complete")
+            );
+
+            // Small stabilization buffer (important for modals / React)
+            Thread.sleep(500);
+
+            return extractElementsFromDom(driver);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to scan current DOM", e);
+        }
+    }
+
+    private List<FieldDescriptor> extractElementsFromDom(WebDriver driver) {
+
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+
+        String script = """
+        return Array.from(document.querySelectorAll(
+                 'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
+               ))
+               .filter(function(el) {
+                 const rect = el.getBoundingClientRect();
+                 const style = window.getComputedStyle(el);
+
+                 return rect.width > 0 &&
+                        rect.height > 0 &&
+                        style.visibility !== 'hidden' &&
+                        style.display !== 'none' &&
+                        el.id ; 
+               })
+               .map(function(el) {
+
+                 let text = null;
+
+                 if (el.tagName.toLowerCase() === 'select') {
+                   if (el.selectedIndex >= 0 && el.options.length > 0) {
+                     text = el.options[el.selectedIndex].text.trim();
+                   } else if (el.options.length > 0) {
+                     text = el.options[0].text.trim();
+                   }
+                 } else {
+                   text = el.innerText ? el.innerText.trim() : null;
+                 }
+
+                 const id = el.id;
+                 const name = el.name || null;
+
+                 return {
+                   tag: el.tagName.toLowerCase(),
+                   type: el.type || null,
+                   id: id,
+                   name: name,
+                   text: text,
+                   css: id ? '#' + id : null,
+                   xpath: id ? '//*[@id="' + id + '"]' : null
+                 };
+               });
+    """;
+
+        List<Map<String, Object>> raw =
+                (List<Map<String, Object>>) js.executeScript(script);
+
+        List<FieldDescriptor> elements = new ArrayList<>();
+
+        for (Map<String, Object> map : raw) {
+            FieldDescriptor e = new FieldDescriptor();
+            e.tag = (String) map.get("tag");
+            e.type = (String) map.get("type");
+            e.id = (String) map.get("id");
+            e.name = (String) map.get("name");
+            e.text = (String) map.get("text");
+            e.css = (String) map.get("css");
+            e.xpath = (String) map.get("xpath");
+            elements.add(e);
+        }
+
+        return elements;
+    }
 }
 

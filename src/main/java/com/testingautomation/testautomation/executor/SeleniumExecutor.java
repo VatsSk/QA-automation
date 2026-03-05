@@ -142,7 +142,11 @@ public class SeleniumExecutor {
                 writeStepResultRow(driver1,resultsCsv, testCaseId, stepNo, s, status, errorMessage, screenshotPath);
             }
 
+            if(steps.size()>0){
             writeFinalResultRow(driver1,finalCsv,testCaseId,steps.get(steps.size()-1),status,errorMessage,screenshotPath);
+            }else{
+                logger.info("step is empty");
+            }
 
             if (testPassed) {
                 logger.info("[{}] Test finished successfully (passed={} skipped={} failed={})", testCaseId, passed, skipped, failed);
@@ -172,6 +176,153 @@ public class SeleniumExecutor {
                     safe(Instant.now().toString())
             ));
             // NOTE: do not quit driver here; lifecycle handled by caller or Spring config
+        }
+    }
+
+    public void runOnRenderedPage(
+            WebDriver driver1,
+            List<StepAction> steps,
+            String testCaseId
+    ) {
+
+        String timestamp = LocalDateTime.now()
+                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+
+        Path runDir = Paths.get(resultsBaseDir, testCaseId + "_" + timestamp);
+        Path screenshotsDir = runDir.resolve("screenshots");
+        Path resultsCsv = runDir.resolve("results.csv");
+        Path finalCsv = runDir.getParent().getParent().resolve("finalResult.csv");
+
+        try {
+            Files.createDirectories(screenshotsDir);
+
+            if (Files.notExists(resultsCsv)) {
+                Files.createFile(resultsCsv);
+                writeCsvLine(resultsCsv,
+                        "testCaseId,stepNo,stepDescription,locatorType,locator,payload,status,errorMessage,screenshotPath,pageUrl,timestamp");
+            }
+
+            if (Files.notExists(finalCsv)) {
+                Files.createFile(finalCsv);
+                writeCsvLine(finalCsv,
+                        "testCaseId,description,locatorType,locator,payload,status,errorMessage,screenshotPath,pageUrl,timestamp");
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create run directory: " + e.getMessage(), e);
+        }
+
+        logger.info("[{}] Executing on CURRENT UI (no navigation)", testCaseId);
+
+        boolean testPassed = true;
+        int stepNo = 0;
+        int passed = 0, failed = 0, skipped = 0;
+
+        String screenshotPath = "";
+        String status = "PASSED";
+        String errorMessage = "";
+
+        try {
+
+            driver1.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+
+            for (StepAction s : steps) {
+                stepNo++;
+                screenshotPath = "";
+                status = "PASSED";
+                errorMessage = "";
+
+                try {
+                    logger.info("[{}] Step {}: {} -> locatorType={} locator={} payload={}",
+                            testCaseId, stepNo,
+                            s.getDescription(),
+                            s.getLocatorType(),
+                            s.getLocator(),
+                            s.getPayload());
+
+                    performAction(driver1, s);
+
+                    if (screenshotOnStep) {
+                        screenshotPath = takeScreenshot(
+                                driver1,
+                                testCaseId + "_step" + stepNo,
+                                screenshotsDir
+                        );
+                    }
+
+                    passed++;
+
+                } catch (RuntimeException ex) {
+
+                    if ("SKIPPED".equals(ex.getMessage())) {
+                        status = "SKIPPED";
+                        skipped++;
+                        writeStepResultRow(driver1, resultsCsv,
+                                testCaseId, stepNo, s,
+                                status, "", screenshotPath);
+                        continue;
+                    }
+
+                    testPassed = false;
+                    status = "FAILED";
+                    errorMessage = ex.getMessage() != null
+                            ? ex.getMessage().replaceAll("[\\r\\n,]", " ")
+                            : "";
+
+                    screenshotPath = takeScreenshot(
+                            driver1,
+                            testCaseId + "_step" + stepNo,
+                            screenshotsDir
+                    );
+
+                    failed++;
+
+                    writeStepResultRow(driver1, resultsCsv,
+                            testCaseId, stepNo, s,
+                            status, errorMessage, screenshotPath);
+
+                    break;
+                }
+
+                writeStepResultRow(driver1, resultsCsv,
+                        testCaseId, stepNo, s,
+                        status, errorMessage, screenshotPath);
+            }
+
+            if (steps.size() > 0) {
+                writeFinalResultRow(driver1, finalCsv,
+                        testCaseId,
+                        steps.get(steps.size() - 1),
+                        status,
+                        errorMessage,
+                        screenshotPath);
+            }
+
+            logger.info("[{}] Execution completed (passed={} skipped={} failed={})",
+                    testCaseId, passed, skipped, failed);
+
+        } catch (Exception e) {
+            testPassed = false;
+            logger.error("[{}] Test run failed: {}", testCaseId, e.getMessage(), e);
+        } finally {
+
+            String overall = testPassed ? "PASSED" : "FAILED";
+            String summaryDesc = String.format("SUMMARY for test %s", testCaseId);
+
+            writeCsvLine(resultsCsv,
+                    String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+                            testCaseId,
+                            "SUMMARY",
+                            summaryDesc.replaceAll(",", " "),
+                            "",
+                            "",
+                            "",
+                            overall,
+                            "",
+                            "",
+                            safe(driver1.getCurrentUrl()),
+                            safe(Instant.now().toString())
+                    ));
         }
     }
 
