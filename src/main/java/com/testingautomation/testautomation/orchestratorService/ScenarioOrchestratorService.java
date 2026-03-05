@@ -1,5 +1,7 @@
 package com.testingautomation.testautomation.orchestratorService;
 
+import com.testingautomation.testautomation.dto.TestConfigPayload;
+import com.testingautomation.testautomation.dto.TestConfigRequest;
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
@@ -14,12 +16,15 @@ import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -125,8 +130,8 @@ public class ScenarioOrchestratorService {
         logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
 
         try {
-            WebElement opener = driver.findElement(By.cssSelector(openerCss));
-            opener.click();
+//            WebElement opener = driver.findElement(By.cssSelector(openerCss));
+//            opener.click();
 
             // small generic wait so modal DOM gets attached (replace with explicit wait if you have modal selector)
             Thread.sleep(400);
@@ -160,11 +165,38 @@ public class ScenarioOrchestratorService {
         }
     }
 
-    // Helper: convenience method to create a driver if you want this service to own driver lifecycle
-    public WebDriver createChromeDriver() {
-        WebDriverManager.chromedriver().setup();
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("--disable-gpu", "--window-size=1366,768");
-        return new org.openqa.selenium.chrome.ChromeDriver(options);
+    public List<ScenarioDescriptor> scenarioDescriptorMapper(TestConfigPayload payload,
+                                                             MultipartHttpServletRequest request){
+        List<ScenarioDescriptor> scenarios = new ArrayList<>();
+
+        for (TestConfigRequest req : payload.getTests()) {
+
+            // 1. Grab the exact file using the fileKey (e.g., "file_0")
+            MultipartFile csvFile = request.getFile(req.getFileKey());
+
+            // 2. Safely parse the Enum type
+            ScenarioDescriptor.Type scenarioType;
+            try {
+                scenarioType = ScenarioDescriptor.Type.valueOf(req.getType().toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return null;
+            }
+
+            // 3. Construct YOUR actual ScenarioDescriptor
+            ScenarioDescriptor descriptor = new ScenarioDescriptor(
+                    scenarioType,
+                    req.getId(),
+                    req.getUrl(),
+                    csvFile
+            );
+
+            // 4. Add it to our list
+            scenarios.add(descriptor);
+
+        }
+            return  scenarios;
     }
+
+
+
 }

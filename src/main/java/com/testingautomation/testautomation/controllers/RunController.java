@@ -1,6 +1,8 @@
 package com.testingautomation.testautomation.controllers;
 
 import com.testingautomation.testautomation.client.ScannerClient;
+import com.testingautomation.testautomation.dto.TestConfigPayload;
+import com.testingautomation.testautomation.dto.TestConfigRequest;
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
@@ -16,10 +18,15 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.multipart.MultipartHttpServletRequest;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/runner")
@@ -185,4 +192,41 @@ public class RunController {
 //            return "Run failed: " + e.getMessage();
 //        }
 //    }
+
+    @PostMapping(value = "/run-auth", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<?> receiveTests(
+            @RequestPart("testConfiguration") TestConfigPayload payload,
+            MultipartHttpServletRequest request) {
+
+
+
+        // This list will hold your final, fully populated domain objects
+
+
+        ChromeOptions options = new ChromeOptions();
+//                options.addArguments("--headless=new");
+//                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1366,768");
+        WebDriver driver = new ChromeDriver(options);
+
+        List<ScenarioDescriptor> scenarios = scenarioOrchestratorService.scenarioDescriptorMapper(payload,request);
+        if(scenarios==null){
+            return ResponseEntity.badRequest().body("no scenario to look up to!");
+        }
+        // --- At this point, you have a List<ScenarioDescriptor> ready for Selenium! ---
+        System.out.println("Successfully created " + scenarios.size() + " ScenarioDescriptors.");
+        try {
+            scenarioOrchestratorService.executeScenarios(driver, scenarios, "sk1");
+        }catch (Exception ex){
+            logger.error("exception has been occured! "+ex.getStackTrace());
+        }finally {
+           driver.quit();
+        }
+
+        return ResponseEntity.ok(Map.of("status", "success", "message", "Tests successfully mapped to ScenarioDescriptors!"));
+    }
+
+
+
 }
