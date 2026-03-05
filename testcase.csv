@@ -1,13 +1,13 @@
-companyIdentifier,username,password
-ABC123,sugam_testing,ValidPass@123
-ABC123,sugam_testing,WrongPass
-wildcraft,portugal_rm,breakingbad
-ABC123,wrong_user,ValidPass@123
-ABC123,,ValidPass@123
-ABC123,sugam_testing,
-,sugam_testing,ValidPass@123
-TRACK01,admin_user,Admin@2026
-TFINDIA,manager01,Manager#123
-ABC123,' OR '1'='1,test
-ABC123,<script>alert(1)</script>,test
-wildcraft,portugal_rm,breakingbad
+companyIdentifier,username,password,app-login-btn
+ABC123,sugam_testing,ValidPass@123, click
+ABC123,sugam_testing,WrongPass, click
+wildcraft,portugal_rm,breakingbad, click
+ABC123,wrong_user,ValidPass@123, click
+ABC123,,ValidPass@123, click
+ABC123,sugam_testing,, click
+,sugam_testing,ValidPass@123, click
+TRACK01,admin_user,Admin@2026, click
+TFINDIA,manager01,Manager#123, click
+ABC123,' OR '1'='1,test, click
+ABC123,<script>alert(1)</script>,test, click
+wildcraft,portugal_rm,breakingbad, click
