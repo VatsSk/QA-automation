@@ -7,7 +7,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import java.io.FileReader;
+import java.io.InputStreamReader;
 import java.util.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @Component
 public class CsvTestCaseLoader {
@@ -33,6 +35,36 @@ public class CsvTestCaseLoader {
             }
         }
         logger.info("Total testcases loaded: {}", list.size());
+        return list;
+    }
+    public List<TestCase> load(MultipartFile file) throws Exception {
+
+        logger.info("Loading CSV testcases from uploaded file {}", file.getOriginalFilename());
+
+        List<TestCase> list = new ArrayList<>();
+
+        try (CSVReaderHeaderAware reader =
+                     new CSVReaderHeaderAware(
+                             new InputStreamReader(file.getInputStream()))) {
+
+            Map<String,String> row;
+
+            while ((row = reader.readMap()) != null) {
+
+                String id = row.getOrDefault("testCaseId", UUID.randomUUID().toString());
+                String url = row.get("url");
+
+                Map<String,String> values = new HashMap<>(row);
+                values.remove("testCaseId");
+
+                list.add(new TestCase(id, url, values));
+
+                logger.debug("Loaded testcase {} url={}", id, url);
+            }
+        }
+
+        logger.info("Total testcases loaded: {}", list.size());
+
         return list;
     }
 }
