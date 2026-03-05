@@ -357,7 +357,6 @@ public class SeleniumExecutor {
                     throw new RuntimeException("SKIPPED");
                 }
                 break;
-
             case CLICK:
 
                 String beforeUrl = driver1.getCurrentUrl();
