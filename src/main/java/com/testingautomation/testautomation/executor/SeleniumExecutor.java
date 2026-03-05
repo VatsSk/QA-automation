@@ -334,10 +334,24 @@ public class SeleniumExecutor {
 
             case TYPE:
                 if (s.getPayload() != null && !s.getPayload().isBlank()) {
-                    WebElement el = driver1.findElement(by);
-                    waitUntilEditable(driver1,el);
-                    el.clear();
-                    el.sendKeys(s.getPayload());
+                    WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
+                            .until(ExpectedConditions.visibilityOfElementLocated(by));
+                    waitUntilEditable(driver1, el);
+                    scrollIntoView(driver1, el);
+                    String locator = s.getLocator().toLowerCase();
+                    // Detect date/time fields automatically
+                    if (locator.contains("date") || locator.contains("time")
+                            || locator.contains("start") || locator.contains("end")) {
+                        setDateUsingJS(driver1, el, s.getPayload());
+                    } else {
+                        el.clear();
+                        el.sendKeys(s.getPayload());
+                        // Trigger UI events for frameworks like React/Angular
+                        ((JavascriptExecutor) driver1).executeScript(
+                                "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
+                        ((JavascriptExecutor) driver1).executeScript(
+                                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+                    }
                 } else {
                     logger.info("Skipping TYPE for locator {} because payload is empty", s.getLocator());
                     throw new RuntimeException("SKIPPED");
@@ -349,25 +363,37 @@ public class SeleniumExecutor {
                 String beforeUrl = driver1.getCurrentUrl();
 
                 WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
-                        .until(ExpectedConditions.elementToBeClickable(by));
+                        .until(ExpectedConditions.presenceOfElementLocated(by));
 
-                scrollIntoView(driver1,el);
+                scrollIntoView(driver1, el);
+
+                // Skip click if radio/checkbox already selected
+                String type = el.getAttribute("type");
+                if (type != null && (type.equalsIgnoreCase("radio") || type.equalsIgnoreCase("checkbox"))) {
+                    if (el.isSelected()) {
+                        logger.info("Element already selected, skipping click: {}", by);
+                        break;
+                    }
+                }
 
                 try {
+                    new WebDriverWait(driver1, Duration.ofSeconds(5))
+                            .until(ExpectedConditions.elementToBeClickable(el));
+
                     el.click();
+
                 } catch (ElementClickInterceptedException e) {
                     logger.warn("Normal click failed, retrying via JS");
                     ((JavascriptExecutor) driver1).executeScript("arguments[0].click();", el);
                 }
 
-                boolean navigated = waitForUrlChange(driver1,beforeUrl);
-
-                if (!navigated) {
-                    throw new RuntimeException("FAILED_CLICK_NO_NAVIGATION");
+                // Only check navigation but don't fail if it doesn't change
+                boolean navigated = waitForUrlChange(driver1, beforeUrl);
+                if (navigated) {
+                    logger.info("Navigation detected after click");
                 }
 
                 break;
-
             case SELECT:
                 if (s.getPayload() != null && !s.getPayload().isBlank()) {
                     org.openqa.selenium.support.ui.Select sel =
@@ -393,6 +419,13 @@ public class SeleniumExecutor {
             default:
                 logger.warn("Unknown action type: {}", s.getType());
         }
+    }
+    private void setDateUsingJS(WebDriver driver, WebElement el, String value) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        js.executeScript("arguments[0].value=arguments[1];", el, value);
+        js.executeScript("arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
+        js.executeScript("arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+        js.executeScript("arguments[0].dispatchEvent(new Event('blur',{bubbles:true}));", el);
     }
 
     private By locatorFrom(String locatorType, String locator) {
