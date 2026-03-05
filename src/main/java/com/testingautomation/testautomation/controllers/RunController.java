@@ -5,8 +5,10 @@ import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
 import com.testingautomation.testautomation.model.FieldDescriptor;
+import com.testingautomation.testautomation.model.ScenarioDescriptor;
 import com.testingautomation.testautomation.model.StepAction;
 import com.testingautomation.testautomation.model.TestCase;
+import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
 import com.testingautomation.testautomation.scan.UiScannerService;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.WebDriver;
@@ -15,6 +17,7 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -27,14 +30,16 @@ public class RunController {
     private final UiScannerService scannerService;
     private final StepGenerator stepGenerator;
     private final SeleniumExecutor executor;
+    private final ScenarioOrchestratorService scenarioOrchestratorService;
 
-    public RunController(UiScannerService scannerService, CsvTestCaseLoader csvLoader, StepGenerator stepGenerator, SeleniumExecutor executor) {
+    public RunController(UiScannerService scannerService, CsvTestCaseLoader csvLoader, StepGenerator stepGenerator, SeleniumExecutor executor,ScenarioOrchestratorService scenarioOrchestratorService) {
 //        this.scannerClient = scannerClient;
 
         this.csvLoader = csvLoader;
         this.scannerService = scannerService;
         this.stepGenerator = stepGenerator;
         this.executor = executor;
+        this.scenarioOrchestratorService=scenarioOrchestratorService;
     }
 
     /**
@@ -91,143 +96,93 @@ public class RunController {
      */
     // http://43.205.165.113/web/0/employee/list?lang=en //
 //    http://localhost:8080/runner/run-auth?targetUrl=http://43.205.165.113/login?lang=en&trueCred=trueCredentials.csv&targetUrl=http://43.205.165.113/web/0/employee/list?lang=en&csvPath=addEmployee.csv
-    @GetMapping("/run-auth")
-    public String runTestsWithLogin(
-            @RequestParam String loginUrl,
-            @RequestParam String trueCred,
-            @RequestParam String targetUrl,
-            @RequestParam String csvPath
-    ) {
-        logger.info("========== AUTHENTICATED RUN STARTED ==========");
-        logger.info("Login URL: {}", loginUrl);
-        logger.info("Target URL: {}", targetUrl);
-
-        try {
-            List<TestCase> testCases = csvLoader.load(csvPath);
-            List<TestCase> validCredentials = csvLoader.load(trueCred);
-            List<TestCase> validTaskTests = csvLoader.load("newTaskTests.csv");
-
-            logger.info("Loaded {} main test cases", testCases.size());
-            logger.info("Loaded {} task form test cases", validTaskTests.size());
-
-            if (validCredentials.isEmpty()) {
-                throw new RuntimeException("No valid login credential provided");
-            }
-
-            TestCase testCaseValid = validCredentials.get(0);
-            logger.info("Using login credential: {}", testCaseValid.getId());
-
-            for (TestCase tc : testCases) {
-
-                logger.info("--------------------------------------------------");
-                logger.info("Starting TestCase: {}", tc.getId());
-
-                WebDriverManager.chromedriver().setup();
-
-                ChromeOptions options = new ChromeOptions();
-                options.addArguments("--disable-gpu");
-                options.addArguments("--window-size=1366,768");
-
-                WebDriver driver = new ChromeDriver(options);
-
-                try {
-
-                    logger.info("[{}] Step 1: Scanning Login Page", tc.getId());
-                    List<FieldDescriptor> loginFields =
-                            scannerService.scanPage(loginUrl, driver);
-
-                    logger.info("[{}] Found {} login elements",
-                            tc.getId(), loginFields.size());
-
-                    List<StepAction> loginSteps =
-                            stepGenerator.generateSteps(loginFields, testCaseValid);
-
-                    logger.info("[{}] Executing Login Steps ({})",
-                            tc.getId(), loginSteps.size());
-
-                    executor.run(driver,
-                            loginUrl,
-                            loginSteps,
-                            tc.getId() + "_LOGIN");
-
-                    logger.info("[{}] Login completed. Current URL: {}",
-                            tc.getId(), driver.getCurrentUrl());
-
-                    // TARGET PAGE
-                    logger.info("[{}] Step 2: Scanning Target Page", tc.getId());
-
-                    List<FieldDescriptor> targetFields =
-                            scannerService.scanPage(targetUrl, driver);
-
-                    logger.info("[{}] Found {} target elements",
-                            tc.getId(), targetFields.size());
-
-                    List<StepAction> testSteps =
-                            stepGenerator.generateSteps(targetFields, tc);
-
-                    logger.info("[{}] Executing Add Task Button Steps ({})",
-                            tc.getId(), testSteps.size());
-
-                    executor.run(driver,
-                            targetUrl,
-                            testSteps,
-                            tc.getId() + "_add_task_button");
-
-                    logger.info("[{}] Add button executed. Current URL: {}",
-                            tc.getId(), driver.getCurrentUrl());
-
-                    // MODAL SCAN
-                    logger.info("[{}] Scanning modal fields from current DOM",
-                            tc.getId());
-
-                    List<FieldDescriptor> newFields =
-                            scannerService.scanCurrentPage(driver);
-
-                    logger.info("[{}] Found {} modal fields",
-                            tc.getId(), newFields.size());
-
-                    // FORM TEST EXECUTION LOOP
-                    for (TestCase testTasks : validTaskTests) {
-
-                        logger.info("[{}] Executing Task Form Test: {}",
-                                tc.getId(), testTasks.getId());
-
-                        List<StepAction> formFillSteps =
-                                stepGenerator.generateSteps(newFields, testTasks);
-
-                        logger.info("[{}] Generated {} form steps size",
-                                testTasks.getId(), formFillSteps.size());
-                        logger.info("[{}] Generated {} form steps",
-                                testTasks.getId(), formFillSteps);
-
-                        executor.runOnRenderedPage(
-                                driver,
-                                formFillSteps,
-                                testTasks.getId() + "_task_form"
-                        );
-
-                        logger.info("[{}] Completed Task Form Test",
-                                testTasks.getId());
-                    }
-
-                    logger.info("[{}] All form scenarios completed",
-                            tc.getId());
-
-                } catch (Exception e) {
-                    logger.error("[{}] Test execution failed: {}",
-                            tc.getId(), e.getMessage(), e);
-                } finally {
-                    logger.info("[{}] Closing browser session", tc.getId());
-                    driver.quit();
-                }
-            }
-
-            logger.info("========== AUTHENTICATED RUN COMPLETED ==========");
-            return "Authenticated run completed";
-
-        } catch (Exception e) {
-            logger.error("RUN FAILED: {}", e.getMessage(), e);
-            return "Run failed: " + e.getMessage();
-        }
-    }
+//
+//    @GetMapping("/run-auth")
+//    public String runTestsWithLogin(
+//            @RequestParam String loginUrl,
+//            @RequestParam String trueCred,
+//            @RequestParam String targetUrl,
+//            @RequestParam MultipartFile csvFile
+//    ) {
+//
+//        logger.info("========== AUTHENTICATED SCENARIO RUN STARTED ==========");
+//
+//        try {
+//
+//            List<TestCase> validCredentials = csvLoader.load(trueCred);
+//
+//            if (validCredentials.isEmpty()) {
+//                throw new RuntimeException("No valid login credential provided");
+//            }
+//
+//            TestCase loginCredential = validCredentials.get(0);
+//
+//            // Create driver
+//            WebDriver driver = scenarioOrchestratorService.createChromeDriver();
+//
+//            try {
+//
+//                // STEP 1 — LOGIN
+//                logger.info("Running Login Step");
+//
+//                List<FieldDescriptor> loginFields =
+//                        scannerService.scanPage(loginUrl, driver);
+//
+//                List<StepAction> loginSteps =
+//                        stepGenerator.generateSteps(loginFields, loginCredential);
+//
+//                executor.run(
+//                        driver,
+//                        loginUrl,
+//                        loginSteps,
+//                        "LOGIN"
+//                );
+//
+//                logger.info("Login completed. Current URL: {}", driver.getCurrentUrl());
+//
+//
+//                // STEP 2 — BUILD SCENARIOS
+//                List<ScenarioDescriptor> scenarios = List.of(
+//
+//                        new ScenarioDescriptor(
+//                                ScenarioDescriptor.Type.URL,
+//                                "ADD_TASK_BUTTON",
+//                                targetUrl,
+//                                null,
+//                                csvFile
+//                        )
+//
+////                        new ScenarioDescriptor(
+////                                ScenarioDescriptor.Type.MODAL,
+////                                "TASK_FORM_MODAL",
+////                                null,
+////                                "#add-task-btn",
+////                                "newTaskTests.csv"
+////                        )
+//
+//                );
+//
+//
+//                // STEP 3 — RUN SCENARIOS
+//                scenarioOrchestratorService.executeScenarios(
+//                        driver,
+//                        scenarios,
+//                        "RUN_AUTH"
+//                );
+//
+//            } finally {
+//
+//                driver.quit();
+//            }
+//
+//            logger.info("========== SCENARIO RUN COMPLETED ==========");
+//
+//            return "Scenario execution completed";
+//
+//        } catch (Exception e) {
+//
+//            logger.error("RUN FAILED: {}", e.getMessage(), e);
+//            return "Run failed: " + e.getMessage();
+//        }
+//    }
 }
