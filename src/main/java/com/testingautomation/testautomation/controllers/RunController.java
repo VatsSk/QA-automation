@@ -80,7 +80,7 @@ public class RunController {
                     List<StepAction> steps =
                             stepGenerator.generateSteps(fields, tc);
 
-                    executor.run(driver, url, steps, tc.getId());
+                    executor.run(driver, url, steps, tc.getId(),"");
 
                 } finally {
                     driver.quit();   // 🔥 THIS IS REQUIRED
@@ -196,6 +196,7 @@ public class RunController {
     @PostMapping(value = "/run-auth", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> receiveTests(
             @RequestPart("testConfiguration") TestConfigPayload payload,
+            @RequestPart("testResultStatement") String successMsg,
             MultipartHttpServletRequest request) {
 
 
@@ -217,7 +218,7 @@ public class RunController {
         // --- At this point, you have a List<ScenarioDescriptor> ready for Selenium! ---
         System.out.println("Successfully created " + scenarios.size() + " ScenarioDescriptors.");
         try {
-            scenarioOrchestratorService.executeScenarios(driver, scenarios, "sk1");
+            scenarioOrchestratorService.executeScenarios(driver, scenarios, "sk1",successMsg);
         }catch (Exception ex){
             logger.error("exception has been occured! "+ex.getStackTrace());
         }finally {

@@ -38,7 +38,7 @@ public class SeleniumExecutor {
      *  <resultsBaseDir>/<testCaseId>_<yyyy-MM-dd_HH-mm-ss>/
      * containing results.csv and screenshots/.
      */
-    public void run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId) {
+    public void run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,String successMsg) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         Path runDir = Paths.get(resultsBaseDir, testCaseId + "_" + timestamp);
         Path screenshotsDir = runDir.resolve("screenshots");
@@ -141,9 +141,27 @@ public class SeleniumExecutor {
                 // write row for the step executed
                 writeStepResultRow(driver1,resultsCsv, testCaseId, stepNo, s, status, errorMessage, screenshotPath);
             }
+            // after you finish executing steps (and before writeFinalResultRow)
+            if (successMsg != null && !successMsg.trim().isEmpty()) {
+                boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
+                if (foundVisible) {
+                    status = "PASSED";
+                    errorMessage = "";
+                    testPassed = testPassed && true; // keep previous failures if any
+                    logger.info("[{}] Success message visible in viewport: '{}'", testCaseId, successMsg);
+                } else {
+                    status = "FAILED";
+                    // If there were earlier step failures, testPassed is already false; otherwise set it now
+                    testPassed = false;
+                    errorMessage = "Success message not visible in viewport: " + successMsg.replaceAll(",", " ");
+                    logger.warn("[{}] Success message NOT visible in viewport: '{}'", testCaseId, successMsg);
+                    // capture screenshot to help debug
+                    screenshotPath = takeScreenshot(driver1, testCaseId + "_final_check", screenshotsDir);
+                }
+            }
 
             if(steps.size()>0){
-            writeFinalResultRow(driver1,finalCsv,testCaseId,steps.get(steps.size()-1),status,errorMessage,screenshotPath);
+               writeFinalResultRow(driver1,finalCsv,testCaseId,steps.get(steps.size()-1),status,errorMessage,screenshotPath);
             }else{
                 logger.info("step is empty");
             }
@@ -182,7 +200,8 @@ public class SeleniumExecutor {
     public void runOnRenderedPage(
             WebDriver driver1,
             List<StepAction> steps,
-            String testCaseId
+            String testCaseId,
+            String successMsg
     ) {
 
         String timestamp = LocalDateTime.now()
@@ -288,6 +307,24 @@ public class SeleniumExecutor {
                         testCaseId, stepNo, s,
                         status, errorMessage, screenshotPath);
             }
+            if (successMsg != null && !successMsg.trim().isEmpty()) {
+                boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
+                if (foundVisible) {
+                    status = "PASSED";
+                    errorMessage = "";
+                    testPassed = testPassed && true; // keep previous failures if any
+                    logger.info("[{}] Success message visible in viewport: '{}'", testCaseId, successMsg);
+                } else {
+                    status = "FAILED";
+                    // If there were earlier step failures, testPassed is already false; otherwise set it now
+                    testPassed = false;
+                    errorMessage = "Success message not visible in viewport: " + successMsg.replaceAll(",", " ");
+                    logger.warn("[{}] Success message NOT visible in viewport: '{}'", testCaseId, successMsg);
+                    // capture screenshot to help debug
+                    screenshotPath = takeScreenshot(driver1, testCaseId + "_final_check", screenshotsDir);
+                }
+            }
+
 
             if (steps.size() > 0) {
                 writeFinalResultRow(driver1, finalCsv,
@@ -582,5 +619,33 @@ public class SeleniumExecutor {
     private void waitUntilEditable(WebDriver driver1,WebElement el) {
         new WebDriverWait(driver1, Duration.ofSeconds(5))
                 .until(d -> el.isDisplayed() && el.isEnabled());
+    }
+    // add this helper method to the class
+    private boolean isTextVisibleInViewport(WebDriver driver, String text) {
+        if (text == null || text.trim().isEmpty()) return false;
+        try {
+            Object res = ((JavascriptExecutor) driver).executeScript(
+                    "var needle = arguments[0];" +
+                            "var elems = document.querySelectorAll('body *');" +
+                            "for (var i = 0; i < elems.length; i++) {" +
+                            "  var e = elems[i];" +
+                            "  var rect = e.getBoundingClientRect();" +
+                            "  if (rect.width <= 0 || rect.height <= 0) continue;" +
+                            "  if (rect.bottom <= 0 || rect.right <= 0) continue;" +
+                            "  if (rect.top >= (window.innerHeight || document.documentElement.clientHeight)) continue;" +
+                            "  if (rect.left >= (window.innerWidth || document.documentElement.clientWidth)) continue;" +
+                            "  var style = window.getComputedStyle(e);" +
+                            "  if (style.visibility === 'hidden' || style.display === 'none' || style.opacity === '0') continue;" +
+                            "  var txt = e.innerText || '';" +
+                            "  if (txt.indexOf(needle) !== -1) return true;" +
+                            "}" +
+                            "return false;",
+                    text
+            );
+            return Boolean.TRUE.equals(res);
+        } catch (Exception ex) {
+            logger.warn("Error while checking visible text in viewport: {}", ex.getMessage());
+            return false;
+        }
     }
 }

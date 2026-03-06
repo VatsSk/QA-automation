@@ -52,21 +52,22 @@ public class ScenarioOrchestratorService {
      * Top-level: execute the list of scenarios in sequence (one by one).
      * Keeps single driver/session alive (login should be done before calling this).
      */
-    public void executeScenarios(WebDriver driver, List<ScenarioDescriptor> scenarios, String globalRunId) {
+    public void executeScenarios(WebDriver driver, List<ScenarioDescriptor> scenarios, String globalRunId,String successMsg) {
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
-
+        ScenarioDescriptor lastSecenario = scenarios.get(0);
         for (int i = 0; i < scenarios.size(); i++) {
             ScenarioDescriptor s = scenarios.get(i);
             String scenarioRunId = globalRunId + "_S" + (i + 1) + (s.getId() != null ? "_" + s.getId() : "");
             try {
 
                 if (s.getType() == ScenarioDescriptor.Type.URL) {
-
+                    lastSecenario=s;
                     runUrlGeneric(
                             driver,
                             s.getUrl(),
                             s.getCsvFile(),
-                            scenarioRunId
+                            scenarioRunId,
+                            successMsg
                     );
 
                 } else if (s.getType() == ScenarioDescriptor.Type.MODAL) {
@@ -75,7 +76,9 @@ public class ScenarioOrchestratorService {
                             driver,
                             s.getOpenerCss(),
                             s.getCsvFile(),
-                            scenarioRunId
+                            scenarioRunId,
+                            lastSecenario,
+                            successMsg
                     );
 
                 }
@@ -93,7 +96,7 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
-    public void runUrlGeneric(WebDriver driver, String url, MultipartFile csvFile, String runIdPrefix) throws Exception {
+    public void runUrlGeneric(WebDriver driver, String url, MultipartFile csvFile, String runIdPrefix,String successMsg) throws Exception {
         logger.info("[{}] runUrlGeneric start for URL: {}", runIdPrefix, url);
 
         // 1) scan page (fields)
@@ -111,7 +114,7 @@ public class ScenarioOrchestratorService {
                 logger.info("[{}] Generating steps for testcase {}", tcRunId, tc.getId());
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
-                executor.run(driver, url, steps, tcRunId);
+                executor.run(driver, url, steps, tcRunId,successMsg);
                 logger.info("[{}] Completed testcase {}", tcRunId, tc.getId());
             } catch (Exception e) {
                 logger.error("[{}] testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -126,7 +129,7 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase -> generate steps & run using executor.runOnRenderedPage(...)
      */
-    public void runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix) {
+    public void runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,ScenarioDescriptor lastScenario,String successMsg) throws Exception {
         logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
 
         try {
@@ -146,9 +149,10 @@ public class ScenarioOrchestratorService {
             for (TestCase tc : testCases) {
                 String tcRunId = runIdPrefix + "_" + tc.getId();
                 try {
+                    runUrlGeneric(driver,lastScenario.getUrl(), lastScenario.getCsvFile(),"lastUrl",successMsg);
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-                    executor.runOnRenderedPage(driver, steps, tcRunId);
+                    executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc.getId());
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
