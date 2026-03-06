@@ -54,7 +54,7 @@ public class SeleniumExecutor {
             }
             if(Files.notExists(finalCsv)) {
                 Files.createFile(finalCsv);
-                writeCsvLine(finalCsv, "testCaseId,description,locatorType,locator,payload,status,errorMessage,screenshotPath,pageUrl,timestamp");
+                writeCsvLine(finalCsv, "testCaseId,description,locatorType,locator,payload,status,screenshotPath,pageUrl,timestamp");
             }
             logger.info("[{}] Run folder created: {}", testCaseId, runDir.toAbsolutePath());
         } catch (Exception e) {
