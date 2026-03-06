@@ -309,6 +309,7 @@ public class SeleniumExecutor {
             }
             if (successMsg != null && !successMsg.trim().isEmpty()) {
                 boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
+                logger.info("IS visible file------>"+foundVisible);
                 if (foundVisible) {
                     status = "PASSED";
                     errorMessage = "";
