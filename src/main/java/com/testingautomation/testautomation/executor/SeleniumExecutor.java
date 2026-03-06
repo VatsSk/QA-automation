@@ -161,7 +161,7 @@ public class SeleniumExecutor {
             }
 
             if(steps.size()>0){
-               writeFinalResultRow(driver1,finalCsv,testCaseId,steps.get(steps.size()-1),status,errorMessage,screenshotPath);
+               writeFinalResultRow(driver1,finalCsv,testCaseId,steps.get(steps.size()-1),status,screenshotPath);
             }else{
                 logger.info("step is empty");
             }
@@ -224,7 +224,7 @@ public class SeleniumExecutor {
             if (Files.notExists(finalCsv)) {
                 Files.createFile(finalCsv);
                 writeCsvLine(finalCsv,
-                        "testCaseId,description,locatorType,locator,payload,status,errorMessage,screenshotPath,pageUrl,timestamp");
+                        "testCaseId,description,locatorType,locator,payload,status,screenshotPath,pageUrl,timestamp");
             }
 
         } catch (Exception e) {
@@ -332,7 +332,6 @@ public class SeleniumExecutor {
                         testCaseId,
                         steps.get(steps.size() - 1),
                         status,
-                        errorMessage,
                         screenshotPath);
             }
 
@@ -522,14 +521,14 @@ public class SeleniumExecutor {
     }
 
     private void writeFinalResultRow(WebDriver driver1,Path resultsCsv, String testCaseId,StepAction s,
-                                     String status, String errorMessage, String screenshotPath) {
+                                     String status, String screenshotPath) {
         String desc = s.getDescription() != null ? s.getDescription().replaceAll(",", " ") : "";
         String locatorType = s.getLocatorType() != null ? s.getLocatorType() : "";
         String locator = s.getLocator() != null ? s.getLocator().replaceAll(",", " ") : "";
         String payload = s.getPayload() != null ? s.getPayload().replaceAll(",", " ") : "";
         String pageUrl = driver1 != null ? safe(driver1.getCurrentUrl()) : "";
         String timestamp = safe(Instant.now().toString());
-        String line = String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+        String line = String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s",
                 testCaseId,
 //                    stepNo,
                 desc,
@@ -537,7 +536,6 @@ public class SeleniumExecutor {
                 locator,
                 payload,
                 status,
-                errorMessage,
                 screenshotPath,
                 pageUrl,
                 timestamp

@@ -136,7 +136,6 @@ public class ScenarioOrchestratorService {
         try {
 //            WebElement opener = driver.findElement(By.cssSelector(openerCss));
 //            opener.click();
-
             // small generic wait so modal DOM gets attached (replace with explicit wait if you have modal selector)
             Thread.sleep(400);
 
