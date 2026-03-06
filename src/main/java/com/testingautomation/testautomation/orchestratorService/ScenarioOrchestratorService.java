@@ -54,13 +54,14 @@ public class ScenarioOrchestratorService {
      */
     public void executeScenarios(WebDriver driver, List<ScenarioDescriptor> scenarios, String globalRunId) {
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
-
+        ScenarioDescriptor lastScenario = null;
         for (int i = 0; i < scenarios.size(); i++) {
             ScenarioDescriptor s = scenarios.get(i);
             String scenarioRunId = globalRunId + "_S" + (i + 1) + (s.getId() != null ? "_" + s.getId() : "");
             try {
 
                 if (s.getType() == ScenarioDescriptor.Type.URL) {
+                    lastScenario = s;
 
                     runUrlGeneric(
                             driver,
@@ -75,7 +76,8 @@ public class ScenarioOrchestratorService {
                             driver,
                             s.getOpenerCss(),
                             s.getCsvFile(),
-                            scenarioRunId
+                            scenarioRunId,
+                            lastScenario
                     );
 
                 }
@@ -126,7 +128,7 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase -> generate steps & run using executor.runOnRenderedPage(...)
      */
-    public void runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix) {
+    public void runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,ScenarioDescriptor lastScenario) {
         logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
 
         try {
@@ -145,6 +147,8 @@ public class ScenarioOrchestratorService {
 
             for (TestCase tc : testCases) {
                 String tcRunId = runIdPrefix + "_" + tc.getId();
+
+                runUrlGeneric(driver,lastScenario.getUrl(),lastScenario.getCsvFile(),tcRunId);
                 try {
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
