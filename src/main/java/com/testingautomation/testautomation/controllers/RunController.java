@@ -200,6 +200,8 @@ public class RunController {
             MultipartHttpServletRequest request) {
 
 
+                System.out.println(" -> " + successMsg);
+
 
         // This list will hold your final, fully populated domain objects
 

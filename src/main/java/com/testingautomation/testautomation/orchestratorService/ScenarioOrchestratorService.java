@@ -54,14 +54,15 @@ public class ScenarioOrchestratorService {
      */
     public void executeScenarios(WebDriver driver, List<ScenarioDescriptor> scenarios, String globalRunId,String successMsg) {
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
-        ScenarioDescriptor lastSecenario = scenarios.get(0);
+        ScenarioDescriptor lastScenario = null;
         for (int i = 0; i < scenarios.size(); i++) {
             ScenarioDescriptor s = scenarios.get(i);
             String scenarioRunId = globalRunId + "_S" + (i + 1) + (s.getId() != null ? "_" + s.getId() : "");
             try {
 
                 if (s.getType() == ScenarioDescriptor.Type.URL) {
-                    lastSecenario=s;
+                    lastScenario = s;
+
                     runUrlGeneric(
                             driver,
                             s.getUrl(),
@@ -77,7 +78,7 @@ public class ScenarioOrchestratorService {
                             s.getOpenerCss(),
                             s.getCsvFile(),
                             scenarioRunId,
-                            lastSecenario,
+                            lastScenario,
                             successMsg
                     );
 

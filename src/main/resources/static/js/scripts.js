@@ -17,23 +17,23 @@ function addBlock() {
     block.id = blockId;
 
     block.innerHTML = `
-                <div class="block-header">
-                    <h3>Test Block ${blockCounter}</h3>
-                    <button class="btn-remove" onclick="removeBlock('${blockId}')" title="Remove Block">&times;</button>
-                </div>
-                
-                <div class="form-group">
-                    <label>Select Type</label>
-                    <select class="type-selector" onchange="toggleFields('${blockId}')">
-                        <option value="url">URL</option>
-                        <option value="model">Model</option>
-                    </select>
-                </div>
+        <div class="block-header">
+            <h3>Test Block ${blockCounter}</h3>
+            <button class="btn-remove" onclick="removeBlock('${blockId}')" title="Remove Block">&times;</button>
+        </div>
+        
+        <div class="form-group">
+            <label>Select Type</label>
+            <select class="type-selector" onchange="toggleFields('${blockId}')">
+                <option value="url">URL</option>
+                <option value="model">Model</option>
+                <option value="statement">Test Result Statement</option> </select>
+        </div>
 
-                <div id="fields-${blockId}" class="dynamic-fields">
-                    ${getUrlFieldsHTML()}
-                </div>
-            `;
+        <div id="fields-${blockId}" class="dynamic-fields">
+            ${getUrlFieldsHTML()}
+        </div>
+    `;
     container.appendChild(block);
 }
 
@@ -55,96 +55,73 @@ function toggleFields(blockId) {
         fieldsContainer.innerHTML = getUrlFieldsHTML();
     } else if (type === 'model') {
         fieldsContainer.innerHTML = getModelFieldsHTML();
+    } else if (type === 'statement') {
+        fieldsContainer.innerHTML = getStatementFieldsHTML(); // NEW CONDITION ADDED HERE
     }
 }
 
 // HTML templates for dynamic inputs
 function getUrlFieldsHTML() {
     return `
-                <div class="form-group">
-                    <label>Enter URL</label>
-                    <input type="url" class="input-target" placeholder="http://example.com" required>
-                </div>
-                <div class="form-group">
-                    <label>Upload Test Cases (CSV)</label>
-                    <input type="file" class="input-csv" accept=".csv" required>
-                </div>
-            `;
+        <div class="form-group">
+            <label>Enter URL</label>
+            <input type="url" class="input-target" placeholder="http://example.com" required>
+        </div>
+        <div class="form-group">
+            <label>Upload Test Cases (CSV)</label>
+            <input type="file" class="input-csv" accept=".csv" required>
+        </div>
+    `;
 }
 
 function getModelFieldsHTML() {
     return `
-                <div class="form-group">
-                    <label>Enter Model ID</label>
-                    <input type="text" class="input-target" placeholder="MODEL_123" required>
-                </div>
-                <div class="form-group">
-                    <label>Upload Test Cases (CSV)</label>
-                    <input type="file" class="input-csv" accept=".csv" required>
-                </div>
-            `;
+        <div class="form-group">
+            <label>Enter Model ID</label>
+            <input type="text" class="input-target" placeholder="MODEL_123" required>
+        </div>
+        <div class="form-group">
+            <label>Upload Test Cases (CSV)</label>
+            <input type="file" class="input-csv" accept=".csv" required>
+        </div>
+    `;
 }
 
-// 4. Function to collect data and generate the JSON payload
-// function runTests() {
-//     const blocks = document.querySelectorAll('.test-block');
-//     const payload = { tests: [] };
-//
-//     blocks.forEach(block => {
-//         const type = block.querySelector('.type-selector').value;
-//         const targetValue = block.querySelector('.input-target').value;
-//         const fileInput = block.querySelector('.input-csv');
-//         console.log("csv file "+fileInput)
-//
-//         // Extract file name if a file is uploaded, otherwise set to a placeholder/null
-//         const fileName = fileInput.files.length > 0 ? fileInput.files[0].name : "no_file_uploaded.csv";
-//
-//         if (type === 'url') {
-//             payload.tests.push({
-//                 type: "URL",
-//                 url: targetValue,
-//                 file: fileName
-//             });
-//         } else if (type === 'model') {
-//             payload.tests.push({
-//                 type: "MODAL",
-//                 id: targetValue,
-//                 file: fileName
-//             });
-//         }
-//     });
-//
-//     // Log output to console to verify
-//     console.log("Collected JSON Payload:");
-//     console.log(JSON.stringify(payload, null, 2));
-//     alert("Tests initiated! Check the browser console to see the JSON payload.");
-//
-//     // 5. Send to Spring Boot backend API (Simulated)
-//     /*
-//     fetch('/run-tests', {
-//         method: 'POST',
-//         headers: {
-//             'Content-Type': 'application/json'
-//         },
-//         body: JSON.stringify(payload)
-//     })
-//     .then(response => response.json())
-//     .then(data => console.log('Success:', data))
-//     .catch(error => console.error('Error:', error));
-//     */
-// }
+// NEW HTML TEMPLATE FOR STATEMENT
+function getStatementFieldsHTML() {
+    return `
+        <div class="form-group">
+            <label>Enter Test Result Statement</label>
+            <input type="text" class="input-statement" placeholder="e.g., Verify successful login dashboard load" required>
+        </div>
+    `;
+}
 
+// 4. Function to collect data and generate the payload
 async function runTests() {
     const blocks = document.querySelectorAll('.test-block');
     const payload = { tests: [] };
 
-    // 1. Create a new FormData object to hold both JSON and Files
+    // 1. Create a new FormData object to hold JSON, Files, AND Statements
     const formData = new FormData();
 
-    // Changed from .forEach() to a standard 'for' loop so 'await' works correctly
     for (let index = 0; index < blocks.length; index++) {
         const block = blocks[index];
         const type = block.querySelector('.type-selector').value;
+
+        // === NEW: HANDLE "STATEMENT" TYPE SEPARATELY ===
+        if (type === 'statement') {
+            const statementText = block.querySelector('.input-statement').value;
+            // Append directly to FormData, keeping it out of the JSON payload
+            formData.append('testResultStatement', statementText);
+
+            console.log(`\n📝 --- Captured Statement (Block ${index + 1}) ---`);
+            console.log(statementText);
+
+            continue; // Skip the file and JSON logic below for this block
+        }
+        // ===============================================
+
         const targetValue = block.querySelector('.input-target').value;
         const fileInput = block.querySelector('.input-csv');
 
@@ -156,27 +133,22 @@ async function runTests() {
             const actualFile = fileInput.files[0];
             fileName = actualFile.name;
 
-            // === NEW: READ AND LOG CSV CONTENT ===
+            // READ AND LOG CSV CONTENT
             try {
-                // Read the file content as text
                 const csvText = await actualFile.text();
-
                 console.log(`\n📄 --- Content of ${fileName} (Block ${index + 1}) ---`);
                 console.log(csvText);
                 console.log(`-----------------------------------------`);
             } catch (err) {
                 console.error(`Error reading ${fileName}:`, err);
             }
-            // =====================================
 
-            // Create a unique key for this file (e.g., "file_0", "file_1")
+            // Create a unique key for this file (e.g., "file_0")
             fileKey = `file_${index}`;
 
             // Append the physical file to the FormData object
             formData.append(fileKey, actualFile);
         }
-
-        console.log("form data : "+formData)
 
         // 3. Add to our JSON structure
         if (type === 'url') {
@@ -212,7 +184,7 @@ async function runTests() {
 
         const data = await response.json();
         console.log('Success:', data);
-        alert("Tests submitted successfully! Check console for CSV contents.");
+        alert("Tests submitted successfully! Check console for contents.");
     } catch (error) {
         console.error('Error submitting tests:', error);
         alert("Failed to submit tests. Check console.");
