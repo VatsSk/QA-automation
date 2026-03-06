@@ -196,8 +196,11 @@ public class RunController {
     @PostMapping(value = "/run-auth", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> receiveTests(
             @RequestPart("testConfiguration") TestConfigPayload payload,
+            @RequestParam(value = "testResultStatement", required = false) String testResultStatement,
             MultipartHttpServletRequest request) {
 
+
+                System.out.println(" -> " + testResultStatement);
 
 
         // This list will hold your final, fully populated domain objects

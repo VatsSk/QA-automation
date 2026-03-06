@@ -154,6 +154,7 @@ public class ScenarioOrchestratorService {
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
                     executor.runOnRenderedPage(driver, steps, tcRunId);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc.getId());
+
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
                 }
