@@ -45,6 +45,10 @@ public class StepGenerator {
             if ((value == null || value.isBlank()) && f.name != null) value = testCase.getValue(f.name);
             if((value == null || value.isBlank()) && f.dataTarget != null) value = testCase.getValue(f.dataTarget);
             if ((value == null || value.isBlank()) && f.text != null) value = testCase.getValue(f.text);
+           if(value==null || value.isBlank()){
+               logger.info("Data not matched---------"+value);
+               continue;
+            }
 
             logger.info("CSV lookup for {} -> {}", f.dataTarget, value);
             // Map tag/type -> action

@@ -29,6 +29,8 @@ dependencies {
 
     // Excel reader
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
+    implementation 'com.opencsv:opencsv:5.9'
+    implementation 'org.apache.poi:poi:5.2.5'           // .xls
 
     // JSON
     implementation 'com.fasterxml.jackson.core:jackson-databind'
@@ -38,6 +40,9 @@ dependencies {
 
     implementation 'com.opencsv:opencsv:5.7.1'
     implementation 'org.springframework.boot:spring-boot-starter-logging'
+    // ── MongoDB ──────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
+
 
     configurations.all {
         exclude group: 'org.slf4j', module: 'slf4j-simple'

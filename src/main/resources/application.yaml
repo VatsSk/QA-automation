@@ -2,22 +2,32 @@ spring:
   application:
     name: Testing Automation
 
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/testforge
+      # Atlas: mongodb+srv://<user>:<pass>@cluster.mongodb.net/testforge?retryWrites=true&w=majority
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    time-zone: UTC
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 50MB
+      max-request-size: 100MB
+
 
 server:
   port: 8080
 
-#autotest:
-#  browser: chrome
-#  headless: false
-#  screenshot-dir: ./screenshots
-#  scanner:
-#    timeout-seconds: 15
-#    user-agent: "AutoTestScannerClient/1.0"
 
 logging:
   level:
     root: INFO
     com.testingautomation.autotest: DEBUG
+
 
 autotest:
   browser: chrome

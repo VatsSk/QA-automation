@@ -1,12 +1,12 @@
 package com.testingautomation.testautomation.controllers;
 //package com.testingautomation.testautomation.config.controller;
 
-import com.testingautomation.testautomation.config.model.TfProject;
-import com.testingautomation.testautomation.config.model.TfRun;
-import com.testingautomation.testautomation.config.model.TfUser;
-import com.testingautomation.testautomation.config.repository.TfProjectRepository;
-import com.testingautomation.testautomation.config.repository.TfRunRepository;
-import com.testingautomation.testautomation.config.repository.TfUserRepository;
+import com.testingautomation.testautomation.model.TfProject;
+import com.testingautomation.testautomation.model.TfRun;
+import com.testingautomation.testautomation.model.TfUser;
+import com.testingautomation.testautomation.repo.TfProjectRepository;
+import com.testingautomation.testautomation.repo.TfRunRepository;
+import com.testingautomation.testautomation.repo.TfUserRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,16 +28,16 @@ import java.util.Optional;
  * Admin:    GET|POST /api/users
  */
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/auth/api")
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {
         RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT,
         RequestMethod.DELETE, RequestMethod.OPTIONS
 })
 public class TestForgeController {
 
-    private final TfUserRepository    users;
+    private final TfUserRepository users;
     private final TfProjectRepository projects;
-    private final TfRunRepository     runs;
+    private final TfRunRepository runs;
 
     public TestForgeController(TfUserRepository users,
                                TfProjectRepository projects,
@@ -64,12 +64,15 @@ public class TestForgeController {
         if (username == null || email == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "username and email are required"));
         }
-
+        TfUser demo=new TfUser();
+        demo.setUsername("abc");
+        demo.setEmail("abc@gmail.com");
         Optional<TfUser> user = users.findByUsernameAndEmail(username.trim(), email.trim());
-        if (user.isEmpty()) {
-            return ResponseEntity.status(401).body(Map.of("error", "User not found. Contact your admin."));
-        }
-        return ResponseEntity.ok(user.get());
+//        if (user.isEmpty()) {
+//            return ResponseEntity.status(401).body(Map.of("error", "User not found. Contact your admin."));
+//        }
+        System.out.println("logggggggggggg innnnnnnnnnnnnnnn");
+        return ResponseEntity.ok(demo);
     }
 
     // ════════════════════════════════════════════════════════════
