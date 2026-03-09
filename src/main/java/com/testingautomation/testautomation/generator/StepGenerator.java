@@ -44,6 +44,8 @@ public class StepGenerator {
             if ((value == null || value.isBlank()) && f.text != null) value = testCase.getValue(f.text);
             if ((value == null || value.isBlank()) && f.dataTarget != null) value = testCase.getValue(f.dataTarget);
 
+            if(value==null) continue;
+
 
 //            logger.info("Value which has been identified : {}",value);
 
@@ -183,9 +185,14 @@ public class StepGenerator {
                 } else {
                     logger.debug("Skipping span {} - no verification requested", f.text);
                 }
-            } else {
-                // fallback: light wait to keep execution stable when encountering unknown tags
-                steps.add(new StepAction(StepAction.ActionType.WAIT, "css", "body", "250", "Wait small moment"));
+            }
+//            else {
+//                logger.info("fieldDescriptor : {} and value : {}",f,value);
+//                // fallback: light wait to keep execution stable when encountering unknown tags
+//                steps.add(new StepAction(StepAction.ActionType.WAIT, "css", "body", "250", "Wait small moment"));
+//            }
+            else {
+                logger.debug("Skipping unsupported tag {}", f.tag);
             }
         }
 

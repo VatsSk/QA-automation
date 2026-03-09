@@ -58,12 +58,13 @@ public class ScenarioOrchestratorService {
         for (int i = 0; i < scenarios.size(); i++) {
             ScenarioDescriptor s = scenarios.get(i);
             String scenarioRunId = globalRunId + "_S" + (i + 1) + (s.getId() != null ? "_" + s.getId() : "");
+            List<TestCase> tcsResult=null;
             try {
 
                 if (s.getType() == ScenarioDescriptor.Type.URL) {
                     lastScenario = s;
 
-                    runUrlGeneric(
+                    tcsResult=runUrlGeneric(
                             driver,
                             s.getUrl(),
                             s.getCsvFile(),
@@ -73,7 +74,7 @@ public class ScenarioOrchestratorService {
 
                 } else if (s.getType() == ScenarioDescriptor.Type.MODAL) {
 
-                    runModalGeneric(
+                    tcsResult=runModalGeneric(
                             driver,
                             s.getOpenerCss(),
                             s.getCsvFile(),
@@ -83,6 +84,7 @@ public class ScenarioOrchestratorService {
                     );
 
                 }
+
 
             } catch (Exception e) {
 
@@ -97,20 +99,20 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
-    public void runUrlGeneric(WebDriver driver, String url, MultipartFile csvFile, String runIdPrefix,String successMsg) throws Exception {
+    public List<TestCase> runUrlGeneric(WebDriver driver, String url, MultipartFile csvFile, String runIdPrefix,String successMsg) throws Exception {
         logger.info("[{}] runUrlGeneric start for URL: {}", runIdPrefix, url);
-
+        List<TestCase> testCases=null;
         // 1) scan page (fields)
         List<FieldDescriptor> fields = scannerService.scanPage(url, driver);
         logger.info("[{}] scanned {} fields", runIdPrefix, fields.size());
-        for(FieldDescriptor fieldDescriptor: fields){
-            if(fieldDescriptor.dataTarget!=null && fieldDescriptor.dataTarget.equalsIgnoreCase("#edit-employee-modal")){
-                System.out.println("found: "+fieldDescriptor);
-            }
-        }
+//        for(FieldDescriptor fieldDescriptor: fields){
+//            if(fieldDescriptor.dataTarget!=null && fieldDescriptor.dataTarget.equalsIgnoreCase("#edit-employee-modal")){
+//                System.out.println("found: "+fieldDescriptor);
+//            }
+//        }
 
         // 2) load testcases for this scenario
-        List<TestCase> testCases = csvLoader.load(csvFile);
+        testCases = csvLoader.load(csvFile);
         logger.info("[{}] loaded {} testcases from {}", runIdPrefix, testCases.size(), csvFile.getOriginalFilename());
 
 
@@ -122,12 +124,14 @@ public class ScenarioOrchestratorService {
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
                 logger.info("generated steps are : {}",steps);
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
-                executor.run(driver, url, steps, tcRunId,successMsg);
+                String result=executor.run(driver, url, steps, tcRunId,successMsg);
+                tc.setResult(result);
                 logger.info("[{}] Completed testcase {}", tcRunId, tc.getId());
             } catch (Exception e) {
                 logger.error("[{}] testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
             }
         }
+        return testCases;
     }
 
     /**
@@ -137,9 +141,9 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase -> generate steps & run using executor.runOnRenderedPage(...)
      */
-    public void runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,ScenarioDescriptor lastScenario,String successMsg) throws Exception {
+    public List<TestCase> runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,ScenarioDescriptor lastScenario,String successMsg) throws Exception {
         logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
-
+        List<TestCase> testCases=null;
         try {
 //            WebElement opener = driver.findElement(By.cssSelector(openerCss));
 //            opener.click();
@@ -150,7 +154,7 @@ public class ScenarioOrchestratorService {
             logger.info("[{}] scanned {} modal fields", runIdPrefix, modalFields.size());
 
             // load modal testcases
-            List<TestCase> testCases = csvLoader.load(csvFile);
+            testCases = csvLoader.load(csvFile);
             logger.info("[{}] loaded {} modal testcases from {}", runIdPrefix, testCases.size(), csvFile.getOriginalFilename());
 
             for (TestCase tc : testCases) {
@@ -159,7 +163,8 @@ public class ScenarioOrchestratorService {
                     runUrlGeneric(driver,lastScenario.getUrl(), lastScenario.getCsvFile(),"lastUrl",successMsg);
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-                    executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
+                    String result=executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
+                    tc.setResult(result);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc.getId());
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -174,6 +179,7 @@ public class ScenarioOrchestratorService {
         } catch (Exception e) {
             logger.error("[{}] failed to open modal or execute tests: {}", runIdPrefix, e.getMessage(), e);
         }
+        return testCases;
     }
 
     public List<ScenarioDescriptor> scenarioDescriptorMapper(TestConfigPayload payload,

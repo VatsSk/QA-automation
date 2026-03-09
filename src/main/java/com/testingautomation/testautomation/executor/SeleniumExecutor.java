@@ -38,7 +38,7 @@ public class SeleniumExecutor {
      *  <resultsBaseDir>/<testCaseId>_<yyyy-MM-dd_HH-mm-ss>/
      * containing results.csv and screenshots/.
      */
-    public void run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,String successMsg) {
+    public String run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,String successMsg) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
         Path runDir = Paths.get(resultsBaseDir, testCaseId + "_" + timestamp);
         Path screenshotsDir = runDir.resolve("screenshots");
@@ -65,6 +65,7 @@ public class SeleniumExecutor {
         boolean testPassed = true;
         int stepNo = 0;
         int passed = 0, failed = 0, skipped = 0;
+        String finalResult = "PASSED";
 
         try {
             // ensure stable viewport
@@ -118,6 +119,7 @@ public class SeleniumExecutor {
                     }
 
                     testPassed = false;
+                    finalResult = "FAILED";
                     if ("FAILED_CLICK_NO_NAVIGATION".equals(ex.getMessage())) {
                         status = "FAILED";
                         errorMessage = "URL did not change after click";
@@ -175,6 +177,7 @@ public class SeleniumExecutor {
 
         } catch (Exception e) {
             testPassed = false;
+            finalResult = "FAILED";
             logger.error("[{}] Test run failed: {}", testCaseId, e.getMessage(), e);
         } finally {
             // final summary row for test case
@@ -193,11 +196,19 @@ public class SeleniumExecutor {
                     safe(driver1 != null ? driver1.getCurrentUrl() : ""),
                     safe(Instant.now().toString())
             ));
+            if (failed > 0) {
+                finalResult = "FAILED";
+            } else if (passed == 0 && skipped > 0) {
+                finalResult = "SKIPPED";
+            } else {
+                finalResult = "PASSED";
+            }
             // NOTE: do not quit driver here; lifecycle handled by caller or Spring config
         }
+        return finalResult;
     }
 
-    public void runOnRenderedPage(
+    public String runOnRenderedPage(
             WebDriver driver1,
             List<StepAction> steps,
             String testCaseId,
@@ -236,6 +247,7 @@ public class SeleniumExecutor {
         boolean testPassed = true;
         int stepNo = 0;
         int passed = 0, failed = 0, skipped = 0;
+        String finalResult = "PASSED";
 
         String screenshotPath = "";
         String status = "PASSED";
@@ -340,6 +352,7 @@ public class SeleniumExecutor {
 
         } catch (Exception e) {
             testPassed = false;
+            finalResult = "FAILED";
             logger.error("[{}] Test run failed: {}", testCaseId, e.getMessage(), e);
         } finally {
 
@@ -360,7 +373,17 @@ public class SeleniumExecutor {
                             safe(driver1.getCurrentUrl()),
                             safe(Instant.now().toString())
                     ));
+            if (failed > 0) {
+                finalResult = "FAILED";
+            } else if (passed == 0 && skipped > 0) {
+                finalResult = "SKIPPED";
+            } else {
+                finalResult = "PASSED";
+            }
+
         }
+
+        return finalResult;
     }
 
 
