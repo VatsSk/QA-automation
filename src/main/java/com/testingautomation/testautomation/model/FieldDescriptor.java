@@ -11,6 +11,7 @@ public class FieldDescriptor {
     public String text;
     public String css;
     public String xpath;
+    public String dataTarget;
 
     @Override
     public String toString() {
@@ -22,6 +23,7 @@ public class FieldDescriptor {
                 ", text='" + text + '\'' +
                 ", css='" + css + '\'' +
                 ", xpath='" + xpath + '\'' +
+                ", dataTarget='" + dataTarget + '\'' +
                 '}';
     }
 

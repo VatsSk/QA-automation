@@ -15,17 +15,38 @@ public class StepGenerator {
     public List<StepAction> generateSteps(List<FieldDescriptor> fields, TestCase testCase) {
         logger.info("Generating steps for testcase {}", testCase.getId());
         List<StepAction> steps = new ArrayList<>();
-
+        logger.info("Length of field descriptiors :---> "+fields.size());
+        logger.info("Field desc ----  {}",fields);
         for (FieldDescriptor f : fields) {
-            String locatorType = (f.css != null && !f.css.isBlank()) ? "css" : "xpath";
-            String locator = (f.css != null && !f.css.isBlank()) ? f.css : f.xpath;
+            String locatorType = null;
+            String locator = null;
+
+            if (f.css != null && !f.css.isBlank() && !f.css.equals("#")) {
+                locatorType = "css";
+                locator = f.css;
+            }
+            else if (f.xpath != null && !f.xpath.contains("\"\"")) {
+                locatorType = "xpath";
+                locator = f.xpath;
+            }
+            else if (f.dataTarget != null) {
+                locatorType = "xpath";
+                locator = "//*[@data-target='" + f.dataTarget + "'][1]";
+            }
+
+            logger.info(
+                    "Field -> tag={}, id={}, name={}, text={}, dataTarget={}",
+                    f.tag, f.id, f.name, f.text, f.dataTarget
+            );
 
             // determine matching CSV value (prefer id, then name, then visible text)
             String value = null;
             if (f.id != null) value = testCase.getValue(f.id);
             if ((value == null || value.isBlank()) && f.name != null) value = testCase.getValue(f.name);
+            if((value == null || value.isBlank()) && f.dataTarget != null) value = testCase.getValue(f.dataTarget);
             if ((value == null || value.isBlank()) && f.text != null) value = testCase.getValue(f.text);
 
+            logger.info("CSV lookup for {} -> {}", f.dataTarget, value);
             // Map tag/type -> action
             if ("input".equalsIgnoreCase(f.tag)) {
                 String inputType = f.type != null ? f.type.toLowerCase() : "";

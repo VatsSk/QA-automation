@@ -35,50 +35,83 @@ public class UiScannerService {
             JavascriptExecutor js = (JavascriptExecutor) driver;
 
             String script = """
-                return Array.from(document.querySelectorAll(
-                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
-                           ))
-                           .filter(function(el) {
-                             const rect = el.getBoundingClientRect();
-                             const style = window.getComputedStyle(el);
+                  return Array.from(document.querySelectorAll(
                     
-                             return rect.width > 0 &&
-                                    rect.height > 0 &&
-                                    style.visibility !== 'hidden' &&
-                                    style.display !== 'none' &&
-                                    el.id; // <-- ignore if id is null or empty
-                           })
-                           .map(function(el) {
+                                                 'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
                     
-                             let text = null;
+                                               ))
                     
-                             if (el.tagName.toLowerCase() === 'select') {
-                               if (el.selectedIndex >= 0 && el.options.length > 0) {
-                                 text = el.options[el.selectedIndex].text.trim();
-                               } else if (el.options.length > 0) {
-                                 text = el.options[0].text.trim();
-                               }
-                             } else {
-                               text = el.innerText ? el.innerText.trim() : null;
-                             }
+                                               .filter(function(el) {
                     
-                             const id = el.id;
-                             const name = el.name || null;
+                                                 const rect = el.getBoundingClientRect();
                     
-                             const css = '#' + id;
+                                                 const style = window.getComputedStyle(el);
                     
-                             const xpath = '//*[@id="' + id + '"]';
+                                                 return rect.width > 0 &&
                     
-                             return {
-                               tag: el.tagName.toLowerCase(),
-                               type: el.type || null,
-                               id: id,
-                               name: name,
-                               text: text,
-                               css: css,
-                               xpath: xpath
-                             };
-                           });
+                                                        rect.height > 0 &&
+                    
+                                                        style.visibility !== 'hidden' &&
+                    
+                                                        style.display !== 'none' ;
+                    
+                                               })
+                    
+                                               .map(function(el) {
+                    
+                                                 let text = null;
+                    
+                                                 if (el.tagName.toLowerCase() === 'select') {
+                    
+                                                   if (el.selectedIndex >= 0 && el.options.length > 0) {
+                    
+                                                     text = el.options[el.selectedIndex].text.trim();
+                    
+                                                   } else if (el.options.length > 0) {
+                    
+                                                     text = el.options[0].text.trim();
+                    
+                                                   }
+                    
+                                                 } else {
+                    
+                                                   text = el.innerText ? el.innerText.trim() : null;
+                    
+                                                 }
+                    
+                                                 const id = el.id;
+                    
+                                                 const name = el.name || null;
+                    
+                                                 const dataTarget = el.getAttribute('data-target') || null;
+                    
+                                                 const css = '#' + id;
+                    
+                                                 const xpath = '//*[@id="' + id + '"]';
+                    
+                                                 return {
+                    
+                                                   tag: el.tagName.toLowerCase(),
+                    
+                                                   type: el.type || null,
+                    
+                                                   id: id,
+                    
+                                                   name: name,
+                    
+                                                   text: text,
+                    
+                                                   css: css,
+                    
+                                                   xpath: xpath,
+                    
+                                                   dataTarget: dataTarget
+                    
+                                                 };
+                    
+                                               });
+                    
+                    
             """;
 
             List<Map<String, Object>> raw =
@@ -95,6 +128,7 @@ public class UiScannerService {
                 e.text = (String) map.get("text");
                 e.css = (String) map.get("css");
                 e.xpath = (String) map.get("xpath");
+                e.dataTarget = (String) map.get("dataTarget");
                 elements.add(e);
             }
 
@@ -112,82 +146,121 @@ public class UiScannerService {
         try {
             driver.get(url);
             System.out.println("after url calling");
-//            Thread.sleep(5000); // wait for page load
+
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(25));
 
-
-            // 1️⃣ Wait for HTML to finish loading
-            wait.until(webDriver ->
-                    ((JavascriptExecutor) webDriver)
+            /* 1️⃣ Wait until browser finishes loading the document */
+            wait.until(d ->
+                    ((JavascriptExecutor) d)
                             .executeScript("return document.readyState")
                             .equals("complete")
             );
 
-            // 2️⃣ Wait until UI framework mounts something clickable
-            wait.until(ExpectedConditions.presenceOfElementLocated(
-                    By.cssSelector("button, a, input, select")
-            ));
+            /* 2️⃣ Wait until the body is present */
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+
+            /* 3️⃣ Wait until interactive elements appear */
+            wait.until(d ->
+                    (Long) ((JavascriptExecutor) d)
+                            .executeScript(
+                                    "return document.querySelectorAll('button,a,input,select,textarea').length"
+                            ) > 0
+            );
+
+            /* 4️⃣ Small stability wait for JS frameworks (React/Angular/Vue etc.) */
+            Thread.sleep(1500);
+
             System.out.println("wait is over");
+//            System.out.println("wait is over");
 
             JavascriptExecutor js = (JavascriptExecutor) driver;
 
             String script = """
                 return Array.from(document.querySelectorAll(
-                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
-                           ))
-                           .filter(function(el) {
-                             const rect = el.getBoundingClientRect();
-                             const style = window.getComputedStyle(el);
                     
-                             return rect.width > 0 &&
-                                    rect.height > 0 &&
-                                    style.visibility !== 'hidden' &&
-                                    style.display !== 'none' ;
-                           })
-                           .map(function(el) {
+                                                 'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
                     
-                             let text = null;
+                                               ))
                     
-                             if (el.tagName.toLowerCase() === 'select') {
-                               if (el.selectedIndex >= 0 && el.options.length > 0) {
-                                 text = el.options[el.selectedIndex].text.trim();
-                               } else if (el.options.length > 0) {
-                                 text = el.options[0].text.trim();
-                               }
-                             } else {
-                               text = el.innerText ? el.innerText.trim() : null;
-                             }
+                                               .filter(function(el) {
                     
-                             const id = el.id;
-                             const name = el.name || null;
+                                                 const rect = el.getBoundingClientRect();
                     
-                             const css = '#' + id;
+                                                 const style = window.getComputedStyle(el);
                     
-                             const xpath = '//*[@id="' + id + '"]';
+                                                 return rect.width > 0 &&
                     
-                             return {
-                               tag: el.tagName.toLowerCase(),
-                               type: el.type || null,
-                               id: id,
-                               name: name,
-                               text: text,
-                               css: css,
-                               xpath: xpath
-                             };
-                           });
+                                                        rect.height > 0 &&
+                    
+                                                        style.visibility !== 'hidden' &&
+                    
+                                                        style.display !== 'none' ;
+                    
+                                               })
+                    
+                                               .map(function(el) {
+                    
+                                                 let text = null;
+                    
+                                                 if (el.tagName.toLowerCase() === 'select') {
+                    
+                                                   if (el.selectedIndex >= 0 && el.options.length > 0) {
+                    
+                                                     text = el.options[el.selectedIndex].text.trim();
+                    
+                                                   } else if (el.options.length > 0) {
+                    
+                                                     text = el.options[0].text.trim();
+                    
+                                                   }
+                    
+                                                 } else {
+                    
+                                                   text = el.innerText ? el.innerText.trim() : null;
+                    
+                                                 }
+                    
+                                                 const id = el.id;
+                    
+                                                 const name = el.name || null;
+                    
+                                                 const dataTarget = el.getAttribute('data-target') || null;
+                    
+                                                 const css = id && id.trim() !== '' ? '#' + id : null;
+                    
+                                                 const xpath = id && id.trim() !== '' ? '//*[@id="' + id + '"]' : null;
+                    
+                                                 return {
+                    
+                                                   tag: el.tagName.toLowerCase(),
+                    
+                                                   type: el.type || null,
+                    
+                                                   id: id,
+                    
+                                                   name: name,
+                    
+                                                   text: text,
+                    
+                                                   css: css,
+                    
+                                                   xpath: xpath,
+                    
+                                                   dataTarget: dataTarget
+                    
+                                                 };
+                    
+                                               });
+                    
+                    
             """;
 
             List<Map<String, Object>> raw =
                     (List<Map<String, Object>>) js.executeScript(script);
 
-            System.out.println("raw size : "+ raw.size());
-
             List<FieldDescriptor> elements = new ArrayList<>();
 
-            int count=0;
-
             for (Map<String, Object> map : raw) {
-                count++;
                 FieldDescriptor e = new FieldDescriptor();
                 e.tag = (String) map.get("tag");
                 e.type = (String) map.get("type");
@@ -196,9 +269,9 @@ public class UiScannerService {
                 e.text = (String) map.get("text");
                 e.css = (String) map.get("css");
                 e.xpath = (String) map.get("xpath");
+                e.dataTarget = (String) map.get("dataTarget");
                 elements.add(e);
             }
-
 
             return elements;
 
@@ -298,6 +371,7 @@ return (function(){
       const placeholder = el.placeholder || null;
       const accept = el.getAttribute('accept') || null; // for file inputs
       const disabled = !!el.disabled;
+      const dataTarget=el.getAttribute('data-target') || null;
       // compute text for selects, buttons, anchors, or innerText for others
       let text = null;
       if(tag === 'select'){
@@ -330,7 +404,8 @@ return (function(){
         xpath: xpath,
         placeholder: placeholder,
         accept: accept,
-        disabled: disabled
+        disabled: disabled,
+        dataTarget: dataTarget,
       };
     });
 })();
@@ -349,6 +424,7 @@ return (function(){
             e.text = (String) map.get("text");
             e.css = (String) map.get("css");
             e.xpath = (String) map.get("xpath");
+            e.dataTarget=(String) map.get("dataTarget");
             elements.add(e);
         }
 
