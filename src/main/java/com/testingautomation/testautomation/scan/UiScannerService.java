@@ -36,7 +36,7 @@ public class UiScannerService {
 
             String script = """
                 return Array.from(document.querySelectorAll(
-                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
+                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex],'
                            ))
                            .filter(function(el) {
                              const rect = el.getBoundingClientRect();
@@ -112,28 +112,36 @@ public class UiScannerService {
         try {
             driver.get(url);
             System.out.println("after url calling");
-//            Thread.sleep(5000); // wait for page load
+
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(25));
 
-
-            // 1️⃣ Wait for HTML to finish loading
-            wait.until(webDriver ->
-                    ((JavascriptExecutor) webDriver)
+            /* 1️⃣ Wait until browser finishes loading the document */
+            wait.until(d ->
+                    ((JavascriptExecutor) d)
                             .executeScript("return document.readyState")
                             .equals("complete")
             );
 
-            // 2️⃣ Wait until UI framework mounts something clickable
-            wait.until(ExpectedConditions.presenceOfElementLocated(
-                    By.cssSelector("button, a, input, select")
-            ));
-            System.out.println("wait is over");
+            /* 2️⃣ Wait until the body is present */
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+
+            /* 3️⃣ Wait until interactive elements appear */
+            wait.until(d ->
+                    (Long) ((JavascriptExecutor) d)
+                            .executeScript(
+                                    "return document.querySelectorAll('button,a,input,select,textarea').length"
+                            ) > 0
+            );
+
+            /* 4️⃣ Small stability wait for JS frameworks (React/Angular/Vue etc.) */
+            Thread.sleep(1500);
+
 
             JavascriptExecutor js = (JavascriptExecutor) driver;
 
             String script = """
                 return Array.from(document.querySelectorAll(
-                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
+                             'input, textarea, select, button, a[data-target], a[href], [role="button"], [onclick], [tabindex]'
                            ))
                            .filter(function(el) {
                              const rect = el.getBoundingClientRect();
@@ -160,10 +168,11 @@ public class UiScannerService {
                     
                              const id = el.id;
                              const name = el.name || null;
+                             const dataTarget = el.getAttribute('data-target') || null;
                     
-                             const css = '#' + id;
+                             const css = id && id.trim() !== '' ? '#' + id : null;
                     
-                             const xpath = '//*[@id="' + id + '"]';
+                             const xpath = id && id.trim() !== '' ? '//*[@id="' + id + '"]' : null;
                     
                              return {
                                tag: el.tagName.toLowerCase(),
@@ -172,7 +181,8 @@ public class UiScannerService {
                                name: name,
                                text: text,
                                css: css,
-                               xpath: xpath
+                               xpath: xpath,
+                               dataTarget: dataTarget
                              };
                            });
             """;
@@ -196,6 +206,7 @@ public class UiScannerService {
                 e.text = (String) map.get("text");
                 e.css = (String) map.get("css");
                 e.xpath = (String) map.get("xpath");
+                e.dataTarget=(String)map.get("dataTarget");
                 elements.add(e);
             }
 
@@ -298,6 +309,8 @@ return (function(){
       const placeholder = el.placeholder || null;
       const accept = el.getAttribute('accept') || null; // for file inputs
       const disabled = !!el.disabled;
+      const dataTarget = el.getAttribute('data-target') || null;
+      
       // compute text for selects, buttons, anchors, or innerText for others
       let text = null;
       if(tag === 'select'){
@@ -330,7 +343,8 @@ return (function(){
         xpath: xpath,
         placeholder: placeholder,
         accept: accept,
-        disabled: disabled
+        disabled: disabled,
+        dataTarget: dataTarget
       };
     });
 })();
@@ -349,6 +363,8 @@ return (function(){
             e.text = (String) map.get("text");
             e.css = (String) map.get("css");
             e.xpath = (String) map.get("xpath");
+            e.dataTarget = (String) map.get("dataTarget");
+
             elements.add(e);
         }
 

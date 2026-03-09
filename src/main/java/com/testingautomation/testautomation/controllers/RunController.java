@@ -196,7 +196,8 @@ public class RunController {
     @PostMapping(value = "/run-auth", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> receiveTests(
             @RequestPart("testConfiguration") TestConfigPayload payload,
-            @RequestPart("testResultStatement") String successMsg,
+
+            @RequestParam("testResultStatement") String successMsg,
             MultipartHttpServletRequest request) {
 
 

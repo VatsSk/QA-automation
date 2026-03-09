@@ -103,10 +103,16 @@ public class ScenarioOrchestratorService {
         // 1) scan page (fields)
         List<FieldDescriptor> fields = scannerService.scanPage(url, driver);
         logger.info("[{}] scanned {} fields", runIdPrefix, fields.size());
+        for(FieldDescriptor fieldDescriptor: fields){
+            if(fieldDescriptor.dataTarget!=null && fieldDescriptor.dataTarget.equalsIgnoreCase("#edit-employee-modal")){
+                System.out.println("found: "+fieldDescriptor);
+            }
+        }
 
         // 2) load testcases for this scenario
         List<TestCase> testCases = csvLoader.load(csvFile);
         logger.info("[{}] loaded {} testcases from {}", runIdPrefix, testCases.size(), csvFile.getOriginalFilename());
+
 
         // 3) for each testcase -> generate steps & run
         for (TestCase tc : testCases) {
@@ -114,6 +120,7 @@ public class ScenarioOrchestratorService {
             try {
                 logger.info("[{}] Generating steps for testcase {}", tcRunId, tc.getId());
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
+                logger.info("generated steps are : {}",steps);
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
                 executor.run(driver, url, steps, tcRunId,successMsg);
                 logger.info("[{}] Completed testcase {}", tcRunId, tc.getId());

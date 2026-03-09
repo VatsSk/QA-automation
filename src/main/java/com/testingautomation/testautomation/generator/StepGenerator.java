@@ -16,15 +16,36 @@ public class StepGenerator {
         logger.info("Generating steps for testcase {}", testCase.getId());
         List<StepAction> steps = new ArrayList<>();
 
+//        logger.info("fds : {}",fields);
+        Set<String> handledDataTargets = new HashSet<>();
+
         for (FieldDescriptor f : fields) {
-            String locatorType = (f.css != null && !f.css.isBlank()) ? "css" : "xpath";
-            String locator = (f.css != null && !f.css.isBlank()) ? f.css : f.xpath;
+            String locatorType = null;
+            String locator = null;
+
+            if (f.css != null && !f.css.isBlank() && !f.css.equals("#")) {
+                locatorType = "css";
+                locator = f.css;
+            }
+            else if (f.xpath != null && !f.xpath.contains("\"\"")) {
+                locatorType = "xpath";
+                locator = f.xpath;
+            }
+            else if (f.dataTarget != null) {
+                locatorType = "xpath";
+                locator = "//*[@data-target='" + f.dataTarget + "'][1]";
+            }
+
 
             // determine matching CSV value (prefer id, then name, then visible text)
             String value = null;
             if (f.id != null) value = testCase.getValue(f.id);
             if ((value == null || value.isBlank()) && f.name != null) value = testCase.getValue(f.name);
             if ((value == null || value.isBlank()) && f.text != null) value = testCase.getValue(f.text);
+            if ((value == null || value.isBlank()) && f.dataTarget != null) value = testCase.getValue(f.dataTarget);
+
+
+//            logger.info("Value which has been identified : {}",value);
 
             // Map tag/type -> action
             if ("input".equalsIgnoreCase(f.tag)) {
@@ -123,6 +144,15 @@ public class StepGenerator {
                         value != null && value.trim().equalsIgnoreCase("click");
 
                 if (csvSaysClick) {
+                    if (f.dataTarget != null && !f.dataTarget.isBlank()) {
+
+                        if (handledDataTargets.contains(f.dataTarget)) {
+                            continue; // skip duplicates
+                        }
+
+                        handledDataTargets.add(f.dataTarget);
+                    }
+
                     String actionDescription =
                             String.format("Click on %s (id=%s)", locator, f.id);
 
