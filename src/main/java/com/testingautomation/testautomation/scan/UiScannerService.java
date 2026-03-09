@@ -136,6 +136,8 @@ public class UiScannerService {
             /* 4️⃣ Small stability wait for JS frameworks (React/Angular/Vue etc.) */
             Thread.sleep(1500);
 
+            System.out.println("wait is over");
+//            System.out.println("wait is over");
 
             JavascriptExecutor js = (JavascriptExecutor) driver;
 
@@ -206,7 +208,7 @@ public class UiScannerService {
                 e.text = (String) map.get("text");
                 e.css = (String) map.get("css");
                 e.xpath = (String) map.get("xpath");
-                e.dataTarget=(String)map.get("dataTarget");
+                e.dataTarget = (String) map.get("dataTarget");
                 elements.add(e);
             }
 
@@ -309,8 +311,6 @@ return (function(){
       const placeholder = el.placeholder || null;
       const accept = el.getAttribute('accept') || null; // for file inputs
       const disabled = !!el.disabled;
-      const dataTarget = el.getAttribute('data-target') || null;
-      
       // compute text for selects, buttons, anchors, or innerText for others
       let text = null;
       if(tag === 'select'){
@@ -343,8 +343,7 @@ return (function(){
         xpath: xpath,
         placeholder: placeholder,
         accept: accept,
-        disabled: disabled,
-        dataTarget: dataTarget
+        disabled: disabled
       };
     });
 })();
@@ -363,8 +362,6 @@ return (function(){
             e.text = (String) map.get("text");
             e.css = (String) map.get("css");
             e.xpath = (String) map.get("xpath");
-            e.dataTarget = (String) map.get("dataTarget");
-
             elements.add(e);
         }
 

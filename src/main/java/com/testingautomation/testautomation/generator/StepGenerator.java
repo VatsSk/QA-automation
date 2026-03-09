@@ -186,11 +186,6 @@ public class StepGenerator {
                     logger.debug("Skipping span {} - no verification requested", f.text);
                 }
             }
-//            else {
-//                logger.info("fieldDescriptor : {} and value : {}",f,value);
-//                // fallback: light wait to keep execution stable when encountering unknown tags
-//                steps.add(new StepAction(StepAction.ActionType.WAIT, "css", "body", "250", "Wait small moment"));
-//            }
             else {
                 logger.debug("Skipping unsupported tag {}", f.tag);
             }

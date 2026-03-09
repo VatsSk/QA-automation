@@ -26,4 +26,9 @@ public class UiScannerController {
     public String getHome(){
         return "index.html";
     }
+
+    @GetMapping("/auth")
+    public String getAuth(){
+        return "Testforge.html";
+    }
 }
