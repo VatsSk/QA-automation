@@ -35,83 +35,50 @@ public class UiScannerService {
             JavascriptExecutor js = (JavascriptExecutor) driver;
 
             String script = """
-                  return Array.from(document.querySelectorAll(
+                return Array.from(document.querySelectorAll(
+                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex],'
+                           ))
+                           .filter(function(el) {
+                             const rect = el.getBoundingClientRect();
+                             const style = window.getComputedStyle(el);
                     
-                                                 'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
+                             return rect.width > 0 &&
+                                    rect.height > 0 &&
+                                    style.visibility !== 'hidden' &&
+                                    style.display !== 'none' &&
+                                    el.id; // <-- ignore if id is null or empty
+                           })
+                           .map(function(el) {
                     
-                                               ))
+                             let text = null;
                     
-                                               .filter(function(el) {
+                             if (el.tagName.toLowerCase() === 'select') {
+                               if (el.selectedIndex >= 0 && el.options.length > 0) {
+                                 text = el.options[el.selectedIndex].text.trim();
+                               } else if (el.options.length > 0) {
+                                 text = el.options[0].text.trim();
+                               }
+                             } else {
+                               text = el.innerText ? el.innerText.trim() : null;
+                             }
                     
-                                                 const rect = el.getBoundingClientRect();
+                             const id = el.id;
+                             const name = el.name || null;
                     
-                                                 const style = window.getComputedStyle(el);
+                             const css = '#' + id;
                     
-                                                 return rect.width > 0 &&
+                             const xpath = '//*[@id="' + id + '"]';
                     
-                                                        rect.height > 0 &&
-                    
-                                                        style.visibility !== 'hidden' &&
-                    
-                                                        style.display !== 'none' ;
-                    
-                                               })
-                    
-                                               .map(function(el) {
-                    
-                                                 let text = null;
-                    
-                                                 if (el.tagName.toLowerCase() === 'select') {
-                    
-                                                   if (el.selectedIndex >= 0 && el.options.length > 0) {
-                    
-                                                     text = el.options[el.selectedIndex].text.trim();
-                    
-                                                   } else if (el.options.length > 0) {
-                    
-                                                     text = el.options[0].text.trim();
-                    
-                                                   }
-                    
-                                                 } else {
-                    
-                                                   text = el.innerText ? el.innerText.trim() : null;
-                    
-                                                 }
-                    
-                                                 const id = el.id;
-                    
-                                                 const name = el.name || null;
-                    
-                                                 const dataTarget = el.getAttribute('data-target') || null;
-                    
-                                                 const css = '#' + id;
-                    
-                                                 const xpath = '//*[@id="' + id + '"]';
-                    
-                                                 return {
-                    
-                                                   tag: el.tagName.toLowerCase(),
-                    
-                                                   type: el.type || null,
-                    
-                                                   id: id,
-                    
-                                                   name: name,
-                    
-                                                   text: text,
-                    
-                                                   css: css,
-                    
-                                                   xpath: xpath,
-                    
-                                                   dataTarget: dataTarget
-                    
-                                                 };
-                    
-                                               });
-                    
-                    
+                             return {
+                               tag: el.tagName.toLowerCase(),
+                               type: el.type || null,
+                               id: id,
+                               name: name,
+                               text: text,
+                               css: css,
+                               xpath: xpath
+                             };
+                           });
             """;
 
             List<Map<String, Object>> raw =
@@ -128,7 +95,6 @@ public class UiScannerService {
                 e.text = (String) map.get("text");
                 e.css = (String) map.get("css");
                 e.xpath = (String) map.get("xpath");
-                e.dataTarget = (String) map.get("dataTarget");
                 elements.add(e);
             }
 
@@ -177,90 +143,63 @@ public class UiScannerService {
 
             String script = """
                 return Array.from(document.querySelectorAll(
+                             'input, textarea, select, button, a[data-target], a[href], [role="button"], [onclick], [tabindex]'
+                           ))
+                           .filter(function(el) {
+                             const rect = el.getBoundingClientRect();
+                             const style = window.getComputedStyle(el);
                     
-                                                 'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
+                             return rect.width > 0 &&
+                                    rect.height > 0 &&
+                                    style.visibility !== 'hidden' &&
+                                    style.display !== 'none' ;
+                           })
+                           .map(function(el) {
                     
-                                               ))
+                             let text = null;
                     
-                                               .filter(function(el) {
+                             if (el.tagName.toLowerCase() === 'select') {
+                               if (el.selectedIndex >= 0 && el.options.length > 0) {
+                                 text = el.options[el.selectedIndex].text.trim();
+                               } else if (el.options.length > 0) {
+                                 text = el.options[0].text.trim();
+                               }
+                             } else {
+                               text = el.innerText ? el.innerText.trim() : null;
+                             }
                     
-                                                 const rect = el.getBoundingClientRect();
+                             const id = el.id;
+                             const name = el.name || null;
+                             const dataTarget = el.getAttribute('data-target') || null;
                     
-                                                 const style = window.getComputedStyle(el);
+                             const css = id && id.trim() !== '' ? '#' + id : null;
                     
-                                                 return rect.width > 0 &&
+                             const xpath = id && id.trim() !== '' ? '//*[@id="' + id + '"]' : null;
                     
-                                                        rect.height > 0 &&
-                    
-                                                        style.visibility !== 'hidden' &&
-                    
-                                                        style.display !== 'none' ;
-                    
-                                               })
-                    
-                                               .map(function(el) {
-                    
-                                                 let text = null;
-                    
-                                                 if (el.tagName.toLowerCase() === 'select') {
-                    
-                                                   if (el.selectedIndex >= 0 && el.options.length > 0) {
-                    
-                                                     text = el.options[el.selectedIndex].text.trim();
-                    
-                                                   } else if (el.options.length > 0) {
-                    
-                                                     text = el.options[0].text.trim();
-                    
-                                                   }
-                    
-                                                 } else {
-                    
-                                                   text = el.innerText ? el.innerText.trim() : null;
-                    
-                                                 }
-                    
-                                                 const id = el.id;
-                    
-                                                 const name = el.name || null;
-                    
-                                                 const dataTarget = el.getAttribute('data-target') || null;
-                    
-                                                 const css = id && id.trim() !== '' ? '#' + id : null;
-                    
-                                                 const xpath = id && id.trim() !== '' ? '//*[@id="' + id + '"]' : null;
-                    
-                                                 return {
-                    
-                                                   tag: el.tagName.toLowerCase(),
-                    
-                                                   type: el.type || null,
-                    
-                                                   id: id,
-                    
-                                                   name: name,
-                    
-                                                   text: text,
-                    
-                                                   css: css,
-                    
-                                                   xpath: xpath,
-                    
-                                                   dataTarget: dataTarget
-                    
-                                                 };
-                    
-                                               });
-                    
-                    
+                             return {
+                               tag: el.tagName.toLowerCase(),
+                               type: el.type || null,
+                               id: id,
+                               name: name,
+                               text: text,
+                               css: css,
+                               xpath: xpath,
+                               dataTarget: dataTarget
+                             };
+                           });
             """;
 
             List<Map<String, Object>> raw =
                     (List<Map<String, Object>>) js.executeScript(script);
 
+            System.out.println("raw size : "+ raw.size());
+
             List<FieldDescriptor> elements = new ArrayList<>();
 
+            int count=0;
+
             for (Map<String, Object> map : raw) {
+                count++;
                 FieldDescriptor e = new FieldDescriptor();
                 e.tag = (String) map.get("tag");
                 e.type = (String) map.get("type");
@@ -272,6 +211,7 @@ public class UiScannerService {
                 e.dataTarget = (String) map.get("dataTarget");
                 elements.add(e);
             }
+
 
             return elements;
 
@@ -371,7 +311,6 @@ return (function(){
       const placeholder = el.placeholder || null;
       const accept = el.getAttribute('accept') || null; // for file inputs
       const disabled = !!el.disabled;
-      const dataTarget=el.getAttribute('data-target') || null;
       // compute text for selects, buttons, anchors, or innerText for others
       let text = null;
       if(tag === 'select'){
@@ -404,8 +343,7 @@ return (function(){
         xpath: xpath,
         placeholder: placeholder,
         accept: accept,
-        disabled: disabled,
-        dataTarget: dataTarget,
+        disabled: disabled
       };
     });
 })();
@@ -424,7 +362,6 @@ return (function(){
             e.text = (String) map.get("text");
             e.css = (String) map.get("css");
             e.xpath = (String) map.get("xpath");
-            e.dataTarget=(String) map.get("dataTarget");
             elements.add(e);
         }
 

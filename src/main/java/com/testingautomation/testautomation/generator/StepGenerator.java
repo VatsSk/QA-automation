@@ -15,6 +15,10 @@ public class StepGenerator {
     public List<StepAction> generateSteps(List<FieldDescriptor> fields, TestCase testCase) {
         logger.info("Generating steps for testcase {}", testCase.getId());
         List<StepAction> steps = new ArrayList<>();
+
+//        logger.info("fds : {}",fields);
+        Set<String> handledDataTargets = new HashSet<>();
+
         logger.info("Length of field descriptiors :---> "+fields.size());
         logger.info("Field desc ----  {}",fields);
         for (FieldDescriptor f : fields) {
@@ -34,10 +38,6 @@ public class StepGenerator {
                 locator = "//*[@data-target='" + f.dataTarget + "'][1]";
             }
 
-            logger.info(
-                    "Field -> tag={}, id={}, name={}, text={}, dataTarget={}",
-                    f.tag, f.id, f.name, f.text, f.dataTarget
-            );
 
             // determine matching CSV value (prefer id, then name, then visible text)
             String value = null;
@@ -144,6 +144,15 @@ public class StepGenerator {
                         value != null && value.trim().equalsIgnoreCase("click");
 
                 if (csvSaysClick) {
+                    if (f.dataTarget != null && !f.dataTarget.isBlank()) {
+
+                        if (handledDataTargets.contains(f.dataTarget)) {
+                            continue; // skip duplicates
+                        }
+
+                        handledDataTargets.add(f.dataTarget);
+                    }
+
                     String actionDescription =
                             String.format("Click on %s (id=%s)", locator, f.id);
 

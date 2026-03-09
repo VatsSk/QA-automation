@@ -27,6 +27,5 @@ public class FieldDescriptor {
                 '}';
     }
 
-
     // getters/setters or keep public fields for brevity
 }
