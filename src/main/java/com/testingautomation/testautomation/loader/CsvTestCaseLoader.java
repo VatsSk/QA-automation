@@ -20,23 +20,23 @@ public class CsvTestCaseLoader {
      * header row with column names. Required columns: testCaseId, url
      * other columns will be treated as input fields matching scanner's id or name.
      */
-//    public List<TestCase> load(String csvPath) throws Exception {
-//        logger.info("Loading CSV testcases from {}", csvPath);
-//        List<TestCase> list = new ArrayList<>();
-//        try (CSVReaderHeaderAware reader = new CSVReaderHeaderAware(new FileReader(csvPath))) {
-//            Map<String,String> row;
-//            while ((row = reader.readMap()) != null) {
-//                String id = row.getOrDefault("testCaseId", UUID.randomUUID().toString());
-//                String url = row.get("url");
-//                Map<String,String> values = new HashMap<>(row);
-//                values.remove("testCaseId"); // keep only input columns
-//                list.add(new TestCase(id, url, values));
-//                logger.debug("Loaded testcase {} url={}", id, url);
-//            }
-//        }
-//        logger.info("Total testcases loaded: {}", list.size());
-//        return list;
-//    }
+    public List<TestCase> load(String csvPath) throws Exception {
+        logger.info("Loading CSV testcases from {}", csvPath);
+        List<TestCase> list = new ArrayList<>();
+        try (CSVReaderHeaderAware reader = new CSVReaderHeaderAware(new FileReader(csvPath))) {
+            Map<String,String> row;
+            while ((row = reader.readMap()) != null) {
+                String id = row.getOrDefault("testCaseId", UUID.randomUUID().toString());
+                String url = row.get("url");
+                Map<String,String> values = new HashMap<>(row);
+                values.remove("testCaseId"); // keep only input columns
+                list.add(new TestCase(id, url, values));
+                logger.debug("Loaded testcase {} url={}", id, url);
+            }
+        }
+        logger.info("Total testcases loaded: {}", list.size());
+        return list;
+    }
     public List<TestCase> load(MultipartFile file) throws Exception {
 
         logger.info("Loading CSV testcases from uploaded file {}", file.getOriginalFilename());
