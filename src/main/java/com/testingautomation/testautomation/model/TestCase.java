@@ -5,7 +5,8 @@ import java.util.Map;
 public class TestCase {
     private String id;
     private String url;
-    private Map<String,String> values; // columnName -> value
+    private Map<String,String> values;
+    private String result;
 
     @Override
     public String toString() {
@@ -13,6 +14,7 @@ public class TestCase {
                 "id='" + id + '\'' +
                 ", url='" + url + '\'' +
                 ", values=" + values +
+                ", result='" + result + '\'' +
                 '}';
     }
 
@@ -25,4 +27,8 @@ public class TestCase {
     public String getValue(String key) { return values.get(key); }
     public String getId() { return id; }
     public String getUrl() { return url; }
+    public String getResult(){return result;}
+    public void setResult(String result){
+        this.result=result;
+    }
 }

@@ -19,8 +19,6 @@ public class StepGenerator {
 //        logger.info("fds : {}",fields);
         Set<String> handledDataTargets = new HashSet<>();
 
-        logger.info("Length of field descriptiors :---> "+fields.size());
-        logger.info("Field desc ----  {}",fields);
         for (FieldDescriptor f : fields) {
             String locatorType = null;
             String locator = null;
@@ -43,14 +41,14 @@ public class StepGenerator {
             String value = null;
             if (f.id != null) value = testCase.getValue(f.id);
             if ((value == null || value.isBlank()) && f.name != null) value = testCase.getValue(f.name);
-            if((value == null || value.isBlank()) && f.dataTarget != null) value = testCase.getValue(f.dataTarget);
             if ((value == null || value.isBlank()) && f.text != null) value = testCase.getValue(f.text);
-           if(value==null || value.isBlank()){
-               logger.info("Data not matched---------"+value);
-               continue;
-            }
+            if ((value == null || value.isBlank()) && f.dataTarget != null) value = testCase.getValue(f.dataTarget);
 
-            logger.info("CSV lookup for {} -> {}", f.dataTarget, value);
+            if(value==null) continue;
+
+
+//            logger.info("Value which has been identified : {}",value);
+
             // Map tag/type -> action
             if ("input".equalsIgnoreCase(f.tag)) {
                 String inputType = f.type != null ? f.type.toLowerCase() : "";
@@ -187,9 +185,9 @@ public class StepGenerator {
                 } else {
                     logger.debug("Skipping span {} - no verification requested", f.text);
                 }
-            } else {
-                // fallback: light wait to keep execution stable when encountering unknown tags
-                steps.add(new StepAction(StepAction.ActionType.WAIT, "css", "body", "250", "Wait small moment"));
+            }
+            else {
+                logger.debug("Skipping unsupported tag {}", f.tag);
             }
         }
 
