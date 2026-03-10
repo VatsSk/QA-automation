@@ -51,7 +51,7 @@ public class CsvTestCaseLoader {
 
             while ((row = reader.readMap()) != null) {
 
-                String id = row.getOrDefault("testCaseId", UUID.randomUUID().toString());
+                String id = row.getOrDefault("testCaseId", UUID.randomUUID().toString().substring(0,8));
                 String url = row.get("url");
 
                 Map<String,String> values = new HashMap<>(row);

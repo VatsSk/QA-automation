@@ -41,7 +41,7 @@ public class SeleniumExecutor {
      * containing results.csv and screenshots/.
      */
     public String run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,String successMsg) {
-        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+        String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));
         Path runDir = Paths.get(resultsBaseDir, testCaseId + "_" + timestamp);
         Path screenshotsDir = runDir.resolve("screenshots");
         Path resultsCsv = runDir.resolve("results.csv");
@@ -218,7 +218,7 @@ public class SeleniumExecutor {
     ) {
 
         String timestamp = LocalDateTime.now()
-                .format(DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss"));
+                .format(DateTimeFormatter.ofPattern("HHmm"));
 
         Path runDir = Paths.get(resultsBaseDir, testCaseId + "_" + timestamp);
         Path screenshotsDir = runDir.resolve("screenshots");

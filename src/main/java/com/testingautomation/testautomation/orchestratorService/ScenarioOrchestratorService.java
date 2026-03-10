@@ -61,7 +61,15 @@ public class ScenarioOrchestratorService {
         int lastUrlIdx=-1;
         for (int i = 0; i < scenarios.size(); i++) {
             ScenarioDescriptor current = scenarios.get(i);
-            String scenarioRunId = globalRunId + "_S" + (i + 1) + (current.getId() != null ? "_" + current.getId() : "");
+            String scenarioType = current.getType().name();
+
+            String scenarioName = current.getId() != null
+                    ? current.getId()
+                    : "scenario";
+
+            String scenarioRunId =
+                    globalRunId +
+                            "_S" + (i + 1);
             try {
                 if (current.getType() == ScenarioDescriptor.Type.URL) {
                     lastUrlScenario = current;
@@ -71,7 +79,7 @@ public class ScenarioOrchestratorService {
                             && scenarios.get(i + 1).getType() == ScenarioDescriptor.Type.MODAL) {
                         logger.info("about to fire handleModalCHain by executeScenarios");
                         // URL followed by modal chain
-                        i = handleModalChain(driver, scenarios, i, lastUrlScenario, globalRunId,
+                        i = handleModalChain(driver, scenarios, i, lastUrlScenario, scenarioRunId,
                                 successMsg
                         );
                         logger.info("outside handleModalchain but inside executeScenario with idx : {}",i);
@@ -147,14 +155,8 @@ public class ScenarioOrchestratorService {
     public List<TestCase> runUrlGeneric(WebDriver driver, String url, MultipartFile csvFile, String runIdPrefix,String successMsg) throws Exception {
         logger.info("[{}] runUrlGeneric start for URL: {}", runIdPrefix, url);
         List<TestCase> testCases=null;
-        // 1) scan page (fields)
         List<FieldDescriptor> fields = scannerService.scanPage(url, driver);
         logger.info("[{}] scanned {} fields", runIdPrefix, fields.size());
-//        for(FieldDescriptor fieldDescriptor: fields){
-//            if(fieldDescriptor.dataTarget!=null && fieldDescriptor.dataTarget.equalsIgnoreCase("#edit-employee-modal")){
-//                System.out.println("found: "+fieldDescriptor);
-//            }
-//        }
 
         // 2) load testcases for this scenario
         testCases = csvLoader.load(csvFile);
@@ -212,7 +214,7 @@ public class ScenarioOrchestratorService {
                     String result=executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
                     tc.setResult(result);
                     if(counterIdx<testCases.size())
-                        handleModalChain(driver,scenarios,lastUrlIdx, lastUrlScenario,"lastUrl",successMsg);
+                        handleModalChain(driver,scenarios,lastUrlIdx, lastUrlScenario,tcRunId,successMsg);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc.getId());
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -264,24 +266,31 @@ public class ScenarioOrchestratorService {
 
 
     public File zipTestResults(String runId) throws IOException {
-
-        Path sourceDir = Paths.get("test-results");
-
+        Path baseDir = Paths.get("test-results");
         String zipFileName = "screenshots_" + runId + ".zip";
-        Path zipPath = Paths.get("test-results", zipFileName);
+        Path zipPath = baseDir.resolve(zipFileName);
+        try (ZipOutputStream zs =
+                     new ZipOutputStream(new BufferedOutputStream(Files.newOutputStream(zipPath)))) {
 
-        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(zipPath))) {
-
-            Files.walk(sourceDir)
-                    .filter(path -> path.toString().contains(runId))
-                    .filter(path -> !Files.isDirectory(path))
-                    .forEach(path -> {
-                        ZipEntry zipEntry =
-                                new ZipEntry(sourceDir.relativize(path).toString());
+            Files.list(baseDir)
+                    .filter(p -> p.getFileName().toString().startsWith(runId))
+                    .forEach(folder -> {
                         try {
-                            zs.putNextEntry(zipEntry);
-                            Files.copy(path, zs);
-                            zs.closeEntry();
+                            Files.walk(folder)
+                                    .filter(p -> !Files.isDirectory(p))
+                                    .forEach(file -> {
+                                        try {
+                                            ZipEntry zipEntry =
+                                                    new ZipEntry(baseDir.relativize(file).toString());
+
+                                            zs.putNextEntry(zipEntry);
+                                            Files.copy(file, zs);
+                                            zs.closeEntry();
+
+                                        } catch (IOException e) {
+                                            throw new RuntimeException(e);
+                                        }
+                                    });
                         } catch (IOException e) {
                             throw new RuntimeException(e);
                         }
