@@ -58,46 +58,46 @@ public class RunController {
      * Example:
      * GET /runner/run?scannerApi=http://localhost:8080/scanner/scan?url=...&csvPath=/tmp/tests.csv
      */
-    @GetMapping("/run")
-    public String runTests(@RequestParam String targetUrl,@RequestParam String csvPath) {
-        try {
-            List<FieldDescriptor> fields = scannerService.scanPage(targetUrl);
-            logger.info("scannerService scannerService scannerService scannerService scannerService");
-            logger.info("Length of fields :"+fields.size());
-            System.out.println("Data from fields:  "+fields);
-
-
-            List<TestCase> testCases = csvLoader.load(csvPath);
-            System.out.println("Data from test cases:  "+testCases);
-            for (TestCase tc : testCases) {
-                ChromeOptions options = new ChromeOptions();
-//                options.addArguments("--headless=new");
-//                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
-                options.addArguments("--disable-gpu");
-                options.addArguments("--window-size=1366,768");
-                WebDriver driver = new ChromeDriver(options);;
-                try {
-                // If CSV row provides a url override, use it
-                    String url = (tc.getUrl() != null && !tc.getUrl().isBlank())
-                            ? tc.getUrl()
-                            : targetUrl;
-
-                    List<StepAction> steps =
-                            stepGenerator.generateSteps(fields, tc);
-
-                    executor.run(driver, url, steps, tc.getId(),"");
-
-                } finally {
-                    driver.quit();   // 🔥 THIS IS REQUIRED
-                }
-            }
-            return "Run completed";
-        } catch (Exception e) {
-            logger.error("Run failed", e);
-            return "Run failed: " + e.getMessage();
-        }
-
-    }
+//    @GetMapping("/run")
+//    public String runTests(@RequestParam String targetUrl,@RequestParam String csvPath) {
+//        try {
+//            List<FieldDescriptor> fields = scannerService.scanPage(targetUrl);
+//            logger.info("scannerService scannerService scannerService scannerService scannerService");
+//            logger.info("Length of fields :"+fields.size());
+//            System.out.println("Data from fields:  "+fields);
+//
+//
+//            List<TestCase> testCases = csvLoader.load(csvPath);
+//            System.out.println("Data from test cases:  "+testCases);
+//            for (TestCase tc : testCases) {
+//                ChromeOptions options = new ChromeOptions();
+////                options.addArguments("--headless=new");
+////                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
+//                options.addArguments("--disable-gpu");
+//                options.addArguments("--window-size=1366,768");
+//                WebDriver driver = new ChromeDriver(options);;
+//                try {
+//                // If CSV row provides a url override, use it
+//                    String url = (tc.getUrl() != null && !tc.getUrl().isBlank())
+//                            ? tc.getUrl()
+//                            : targetUrl;
+//
+//                    List<StepAction> steps =
+//                            stepGenerator.generateSteps(fields, tc);
+//
+//                    executor.run(driver, url, steps, tc.getId(),"");
+//
+//                } finally {
+//                    driver.quit();   // 🔥 THIS IS REQUIRED
+//                }
+//            }
+//            return "Run completed";
+//        } catch (Exception e) {
+//            logger.error("Run failed", e);
+//            return "Run failed: " + e.getMessage();
+//        }
+//
+//    }
 
     /**
      * Example:

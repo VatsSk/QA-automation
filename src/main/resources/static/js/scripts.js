@@ -21,13 +21,16 @@ function addBlock() {
             <h3>Test Block ${blockCounter}</h3>
             <button class="btn-remove" onclick="removeBlock('${blockId}')" title="Remove Block">&times;</button>
         </div>
-        
+
         <div class="form-group">
             <label>Select Type</label>
             <select class="type-selector" onchange="toggleFields('${blockId}')">
                 <option value="url">URL</option>
                 <option value="model">Model</option>
-                <option value="statement">Test Result Statement</option> </select>
+                <option value="statement">Test Result Statement</option>
+                <option value="nav_url">Navigation URL</option>
+                <option value="nav_modal">Navigation Modal</option>
+            </select>
         </div>
 
         <div id="fields-${blockId}" class="dynamic-fields">
@@ -56,7 +59,11 @@ function toggleFields(blockId) {
     } else if (type === 'model') {
         fieldsContainer.innerHTML = getModelFieldsHTML();
     } else if (type === 'statement') {
-        fieldsContainer.innerHTML = getStatementFieldsHTML(); // NEW CONDITION ADDED HERE
+        fieldsContainer.innerHTML = getStatementFieldsHTML();
+    } else if (type === 'nav_url') {
+        fieldsContainer.innerHTML = getNavUrlFieldsHTML();
+    } else if (type === 'nav_modal') {
+        fieldsContainer.innerHTML = getNavModalFieldsHTML();
     }
 }
 
@@ -69,7 +76,7 @@ function getUrlFieldsHTML() {
         </div>
         <div class="form-group">
             <label>Upload Test Cases (CSV)</label>
-            <input type="file" class="input-csv" accept=".csv" required>
+            <input type="file" class="input-csv" accept=".csv">
         </div>
     `;
 }
@@ -82,7 +89,7 @@ function getModelFieldsHTML() {
         </div>
         <div class="form-group">
             <label>Upload Test Cases (CSV)</label>
-            <input type="file" class="input-csv" accept=".csv" required>
+            <input type="file" class="input-csv" accept=".csv">
         </div>
     `;
 }
@@ -93,6 +100,27 @@ function getStatementFieldsHTML() {
         <div class="form-group">
             <label>Enter Test Result Statement</label>
             <input type="text" class="input-statement" placeholder="e.g., Verify successful login dashboard load" required>
+        </div>
+    `;
+}
+
+// NEW HTML TEMPLATE FOR NAVIGATION URL (url only)
+function getNavUrlFieldsHTML() {
+    return `
+        <div class="form-group">
+            <label>Navigation URL</label>
+            <input type="url" class="input-target" placeholder="http://example.com" required>
+        </div>
+    `;
+}
+
+// NEW HTML TEMPLATE FOR NAVIGATION MODAL (openerCss only)
+function getNavModalFieldsHTML() {
+    return `
+        <div class="form-group">
+            <label>Navigation Opener CSS (openerCss)</label>
+            <input type="text" class="input-target" placeholder=".nav-item-class or #menu > li:nth-child(2)" required>
+            <small class="muted">Provide the CSS selector that will be clicked to open the navigation/modal</small>
         </div>
     `;
 }
@@ -109,31 +137,39 @@ async function runTests() {
         const block = blocks[index];
         const type = block.querySelector('.type-selector').value;
 
-        // === NEW: HANDLE "STATEMENT" TYPE SEPARATELY ===
+        // === HANDLE "STATEMENT" TYPE SEPARATELY ===
         if (type === 'statement') {
             const statementText = block.querySelector('.input-statement').value;
-            // Append directly to FormData, keeping it out of the JSON payload
-            formData.append('testResultStatement', statementText);
-
-            console.log(`\n📝 --- Captured Statement (Block ${index + 1}) ---`);
+            // Append statements with unique key if you may have multiple statements
+            // formData.append(`testResultStatement_${index}`, statementText);
+            formData.append("testResultStatement", statementText);
+            // console.log(`\n📝 --- Captured Statement (Block ${index + 1}) ---`);
             console.log(statementText);
 
             continue; // Skip the file and JSON logic below for this block
         }
-        // ===============================================
+        // =================================================
 
-        const targetValue = block.querySelector('.input-target').value;
+        // For other types we rely on .input-target for the main value (url, model id, or CSS)
+        const targetElem = block.querySelector('.input-target');
+        var targetValue = targetElem ? targetElem.value : null;
+        // Auto add # if it's an id (no . or # provided)
+        if ((type === 'model' || type === 'nav_modal') && targetValue) {
+            if (!targetValue.startsWith("#") && !targetValue.startsWith(".")) {
+                targetValue = "#" + targetValue;
+            }
+        }
         const fileInput = block.querySelector('.input-csv');
 
         let fileKey = null;
         let fileName = null;
 
-        // 2. Access the actual file
-        if (fileInput.files.length > 0) {
+        // 2. Access the actual file (if any)
+        if (fileInput && fileInput.files.length > 0) {
             const actualFile = fileInput.files[0];
             fileName = actualFile.name;
 
-            // READ AND LOG CSV CONTENT
+            // READ AND LOG CSV CONTENT (optional for debug)
             try {
                 const csvText = await actualFile.text();
                 console.log(`\n📄 --- Content of ${fileName} (Block ${index + 1}) ---`);
@@ -150,7 +186,7 @@ async function runTests() {
             formData.append(fileKey, actualFile);
         }
 
-        // 3. Add to our JSON structure
+        // 3. Add to our JSON structure (frontend naming -> backend mapping)
         if (type === 'url') {
             payload.tests.push({
                 type: "URL",
@@ -161,9 +197,19 @@ async function runTests() {
         } else if (type === 'model') {
             payload.tests.push({
                 type: "MODAL",
-                id: targetValue,
+                openerCss: targetValue,
                 fileName: fileName,
                 fileKey: fileKey
+            });
+        } else if (type === 'nav_url') {
+            payload.tests.push({
+                type: "NAV_URL",
+                url: targetValue
+            });
+        } else if (type === 'nav_modal') {
+            payload.tests.push({
+                type: "NAV_MODAL",
+                openerCss: targetValue
             });
         }
     }
