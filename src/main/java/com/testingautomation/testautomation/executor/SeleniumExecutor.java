@@ -46,7 +46,7 @@ public class SeleniumExecutor {
         Path screenshotsDir = runDir.resolve("screenshots");
         Path resultsCsv = runDir.resolve("results.csv");
         Path finalCsv = runDir.getParent().getParent().resolve("finalResult.csv");
-        System.out.println("Path to final csvvvv"+finalCsv.toString());
+//        System.out.println("Path to final csvvvv"+finalCsv.toString());
         try {
             Files.createDirectories(screenshotsDir);
             // create CSV file and write header

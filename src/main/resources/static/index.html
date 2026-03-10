@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Automation Testing Dashboard</title>
-    <link rel="stylesheet" href="styles/styles.css">
+    <link rel="stylesheet" href="styles/styles.css" />
 </head>
 <body>
 
@@ -14,12 +14,17 @@
         <p class="subtitle">Configure and run your UI & Model tests</p>
     </header>
 
+    <!-- Dynamic blocks will be inserted here -->
     <main id="blocks-container"></main>
 
     <div class="actions">
         <button class="btn-add" onclick="addBlock()">+ Add Test Block</button>
         <button class="btn-run" onclick="runTests()">Run Tests</button>
     </div>
+
+    <footer>
+        <small>Tip: Use <strong>Navigation URL</strong> to navigate to a page, and <strong>Navigation Modal</strong> to click a nav element (supply CSS selector).</small>
+    </footer>
 </div>
 
 <script src="js/scripts.js"></script>

@@ -14,6 +14,7 @@ public class TestCase {
                 "id='" + id + '\'' +
                 ", url='" + url + '\'' +
                 ", values=" + values +
+                ", result='" + result + '\'' +
                 '}';
     }
 
