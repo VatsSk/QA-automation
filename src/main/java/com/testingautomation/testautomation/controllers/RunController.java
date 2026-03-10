@@ -13,17 +13,22 @@ import com.testingautomation.testautomation.model.TestCase;
 import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
 import com.testingautomation.testautomation.scan.UiScannerService;
 import io.github.bonigarcia.wdm.WebDriverManager;
+import org.springframework.core.io.Resource;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -206,6 +211,8 @@ public class RunController {
 
         // This list will hold your final, fully populated domain objects
 
+        String runId="sk1";
+
 
         ChromeOptions options = new ChromeOptions();
 //                options.addArguments("--headless=new");
@@ -221,14 +228,22 @@ public class RunController {
         // --- At this point, you have a List<ScenarioDescriptor> ready for Selenium! ---
         System.out.println("Successfully created " + scenarios.size() + " ScenarioDescriptors.");
         try {
-            scenarioOrchestratorService.executeScenarios(driver, scenarios, "sk1",successMsg);
+            scenarioOrchestratorService.executeScenarios(driver, scenarios, runId,successMsg);
+            File zipFile = scenarioOrchestratorService.zipTestResults(runId);
+            Resource resource = new FileSystemResource(zipFile);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"" + zipFile.getName() + "\"")
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(resource);
         }catch (Exception ex){
-            logger.error("exception has been occured! "+ex.getStackTrace());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Test execution failed");
         }finally {
            driver.quit();
         }
 
-        return ResponseEntity.ok(Map.of("status", "success", "message", "Tests successfully mapped to ScenarioDescriptors!"));
+//        return ResponseEntity.ok(Map.of("status", "success", "message", "Tests successfully mapped to ScenarioDescriptors!"));
     }
 
 

@@ -27,6 +27,9 @@ import org.springframework.web.multipart.MultipartHttpServletRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.io.*;
+import java.nio.file.*;
+import java.util.zip.*;
 
 @Service
 public class ScenarioOrchestratorService {
@@ -52,45 +55,87 @@ public class ScenarioOrchestratorService {
      * Top-level: execute the list of scenarios in sequence (one by one).
      * Keeps single driver/session alive (login should be done before calling this).
      */
-    public void executeScenarios(WebDriver driver, List<ScenarioDescriptor> scenarios, String globalRunId,String successMsg) {
+    public void executeScenarios(WebDriver driver,List<ScenarioDescriptor> scenarios,String globalRunId,String successMsg) {
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
-        ScenarioDescriptor lastScenario = null;
+        ScenarioDescriptor lastUrlScenario = null;
+        int lastUrlIdx=-1;
         for (int i = 0; i < scenarios.size(); i++) {
-            ScenarioDescriptor s = scenarios.get(i);
-            String scenarioRunId = globalRunId + "_S" + (i + 1) + (s.getId() != null ? "_" + s.getId() : "");
-            List<TestCase> tcsResult=null;
+            ScenarioDescriptor current = scenarios.get(i);
+            String scenarioRunId = globalRunId + "_S" + (i + 1) + (current.getId() != null ? "_" + current.getId() : "");
             try {
-
-                if (s.getType() == ScenarioDescriptor.Type.URL) {
-                    lastScenario = s;
-
-                    tcsResult=runUrlGeneric(
-                            driver,
-                            s.getUrl(),
-                            s.getCsvFile(),
-                            scenarioRunId,
-                            successMsg
-                    );
-
-                } else if (s.getType() == ScenarioDescriptor.Type.MODAL) {
-
-                    tcsResult=runModalGeneric(
-                            driver,
-                            s.getOpenerCss(),
-                            s.getCsvFile(),
-                            scenarioRunId,
-                            lastScenario,
-                            successMsg
-                    );
-
+                if (current.getType() == ScenarioDescriptor.Type.URL) {
+                    lastUrlScenario = current;
+                    lastUrlIdx=i;
+                    // check next scenario
+                    if (i + 1 < scenarios.size()
+                            && scenarios.get(i + 1).getType() == ScenarioDescriptor.Type.MODAL) {
+                        logger.info("about to fire handleModalCHain by executeScenarios");
+                        // URL followed by modal chain
+                        i = handleModalChain(driver, scenarios, i, lastUrlScenario, globalRunId,
+                                successMsg
+                        );
+                        logger.info("outside handleModalchain but inside executeScenario with idx : {}",i);
+                    } else {
+                        // normal URL execution
+                        runUrlGeneric(
+                                driver,
+                                current.getUrl(),
+                                current.getCsvFile(),
+                                scenarioRunId,
+                                successMsg
+                        );
+                    }
                 }
-
+                else if (current.getType() == ScenarioDescriptor.Type.MODAL) {
+                    runModalGeneric(driver, current.getOpenerCss(), current.getCsvFile(), scenarioRunId, scenarios,lastUrlIdx,
+                            successMsg
+                    );
+                }
 
             } catch (Exception e) {
 
-                logger.error("[{}] scenario failed but continuing: {}", scenarioRunId, e.getMessage(), e);
+                logger.error("[{}] scenario failed but continuing: {}",scenarioRunId,e.getMessage(), e);
             }
         }
+
+    }
+
+    private int handleModalChain(WebDriver driver, List<ScenarioDescriptor> scenarios,int urlIndex,
+                                 ScenarioDescriptor urlScenario,
+                                 String globalRunId,
+                                 String successMsg) {
+        String scenarioRunId = globalRunId + "_S" + (urlIndex + 1);
+        // execute the URL first
+        try{
+            runUrlGeneric(driver, urlScenario.getUrl(), urlScenario.getCsvFile(), scenarioRunId, successMsg);
+        }catch (Exception ex){
+            logger.error("ex while url firing!");
+        }
+
+        int i = urlIndex + 1;
+
+        logger.info("inside Handle modal chain and urlIdx is : {} and {}",i,i < scenarios.size() && scenarios.get(i).getType() == ScenarioDescriptor.Type.MODAL);
+
+        // find last modal
+        while (i < scenarios.size() && scenarios.get(i).getType() == ScenarioDescriptor.Type.MODAL) {
+            i++;
+        }
+        int lastModalIndex = i - 1;
+        logger.info("Last modal idx is : {} ",lastModalIndex);
+        try {
+            // open intermediate modals
+            for (int j = urlIndex + 1; j < lastModalIndex; j++) {
+                ScenarioDescriptor modal = scenarios.get(j);
+                logger.info("[{}] Opening intermediate modal {}", globalRunId, modal.getId());
+                WebElement opener = driver.findElement(By.cssSelector(modal.getOpenerCss()));
+                opener.click();
+                Thread.sleep(1000);
+            }
+
+        } catch (Exception e) {
+            logger.error("[{}] modal chain failed", globalRunId, e);
+        }
+        return lastModalIndex-1;
     }
 
     /**
@@ -141,30 +186,33 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase -> generate steps & run using executor.runOnRenderedPage(...)
      */
-    public List<TestCase> runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,ScenarioDescriptor lastScenario,String successMsg) throws Exception {
+    public List<TestCase> runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,List<ScenarioDescriptor> scenarios,int lastUrlIdx,String successMsg) throws Exception {
         logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
         List<TestCase> testCases=null;
+        ScenarioDescriptor lastUrlScenario=scenarios.get(lastUrlIdx);
         try {
 //            WebElement opener = driver.findElement(By.cssSelector(openerCss));
 //            opener.click();
             // small generic wait so modal DOM gets attached (replace with explicit wait if you have modal selector)
             Thread.sleep(400);
 
-            List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
-            logger.info("[{}] scanned {} modal fields", runIdPrefix, modalFields.size());
 
             // load modal testcases
             testCases = csvLoader.load(csvFile);
             logger.info("[{}] loaded {} modal testcases from {}", runIdPrefix, testCases.size(), csvFile.getOriginalFilename());
-
+            int counterIdx=0;
             for (TestCase tc : testCases) {
                 String tcRunId = runIdPrefix + "_" + tc.getId();
+                List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
+                logger.info("[{}] scanned {} modal fields", runIdPrefix, modalFields.size());
+                counterIdx++;
                 try {
-                    runUrlGeneric(driver,lastScenario.getUrl(), lastScenario.getCsvFile(),"lastUrl",successMsg);
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
                     String result=executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
                     tc.setResult(result);
+                    if(counterIdx<testCases.size())
+                        handleModalChain(driver,scenarios,lastUrlIdx, lastUrlScenario,"lastUrl",successMsg);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc.getId());
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -215,5 +263,31 @@ public class ScenarioOrchestratorService {
     }
 
 
+    public File zipTestResults(String runId) throws IOException {
 
+        Path sourceDir = Paths.get("test-results");
+
+        String zipFileName = "screenshots_" + runId + ".zip";
+        Path zipPath = Paths.get("test-results", zipFileName);
+
+        try (ZipOutputStream zs = new ZipOutputStream(Files.newOutputStream(zipPath))) {
+
+            Files.walk(sourceDir)
+                    .filter(path -> path.toString().contains(runId))
+                    .filter(path -> !Files.isDirectory(path))
+                    .forEach(path -> {
+                        ZipEntry zipEntry =
+                                new ZipEntry(sourceDir.relativize(path).toString());
+                        try {
+                            zs.putNextEntry(zipEntry);
+                            Files.copy(path, zs);
+                            zs.closeEntry();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+
+        return zipPath.toFile();
+    }
 }
