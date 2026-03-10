@@ -1,5 +1,4 @@
 package com.testingautomation.testautomation.controllers;
-//package com.testingautomation.testautomation.config.controller;
 
 import com.testingautomation.testautomation.model.TfProject;
 import com.testingautomation.testautomation.model.TfRun;
@@ -28,7 +27,7 @@ import java.util.Optional;
  * Admin:    GET|POST /api/users
  */
 @RestController
-@RequestMapping("/auth/api")
+@RequestMapping("/api")
 @CrossOrigin(origins = "*", allowedHeaders = "*", methods = {
         RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT,
         RequestMethod.DELETE, RequestMethod.OPTIONS
@@ -59,20 +58,19 @@ public class TestForgeController {
     @PostMapping("/auth/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
         String username = body.get("username");
-        String email    = body.get("email");
+        String email    = body.get("password");
+
+        System.out.println("Data is "+username+"-------------"+email);
 
         if (username == null || email == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "username and email are required"));
         }
-        TfUser demo=new TfUser();
-        demo.setUsername("abc");
-        demo.setEmail("abc@gmail.com");
+
         Optional<TfUser> user = users.findByUsernameAndEmail(username.trim(), email.trim());
-//        if (user.isEmpty()) {
-//            return ResponseEntity.status(401).body(Map.of("error", "User not found. Contact your admin."));
-//        }
-        System.out.println("logggggggggggg innnnnnnnnnnnnnnn");
-        return ResponseEntity.ok(demo);
+        if (user.isEmpty()) {
+            return ResponseEntity.status(401).body(Map.of("error", "User not found. Contact your admin."));
+        }
+        return ResponseEntity.ok(user.get());
     }
 
     // ════════════════════════════════════════════════════════════

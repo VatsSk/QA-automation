@@ -152,15 +152,17 @@ public class ScenarioOrchestratorService {
             // load modal testcases
             List<TestCase> testCases = csvLoader.load(csvFile);
             logger.info("[{}] loaded {} modal testcases from {}", runIdPrefix, testCases.size(), csvFile.getOriginalFilename());
-
+            int caseCounter=0;
             for (TestCase tc : testCases) {
                 String tcRunId = runIdPrefix + "_" + tc.getId();
                 try {
-                    runUrlGeneric(driver,lastScenario.getUrl(), lastScenario.getCsvFile(),"lastUrl",successMsg);
+                    caseCounter++;
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
                     executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc.getId());
+                    if(caseCounter<testCases.size())
+                        runUrlGeneric(driver,lastScenario.getUrl(), lastScenario.getCsvFile(),"lastUrl",successMsg);
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
                 }
