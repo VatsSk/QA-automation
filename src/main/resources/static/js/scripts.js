@@ -30,6 +30,7 @@ function addBlock() {
                 <option value="statement">Test Result Statement</option>
                 <option value="nav_url">Navigation URL</option>
                 <option value="nav_modal">Navigation Modal</option>
+                 <option value="search_nav">Search Navigation</option> 
             </select>
         </div>
 
@@ -64,6 +65,8 @@ function toggleFields(blockId) {
         fieldsContainer.innerHTML = getNavUrlFieldsHTML();
     } else if (type === 'nav_modal') {
         fieldsContainer.innerHTML = getNavModalFieldsHTML();
+    }else if (type === 'search_nav') {
+        fieldsContainer.innerHTML = getSearchNavFieldsHTML();
     }
 }
 
@@ -121,6 +124,20 @@ function getNavModalFieldsHTML() {
             <label>Navigation Opener CSS (openerCss)</label>
             <input type="text" class="input-target" placeholder=".nav-item-class or #menu > li:nth-child(2)" required>
             <small class="muted">Provide the CSS selector that will be clicked to open the navigation/modal</small>
+        </div>
+    `;
+}
+function getSearchNavFieldsHTML() {
+    return `
+        <div class="form-group">
+            <label>Search Bar Opener CSS</label>
+            <input type="text" class="input-target" placeholder="#searchBox or .search-input" required>
+            <small class="muted">CSS selector of the search input field</small>
+        </div>
+
+        <div class="form-group">
+            <label>Search Value</label>
+            <input type="text" class="input-search-value" placeholder="Enter text to search" required>
         </div>
     `;
 }
@@ -205,6 +222,14 @@ async function runTests() {
             payload.tests.push({
                 type: "NAV_MODAL",
                 openerCss: targetValue
+            });
+        }else if (type === 'search_nav') {
+            const searchValue = block.querySelector('.input-search-value').value;
+
+            payload.tests.push({
+                type: "NAV_SEARCH",
+                openerCss: targetValue,
+                value: searchValue
             });
         }
     }

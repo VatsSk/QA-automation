@@ -190,13 +190,104 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase -> generate steps & run using executor.runOnRenderedPage(...)
      */
+//    public int handleNavigation(WebDriver driver, List<ScenarioDescriptor> scenarios, int currIdx) {
+//
+//        while (currIdx < scenarios.size()) {
+//
+//            ScenarioDescriptor currScenario = scenarios.get(currIdx);
+//
+//            if (currScenario.getType() == ScenarioDescriptor.Type.MODAL) {
+//                return currIdx;
+//            }
+//
+//            try {
+//
+//                if (currScenario.getType() == ScenarioDescriptor.Type.NAV_URL) {
+//
+//                    driver.get(currScenario.getUrl());
+//
+//                } else if (currScenario.getType() == ScenarioDescriptor.Type.NAV_MODAL) {
+//                    WebElement opener= driver.findElement(By.cssSelector(currScenario.getOpenerCss()));
+//                    opener.click();
+//                }
+////                else if(currScenario.getType()==ScenarioDescriptor.Type.NAV_SEARCH){
+////                    WebElement opener=driver.findElement(By.cssSelector(currScenario.getOpenerCss()));
+////                    opener.sendKeys(currScenario.getValue());
+////
+////                }
+//                else if(currScenario.getType() == ScenarioDescriptor.Type.NAV_SEARCH){
+//
+//                    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+//
+//                    WebElement opener = wait.until(ExpectedConditions.presenceOfElementLocated(
+//                            By.cssSelector(currScenario.getOpenerCss())
+//                    ));
+//
+//                    String value = currScenario.getValue();
+//
+//                    // If element is input -> type search
+//                    if(opener.getTagName().equalsIgnoreCase("input") ||
+//                            "true".equals(opener.getAttribute("contenteditable"))) {
+//
+//                        opener.clear();
+//                        opener.sendKeys(value);
+//                        opener.sendKeys(Keys.ENTER);
+//
+//                    } else {
+//
+//                        // Otherwise open dropdown
+//                        wait.until(ExpectedConditions.elementToBeClickable(opener)).click();
+//
+//                        try {
+//                            WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+//                                    By.cssSelector("[data-title='" + value + "']")
+//                            ));
+//                            option.click();
+//
+//                        } catch(Exception ignored) {
+//
+//                            try {
+//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+//                                        By.xpath("//*[text()='" + value + "']")
+//                                ));
+//                                option.click();
+//
+//                            } catch(Exception ignored2) {
+//
+//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+//                                        By.xpath("//*[contains(text(),'" + value + "')]")
+//                                ));
+//                                option.click();
+//                            }
+//                        }
+//                    }
+//                }
+//                Thread.sleep(1000);
+//
+//            } catch (Exception e) {
+//                logger.error("Navigation step failed", e);
+//            }
+//
+//            currIdx++;
+//        }
+//
+//        return currIdx;
+//    }
+
     public int handleNavigation(WebDriver driver, List<ScenarioDescriptor> scenarios, int currIdx) {
+
+        logger.info("Starting navigation handling from index {}", currIdx);
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
         while (currIdx < scenarios.size()) {
 
             ScenarioDescriptor currScenario = scenarios.get(currIdx);
 
+            logger.info("Processing scenario index {} type {}", currIdx, currScenario.getType());
+
             if (currScenario.getType() == ScenarioDescriptor.Type.MODAL) {
+                logger.info("Reached MODAL scenario at index {}, stopping navigation phase", currIdx);
                 return currIdx;
             }
 
@@ -204,25 +295,154 @@ public class ScenarioOrchestratorService {
 
                 if (currScenario.getType() == ScenarioDescriptor.Type.NAV_URL) {
 
+                    logger.info("Navigating to URL: {}", currScenario.getUrl());
                     driver.get(currScenario.getUrl());
 
-                } else if (currScenario.getType() == ScenarioDescriptor.Type.NAV_MODAL) {
-                    WebElement opener= driver.findElement(By.cssSelector(currScenario.getOpenerCss()));
+                }
+                else if (currScenario.getType() == ScenarioDescriptor.Type.NAV_MODAL) {
+
+                    logger.info("Opening modal using selector: {}", currScenario.getOpenerCss());
+
+                    WebElement opener = wait.until(ExpectedConditions.elementToBeClickable(
+                            By.cssSelector(currScenario.getOpenerCss())
+                    ));
+
                     opener.click();
+
+                    logger.info("Modal opener clicked successfully");
+
+                }
+                else if (currScenario.getType() == ScenarioDescriptor.Type.NAV_SEARCH) {
+
+                    logger.info("Executing NAV_SEARCH using selector: {} and value: {}",
+                            currScenario.getOpenerCss(), currScenario.getValue());
+
+                    WebElement opener = wait.until(ExpectedConditions.presenceOfElementLocated(
+                            By.cssSelector(currScenario.getOpenerCss())
+                    ));
+
+                    String value = currScenario.getValue();
+
+                    logger.info("Search element located: tag={}", opener.getTagName());
+
+                    // CASE 1 — search input field
+                    if (opener.getTagName().equalsIgnoreCase("input") ||
+                            "true".equals(opener.getAttribute("contenteditable"))) {
+
+                        logger.info("Detected input search field");
+
+                        // open tree selector if present
+                        try {
+                            WebElement treeOpener = driver.findElement(By.cssSelector(".treeSelector-input-box"));
+                            if (treeOpener.isDisplayed()) {
+                                treeOpener.click();
+                                logger.info("Opened tree selector dropdown");
+                            }
+                        } catch (Exception ignored) {
+                            logger.info("No tree selector opener found, continuing normal search");
+                        }
+
+                        opener.clear();
+                        opener.sendKeys(value);
+
+                        logger.info("Typed search value: {}", value);
+
+                        // wait for filtering
+                        Thread.sleep(500);
+
+                        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                By.xpath("//*[@data-title='" + value + "']//input")
+                        ));
+
+                        option.click();
+
+                        logger.info("Clicked checkbox for option: {}", value);
+
+                        // close dropdown to apply filter
+//                        opener.sendKeys(Keys.TAB);
+//                        logger.info("Closed dropdown using TAB");
+                        driver.findElement(By.tagName("body")).click();
+                        logger.info("Closed dropdown using body click fallback");
+
+                    }
+
+                    // CASE 2 — dropdown opener
+                    else {
+
+                        logger.info("Detected dropdown/tree selector opener");
+
+                        wait.until(ExpectedConditions.elementToBeClickable(opener)).click();
+
+                        try {
+
+                            logger.info("Trying checkbox selection using data-title");
+
+                            WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                    By.xpath("//*[@data-title='" + value + "']//input")
+                            ));
+
+                            option.click();
+
+                            logger.info("Clicked checkbox for option: {}", value);
+
+                        }
+                        catch (Exception ignored) {
+
+                            logger.info("data-title failed. Trying exact text");
+
+                            try {
+
+                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                        By.xpath("//*[text()='" + value + "']")
+                                ));
+
+                                option.click();
+
+                                logger.info("Option selected using exact text");
+
+                            }
+                            catch (Exception ignored2) {
+
+                                logger.info("Exact text failed. Trying partial text");
+
+                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                        By.xpath("//*[contains(text(),'" + value + "')]")
+                                ));
+
+                                option.click();
+
+                                logger.info("Option selected using partial text");
+                            }
+                        }
+
+                        // close dropdown to apply filter
+//                        opener.sendKeys(Keys.TAB);
+//                        logger.info("Closed dropdown using TAB");
+                        driver.findElement(By.tagName("body")).click();
+                        logger.info("Closed dropdown using body click fallback");
+
+                    }
                 }
 
                 Thread.sleep(1000);
 
-            } catch (Exception e) {
-                logger.error("Navigation step failed", e);
+            }
+            catch (Exception e) {
+
+                logger.error("Navigation step failed at index {} type {} selector {}",
+                        currIdx,
+                        currScenario.getType(),
+                        currScenario.getOpenerCss(),
+                        e);
             }
 
             currIdx++;
         }
 
+        logger.info("Navigation phase completed. Final index {}", currIdx);
+
         return currIdx;
     }
-
     public List<TestCase> runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,List<ScenarioDescriptor> scenarios,String successMsg,int currIdx) throws Exception {
         logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
         List<TestCase> testCases=null;
@@ -286,7 +506,8 @@ public class ScenarioOrchestratorService {
                     req.getId()==null?req.getOpenerCss(): req.getId(),
                     req.getUrl(),
                     req.getOpenerCss(),
-                    csvFile
+                    csvFile,
+                    req.getValue()
             );
 
             // 4. Add it to our list
