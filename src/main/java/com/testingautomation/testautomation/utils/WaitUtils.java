@@ -1,97 +1,143 @@
 package com.testingautomation.testautomation.utils;
+
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.*;
-import java.time.Duration;
-import java.util.function.Function;
 
-public class WaitUtils {
+import java.time.Duration;
+
+public final class WaitUtils {
+
+    private WaitUtils() {}
 
     private static final Duration DEFAULT_TIMEOUT = Duration.ofSeconds(15);
     private static final Duration POLLING = Duration.ofMillis(300);
 
-    // Fluent wait builder
+    /* -----------------------------
+       Fluent Wait (driver safe)
+    ------------------------------*/
     private static FluentWait<WebDriver> fluent(WebDriver driver, Duration timeout) {
         return new FluentWait<>(driver)
                 .withTimeout(timeout)
                 .pollingEvery(POLLING)
                 .ignoring(NoSuchElementException.class)
                 .ignoring(StaleElementReferenceException.class)
-                .ignoring(ElementClickInterceptedException.class);
+                .ignoring(ElementClickInterceptedException.class)
+                .ignoring(ElementNotInteractableException.class);
     }
 
-    public static WebElement waitForElementVisible(WebDriver driver, By locator, int secs) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(secs));
-        return wait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+    /* -----------------------------
+       Visibility Wait
+    ------------------------------*/
+    public static WebElement waitForVisible(WebDriver driver, By locator) {
+        return fluent(driver, DEFAULT_TIMEOUT)
+                .until(d -> d.findElement(locator));
     }
 
-    public static WebElement waitForElementClickable(WebDriver driver, By locator, int secs) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(secs));
-        return wait.until(ExpectedConditions.elementToBeClickable(locator));
+    public static WebElement waitForVisible(WebDriver driver, By locator, int secs) {
+        return fluent(driver, Duration.ofSeconds(secs))
+                .until(d -> d.findElement(locator));
     }
 
-    public static boolean waitForUrlContains(WebDriver driver, String substring, int secs) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(secs));
-        return wait.until(ExpectedConditions.urlContains(substring));
+    /* -----------------------------
+       Clickable Wait
+    ------------------------------*/
+    public static WebElement waitForClickable(WebDriver driver, By locator) {
+        return fluent(driver, DEFAULT_TIMEOUT)
+                .until(ExpectedConditions.elementToBeClickable(locator));
     }
 
-    public static void waitForPageLoad(WebDriver driver, int secs) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(secs));
-        wait.until(webDriver -> ((JavascriptExecutor) webDriver)
-                .executeScript("return document.readyState").equals("complete"));
+    public static WebElement waitForClickable(WebDriver driver, By locator, int secs) {
+        return fluent(driver, Duration.ofSeconds(secs))
+                .until(ExpectedConditions.elementToBeClickable(locator));
     }
 
-    // Wait for jQuery to finish (returns immediately if jQuery not present)
-    public static void waitForJQueryToFinish(WebDriver driver, int secs) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(secs));
-        ExpectedCondition<Boolean> jQueryLoad = d -> {
+    /* -----------------------------
+       URL Wait
+    ------------------------------*/
+    public static void waitForUrlContains(WebDriver driver, String text) {
+        fluent(driver, DEFAULT_TIMEOUT)
+                .until(ExpectedConditions.urlContains(text));
+    }
+
+    public static void waitForUrlContains(WebDriver driver, String text, int secs) {
+        fluent(driver, Duration.ofSeconds(secs))
+                .until(ExpectedConditions.urlContains(text));
+    }
+
+    /* -----------------------------
+       Page Load Wait
+    ------------------------------*/
+    public static void waitForPageLoad(WebDriver driver) {
+        fluent(driver, DEFAULT_TIMEOUT)
+                .until(d ->
+                        ((JavascriptExecutor)d)
+                                .executeScript("return document.readyState")
+                                .equals("complete"));
+    }
+
+    /* -----------------------------
+       AJAX Wait
+    ------------------------------*/
+    public static void waitForAjax(WebDriver driver) {
+        fluent(driver, DEFAULT_TIMEOUT).until(d -> {
             try {
-                Object result = ((JavascriptExecutor) d).executeScript(
-                        "return (window.jQuery != undefined) ? (jQuery.active == 0) : true;");
+                Object result = ((JavascriptExecutor)d)
+                        .executeScript("return window.jQuery != undefined && jQuery.active == 0");
                 return Boolean.TRUE.equals(result);
-            } catch (JavascriptException e) {
+            } catch (Exception e) {
                 return true;
-            }
-        };
-        wait.until(jQueryLoad);
-    }
-
-    // Wait until number of elements > n
-    public static void waitForNumberOfElementsToBeMoreThan(WebDriver driver, By locator, int n, int secs) {
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(secs));
-        wait.until(ExpectedConditions.numberOfElementsToBeMoreThan(locator, n));
-    }
-
-    // Wait for a modal/container to be visible after clicking opener
-    public static WebElement waitForModalVisibleAfterClick(WebDriver driver, By opener, By modalLocator, int secs) {
-        // Wait for opener clickable, click, then wait for modal visible
-        WebElement el = waitForElementClickable(driver, opener, secs);
-        try {
-            el.click();
-        } catch (ElementClickInterceptedException ex) {
-            // fallback: scroll and JS click
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", el);
-            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
-        }
-        return waitForElementVisible(driver, modalLocator, secs);
-    }
-
-    // Safe click with retries
-    public static void safeClick(WebDriver driver, By locator, int secs) {
-        FluentWait<WebDriver> wait = fluent(driver, Duration.ofSeconds(secs));
-        wait.until(d -> {
-            try {
-                WebElement e = d.findElement(locator);
-                ((JavascriptExecutor) d).executeScript("arguments[0].scrollIntoView(true);", e);
-                if (!e.isDisplayed() || !e.isEnabled()) return false;
-                try {
-                    e.click();
-                } catch (ElementClickInterceptedException ex) {
-                    ((JavascriptExecutor) d).executeScript("arguments[0].click();", e);
-                }
-                return true;
-            } catch (Exception ex) {
-                return false;
             }
         });
     }
+
+    /* -----------------------------
+       Safe Click (most important)
+    ------------------------------*/
+    public static void safeClick(WebDriver driver, By locator) {
+
+        fluent(driver, DEFAULT_TIMEOUT).until(d -> {
+
+            WebElement element = d.findElement(locator);
+
+            ((JavascriptExecutor)d)
+                    .executeScript("arguments[0].scrollIntoView({block:'center'});", element);
+
+            if(!element.isDisplayed() || !element.isEnabled())
+                return false;
+
+            try {
+                element.click();
+                return true;
+            }
+            catch (ElementClickInterceptedException e) {
+
+                ((JavascriptExecutor)d)
+                        .executeScript("arguments[0].click();", element);
+
+                return true;
+            }
+        });
+    }
+
+    /* -----------------------------
+       Modal Wait Helper
+    ------------------------------*/
+    public static WebElement openModalAndWait(WebDriver driver,
+                                              By opener,
+                                              By modalLocator) {
+
+        safeClick(driver, opener);
+
+        return fluent(driver, DEFAULT_TIMEOUT)
+                .until(ExpectedConditions.visibilityOfElementLocated(modalLocator));
+    }
+
+    /* -----------------------------
+       Wait for element count
+    ------------------------------*/
+    public static void waitForMoreElements(WebDriver driver, By locator, int count) {
+        fluent(driver, DEFAULT_TIMEOUT)
+                .until(ExpectedConditions.numberOfElementsToBeMoreThan(locator, count));
+    }
+
 }
