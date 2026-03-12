@@ -1,7 +1,7 @@
 package com.testingautomation.testautomation.orchestratorService;
 
-import com.testingautomation.testautomation.dto.TestConfigPayload;
-import com.testingautomation.testautomation.dto.TestConfigRequest;
+import com.testingautomation.testautomation.requestDto.TestConfigPayload;
+import com.testingautomation.testautomation.requestDto.TestConfigRequest;
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
@@ -11,16 +11,11 @@ import com.testingautomation.testautomation.model.StepAction;
 import com.testingautomation.testautomation.model.TestCase;
 import com.testingautomation.testautomation.scan.UiScannerService;
 import org.openqa.selenium.By;
-import org.openqa.selenium.Keys;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.interactions.Actions;
-import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
-import io.github.bonigarcia.wdm.WebDriverManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,7 +30,6 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 

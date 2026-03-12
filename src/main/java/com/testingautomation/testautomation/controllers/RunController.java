@@ -1,8 +1,6 @@
 package com.testingautomation.testautomation.controllers;
 
-import com.testingautomation.testautomation.client.ScannerClient;
-import com.testingautomation.testautomation.dto.TestConfigPayload;
-import com.testingautomation.testautomation.dto.TestConfigRequest;
+import com.testingautomation.testautomation.requestDto.TestConfigPayload;
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
@@ -12,7 +10,6 @@ import com.testingautomation.testautomation.model.StepAction;
 import com.testingautomation.testautomation.model.TestCase;
 import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
 import com.testingautomation.testautomation.scan.UiScannerService;
-import io.github.bonigarcia.wdm.WebDriverManager;
 import org.springframework.core.io.Resource;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -25,16 +22,12 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
 
 import java.io.File;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -57,51 +50,51 @@ public class RunController {
         this.executor = executor;
         this.scenarioOrchestratorService=scenarioOrchestratorService;
     }
-
-    /**
-     * Example:
-     * GET /runner/run?scannerApi=http://localhost:8080/scanner/scan?url=...&csvPath=/tmp/tests.csv
-     */
-    @GetMapping("/run")
-    public String runTests(@RequestParam String targetUrl,@RequestParam String csvPath) {
-        try {
-            List<FieldDescriptor> fields = scannerService.scanPage(targetUrl);
-            logger.info("scannerService scannerService scannerService scannerService scannerService");
-            logger.info("Length of fields :"+fields.size());
-            System.out.println("Data from fields:  "+fields);
-
-
-            List<TestCase> testCases = csvLoader.load(csvPath);
-            System.out.println("Data from test cases:  "+testCases);
-            for (TestCase tc : testCases) {
-                ChromeOptions options = new ChromeOptions();
-//                options.addArguments("--headless=new");
-//                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
-                options.addArguments("--disable-gpu");
-                options.addArguments("--window-size=1366,768");
-                WebDriver driver = new ChromeDriver(options);;
-                try {
-                // If CSV row provides a url override, use it
-                    String url = (tc.getUrl() != null && !tc.getUrl().isBlank())
-                            ? tc.getUrl()
-                            : targetUrl;
-
-                    List<StepAction> steps =
-                            stepGenerator.generateSteps(fields, tc);
-
-                    executor.run(driver, url, steps, tc.getId(),"");
-
-                } finally {
-                    driver.quit();   // 🔥 THIS IS REQUIRED
-                }
-            }
-            return "Run completed";
-        } catch (Exception e) {
-            logger.error("Run failed", e);
-            return "Run failed: " + e.getMessage();
-        }
-
-    }
+//
+//    /**
+//     * Example:
+//     * GET /runner/run?scannerApi=http://localhost:8080/scanner/scan?url=...&csvPath=/tmp/tests.csv
+//     */
+//    @GetMapping("/run")
+//    public String runTests(@RequestParam String targetUrl,@RequestParam String csvPath) {
+//        try {
+//            List<FieldDescriptor> fields = scannerService.scanPage(targetUrl);
+//            logger.info("scannerService scannerService scannerService scannerService scannerService");
+//            logger.info("Length of fields :"+fields.size());
+//            System.out.println("Data from fields:  "+fields);
+//
+//
+//            List<TestCase> testCases = csvLoader.load(csvPath);
+//            System.out.println("Data from test cases:  "+testCases);
+//            for (TestCase tc : testCases) {
+//                ChromeOptions options = new ChromeOptions();
+////                options.addArguments("--headless=new");
+////                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
+//                options.addArguments("--disable-gpu");
+//                options.addArguments("--window-size=1366,768");
+//                WebDriver driver = new ChromeDriver(options);;
+//                try {
+//                // If CSV row provides a url override, use it
+//                    String url = (tc.getUrl() != null && !tc.getUrl().isBlank())
+//                            ? tc.getUrl()
+//                            : targetUrl;
+//
+//                    List<StepAction> steps =
+//                            stepGenerator.generateSteps(fields, tc);
+//
+//                    executor.run(driver, url, steps, tc.getId(),"");
+//
+//                } finally {
+//                    driver.quit();
+//                }
+//            }
+//            return "Run completed";
+//        } catch (Exception e) {
+//            logger.error("Run failed", e);
+//            return "Run failed: " + e.getMessage();
+//        }
+//
+//    }
 
     /**
      * Example:
@@ -209,18 +202,10 @@ public class RunController {
             @RequestParam("testResultStatement") String successMsg,
             MultipartHttpServletRequest request) {
 
-
-                System.out.println(" -> " + successMsg);
-
-
-        // This list will hold your final, fully populated domain objects
-
         String runId = "run_" +LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm")) +"_" + UUID.randomUUID().toString().substring(0,6);
 
 
         ChromeOptions options = new ChromeOptions();
-//                options.addArguments("--headless=new");
-//                options.addArguments("--disable-gpu", "--no-sandbox", "--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
         options.addArguments("--window-size=1366,768");
         WebDriver driver = new ChromeDriver(options);

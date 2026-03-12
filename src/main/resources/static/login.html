@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login — QA Manager</title>
+    <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+<div class="login-page">
+    <div class="login-card card">
+        <div class="card-body">
+            <div class="login-brand">
+                <span class="logo">🧪</span>
+                <h1>QA Manager</h1>
+                <p>Sign in to manage your test runs</p>
+            </div>
+
+            <div id="error-msg" style="display:none;padding:10px 14px;background:var(--danger-light);color:#b91c1c;border-radius:var(--radius-sm);border:1px solid #fecaca;font-size:13px;margin-bottom:16px;"></div>
+
+            <form id="login-form" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="username">Username <span class="req">*</span></label>
+                    <input id="username" type="text" class="form-control" placeholder="e.g. alice" autocomplete="username" required />
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="password">Password <span class="req">*</span></label>
+                    <input id="password" type="password" class="form-control" placeholder="••••••••" autocomplete="current-password" required />
+                </div>
+                <button type="submit" id="login-btn" class="btn btn-primary btn-full" style="margin-top:8px;">
+                    Sign In
+                </button>
+            </form>
+
+            <p style="text-align:center;margin-top:18px;font-size:12px;color:var(--text-muted);">
+                Demo users: <strong>alice</strong> · <strong>bob</strong> · <strong>carol</strong> (any password)
+            </p>
+        </div>
+    </div>
+
+    <button class="theme-btn" id="theme-btn" style="position:fixed;top:20px;right:20px;" aria-label="Toggle theme">🌙</button>
+</div>
+<script type="module" src="js/login.js"></script>
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Run Editor — QA Manager</title>
+    <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+<div class="app-layout">
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand"><span class="logo">🧪</span> QA Manager</div>
+        <nav class="sidebar-nav">
+            <a href="index.html">    <span class="icon">📊</span> Dashboard</a>
+            <a href="projects.html"> <span class="icon">📁</span> Projects</a>
+            <a href="modules.html">  <span class="icon">🗂️</span> Modules</a>
+            <a href="runs.html">     <span class="icon">▶️</span> Runs</a>
+        </nav>
+        <div class="sidebar-footer">
+            <div style="flex:1"><div class="u-name" id="sb-username">—</div><div class="u-role" id="sb-role">—</div></div>
+            <button class="btn btn-ghost btn-sm" id="logout-btn">⏏️</button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topnav">
+            <div class="topnav-left">
+                <button class="btn btn-ghost btn-sm" id="back-btn">← Back</button>
+                <span class="topnav-title" id="page-title">New Run</span>
+            </div>
+            <div class="topnav-right">
+                <button class="btn btn-secondary" id="save-draft-btn">💾 Save Draft</button>
+                <button class="btn btn-primary"   id="save-run-btn">▶ Save &amp; Run</button>
+                <button class="theme-btn" id="theme-btn">🌙</button>
+            </div>
+        </header>
+
+        <main class="page">
+            <form id="run-form" novalidate>
+
+                <!-- Run info -->
+                <div class="card" style="margin-bottom:20px;">
+                    <div class="card-header"><span class="card-title">Run Details</span></div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" for="f-runName">Run Name <span class="req">*</span></label>
+                                <input id="f-runName" type="text" class="form-control" placeholder="e.g. Checkout Smoke Run" required />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="f-runType">Run Type</label>
+                                <input id="f-runType" type="text" class="form-control" placeholder="e.g. smoke, regression" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label" for="f-createdBy">Created By</label>
+                                <input id="f-createdBy" type="text" class="form-control" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label" for="f-tags">Tags <span class="form-hint">(comma-separated)</span></label>
+                                <input id="f-tags" type="text" class="form-control" placeholder="smoke, login, fast" />
+                            </div>
+                        </div>
+                        <!-- resultStatement: run-level field, NOT per-scenario -->
+                        <div class="form-group">
+                            <label class="form-label" for="f-resultStatement">
+                                Result Statement
+                                <span class="form-hint">(sent as query param to /runner/run-auth — not stored in scenarios)</span>
+                            </label>
+                            <input id="f-resultStatement" type="text" class="form-control"
+                                   placeholder="e.g. Assert: order confirmation page visible" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Scenarios -->
+                <div class="card">
+                    <div class="card-header">
+                        <span class="card-title">Scenarios</span>
+                        <button type="button" class="btn btn-secondary btn-sm" id="add-scenario-btn">+ Add Scenario</button>
+                    </div>
+                    <div class="card-body" id="scenarios-wrap">
+                        <div id="scenarios-list">
+                            <!-- scenario cards injected here -->
+                        </div>
+                        <div id="scenarios-empty" style="text-align:center;padding:32px;color:var(--text-muted);font-size:14px;">
+                            No scenarios yet. Click <strong>+ Add Scenario</strong> to begin.
+                        </div>
+                    </div>
+                </div>
+
+            </form>
+        </main>
+    </div>
+</div>
+<script type="module" src="js/run-editor.js"></script>
+</body>
+</html>

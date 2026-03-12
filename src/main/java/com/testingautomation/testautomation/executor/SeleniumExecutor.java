@@ -146,7 +146,7 @@ public class SeleniumExecutor {
                 writeStepResultRow(driver1,resultsCsv, testCaseId, stepNo, s, status, errorMessage, screenshotPath);
             }
             // after you finish executing steps (and before writeFinalResultRow)
-            if (successMsg != null && !successMsg.trim().isEmpty()) {
+             if (successMsg != null && !successMsg.trim().isEmpty()) {
                 boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
                 if (foundVisible) {
                     status = "PASSED";
