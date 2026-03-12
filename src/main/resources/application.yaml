@@ -18,6 +18,10 @@ spring:
       max-file-size: 50MB
       max-request-size: 100MB
 
+aws:
+  s3:
+    bucket: interns-tf-project/qa_automation
+
 
 server:
   port: 8080

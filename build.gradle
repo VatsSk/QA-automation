@@ -43,6 +43,9 @@ dependencies {
     // ── MongoDB ──────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-data-mongodb'
 
+    // AWS S3 SDK (v2)
+    implementation 'software.amazon.awssdk:s3:2.25.20'
+
 
     configurations.all {
         exclude group: 'org.slf4j', module: 'slf4j-simple'

@@ -1,6 +1,5 @@
 package com.testingautomation.testautomation.scan;
-import com.testingautomation.testautomation.model.FieldDescriptor;
-import com.testingautomation.testautomation.model.UiElement;
+import com.testingautomation.testautomation.dto.FieldDescriptor;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -9,7 +8,6 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.stereotype.Service;
 
-import java.io.FileDescriptor;
 import java.time.Duration;
 import java.util.*;
 

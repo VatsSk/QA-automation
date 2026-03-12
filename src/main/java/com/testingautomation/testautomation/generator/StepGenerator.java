@@ -1,12 +1,12 @@
 package com.testingautomation.testautomation.generator;
 
-import com.testingautomation.testautomation.model.StepAction;
-import com.testingautomation.testautomation.model.TestCase;
+import com.testingautomation.testautomation.dto.StepAction;
+import com.testingautomation.testautomation.dto.TestCase;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import java.util.*;
-import com.testingautomation.testautomation.model.FieldDescriptor;
+import com.testingautomation.testautomation.dto.FieldDescriptor;
 
 @Component
 public class StepGenerator {
