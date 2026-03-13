@@ -24,6 +24,8 @@ public class UiScannerController {
 
     @GetMapping("/auth")
     public String getAuth(){
-        return "Testforge.html";
+
+        System.out.println("AUTH controller calleld::");
+        return "runs.html";
     }
 }

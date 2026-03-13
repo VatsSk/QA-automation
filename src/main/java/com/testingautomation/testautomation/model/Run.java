@@ -2,7 +2,6 @@ package com.testingautomation.testautomation.model;
 
 
 import com.testingautomation.testautomation.dto.ScenarioDescriptor;
-import com.testingautomation.testautomation.enums.RunStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

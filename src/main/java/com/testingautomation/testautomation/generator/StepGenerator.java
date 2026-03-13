@@ -1,7 +1,7 @@
 package com.testingautomation.testautomation.generator;
 
 import com.testingautomation.testautomation.dto.StepAction;
-import com.testingautomation.testautomation.dto.TestCase;
+import com.testingautomation.testautomation.dto.TestCaseDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -12,7 +12,7 @@ import com.testingautomation.testautomation.dto.FieldDescriptor;
 public class StepGenerator {
     private final Logger logger = LoggerFactory.getLogger(StepGenerator.class);
 
-    public List<StepAction> generateSteps(List<FieldDescriptor> fields, TestCase testCase) {
+    public List<StepAction> generateSteps(List<FieldDescriptor> fields, TestCaseDTO testCase) {
         logger.info("Generating steps for testcase {}", testCase.getId());
         List<StepAction> steps = new ArrayList<>();
 

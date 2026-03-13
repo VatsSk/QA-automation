@@ -2,27 +2,17 @@ package com.testingautomation.testautomation.executor;
 
 import com.testingautomation.testautomation.dto.ResultRun;
 import com.testingautomation.testautomation.dto.StepAction;
-import com.testingautomation.testautomation.dto.TestCase;
 import com.testingautomation.testautomation.services.ScreenshotService;
 import com.testingautomation.testautomation.services.TestResultWriter;
-import lombok.extern.java.Log;
-import lombok.extern.log4j.Log4j;
-import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -51,8 +41,7 @@ public class SeleniumExecutor {
      * containing results.csv and screenshots/.
      */
     public ResultRun run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,
-                      String successMsg,
-                      Path scenarioDir, String scenarioPrefix,int currIdx , int sizeOfScenarios) {
+                      String successMsg, Path scenarioDir, String scenarioPrefix,int currIdx , int sizeOfScenarios,String expectedResult) {
         List<String> screenshotUrls = new ArrayList<>();
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));
@@ -111,6 +100,7 @@ public class SeleniumExecutor {
 
                     if ("SKIPPED".equals(ex.getMessage())) {
                         logger.info("[{}] Step {} skipped", testCaseId, stepNo);
+
                         continue;
                     }
 
@@ -132,7 +122,7 @@ public class SeleniumExecutor {
             }
 
             // final success message check
-            if (successMsg != null && !successMsg.trim().isEmpty() && currIdx!=(sizeOfScenarios-1)) {
+            if (expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty() ) {
                 boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
                 String screenshotUrl=screenshotService.takeScreenshot(
                         driver1,
@@ -151,7 +141,7 @@ public class SeleniumExecutor {
                             testCaseId, successMsg);
                 }
             }else{
-                logger.info("Not a scenario whose result needs to be justified with success message!");
+                logger.info("Not a scenario whose result needs to be justified with success message and also doesn't have expected column!");
             }
 
         }
@@ -169,7 +159,7 @@ public class SeleniumExecutor {
                                        String testCaseId,
                                        String successMsg,
                                        Path scenarioDir,
-                                       String scenarioPrefix) {
+                                       String scenarioPrefix,String expectedResult) {
 
         List<String> screenshotUrls = new ArrayList<>();
 
@@ -256,7 +246,7 @@ public class SeleniumExecutor {
             }
 
             // final success message check
-            if (successMsg != null && !successMsg.trim().isEmpty()) {
+            if (expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty()) {
 
                 boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
 
@@ -274,13 +264,14 @@ public class SeleniumExecutor {
                 if (!foundVisible) {
                     testPassed = false;
 
-                    logger.warn("[{}] Success message NOT visible in viewport: '{}'",
-                            testCaseId, successMsg);
+                    logger.warn("[{}] Success message NOT visible in viewport: '{}'", testCaseId, successMsg);
                 } else {
 
                     logger.info("[{}] Success message visible in viewport: '{}' test passed",
                             testCaseId, successMsg);
                 }
+            }else{
+                logger.info("Not a scenario whose result needs to be justified with success message and also doesn't have expected column!");
             }
 
         } catch (Exception e) {

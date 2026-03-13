@@ -1,36 +1,22 @@
 package com.testingautomation.testautomation.controllers;
 
-import com.testingautomation.testautomation.dto.ScenarioDescriptorModal;
-import com.testingautomation.testautomation.dto.TestConfigPayload;
+
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
-import com.testingautomation.testautomation.dto.ScenarioDescriptor;
-import com.testingautomation.testautomation.dto.ScenarioDescriptorModal;
 import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
 import com.testingautomation.testautomation.scan.UiScannerService;
-import org.springframework.core.io.Resource;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.io.FileSystemResource;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
-
-import java.io.File;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.UUID;
 
 @RestController
-@RequestMapping("/runner")
+@RequestMapping("/api")
 public class RunController {
     private final Logger logger = LoggerFactory.getLogger(RunController.class);
 //    private final ScannerClient scannerClient;
@@ -88,22 +74,11 @@ public class RunController {
 //        return ResponseEntity.ok().build();
 //    }
 
-@PostMapping(value = "/run-auth")
+@PostMapping(value = "/runs/{id}")
 public ResponseEntity<?> receiveTests(
-        @RequestParam("runId") String runId) {
-    ChromeOptions options = new ChromeOptions();
-    options.addArguments("--disable-gpu");
-    options.addArguments("--window-size=1366,768");
-    WebDriver driver = new ChromeDriver(options);
-    try {
-        scenarioOrchestratorService.executeScenarios(driver,runId);
+        @PathVariable("id") String runId) {
 
-    }catch (Exception ex){
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("Test execution failed");
-    }finally {
-        driver.quit();
-    }
+
     return ResponseEntity.ok().build();
 }
 

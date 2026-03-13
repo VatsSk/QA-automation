@@ -1,15 +1,17 @@
 package com.testingautomation.testautomation.dto;
 
+import com.testingautomation.testautomation.model.RunStatus;
 import lombok.Data;
 
 import java.util.List;
 
 @Data
 public class ScenarioTestDto {
-    private List<TestCase> testCases;
+    private List<TestCaseDTO> testCases;
     private String resultCsv;
+    private RunStatus overAllScenarioStatus;
 
-    public ScenarioTestDto(List<TestCase> testCases, String resultCsv) {
+    public ScenarioTestDto(List<TestCaseDTO> testCases, String resultCsv) {
         this.testCases = testCases;
         this.resultCsv = resultCsv;
     }

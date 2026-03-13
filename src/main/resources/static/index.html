@@ -1,32 +1,71 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Automation Testing Dashboard</title>
-    <link rel="stylesheet" href="styles/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard — QA Manager</title>
+    <link rel="stylesheet" href="css/main.css" />
 </head>
 <body>
+<div class="app-layout">
 
-<div class="container">
-    <header>
-        <h1>Automation Testing Dashboard</h1>
-        <p class="subtitle">Configure and run your UI & Model tests</p>
-    </header>
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand"><span class="logo">🧪</span> QA Manager</div>
+        <nav class="sidebar-nav">
+            <a href="index.html">    <span class="icon">📊</span> Dashboard</a>
+            <a href="projects.html"> <span class="icon">📁</span> Projects</a>
+            <a href="modules.html">  <span class="icon">🗂️</span> Modules</a>
+            <a href="runs.html">     <span class="icon">▶️</span> Runs</a>
+        </nav>
+        <div class="sidebar-footer">
+            <div style="flex:1">
+                <div class="u-name" id="sb-username">—</div>
+                <div class="u-role" id="sb-role">—</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" id="logout-btn" title="Logout">⏏️</button>
+        </div>
+    </aside>
 
-    <!-- Dynamic blocks will be inserted here -->
-    <main id="blocks-container"></main>
+    <div class="main">
+        <header class="topnav">
+            <div class="topnav-left">
+                <span class="topnav-title">Dashboard</span>
+            </div>
+            <div class="topnav-right">
+                <button class="theme-btn" id="theme-btn" aria-label="Toggle theme">🌙</button>
+            </div>
+        </header>
 
-    <div class="actions">
-        <button class="btn-add" onclick="addBlock()">+ Add Test Block</button>
-        <button class="btn-run" onclick="runTests()">Run Tests</button>
+        <main class="page">
+            <div class="section-header">
+                <div>
+                    <div class="section-title">Welcome back, <span id="welcome-name">—</span></div>
+                    <div class="section-meta" id="welcome-date"></div>
+                </div>
+                <a href="projects.html" class="btn btn-primary">+ New Project</a>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card"><div class="stat-value" id="stat-projects">—</div><div class="stat-label">Projects</div></div>
+                <div class="stat-card"><div class="stat-value" id="stat-runs">—</div><div class="stat-label">Total Runs</div></div>
+                <div class="stat-card"><div class="stat-value" id="stat-passed" style="color:var(--success)">—</div><div class="stat-label">Passed</div></div>
+                <div class="stat-card"><div class="stat-value" id="stat-failed" style="color:var(--danger)">—</div><div class="stat-label">Failed</div></div>
+                <div class="stat-card"><div class="stat-value" id="stat-running" style="color:var(--info)">—</div><div class="stat-label">Running</div></div>
+            </div>
+
+            <!-- Recent projects -->
+            <div class="section-header" style="margin-top:8px;">
+                <span class="section-title" style="font-size:16px;">Recent Projects</span>
+                <a href="projects.html" class="btn btn-ghost btn-sm">View all →</a>
+            </div>
+            <div id="recent-projects" class="projects-grid">
+                <div class="empty-state"><div class="spinner"></div></div>
+            </div>
+        </main>
     </div>
-
-    <footer>
-        <small>Tip: Use <strong>Navigation URL</strong> to navigate to a page, and <strong>Navigation Modal</strong> to click a nav element (supply CSS selector).</small>
-    </footer>
 </div>
-
-<script src="js/scripts.js"></script>
+<script type="module" src="js/dashboard.js"></script>
 </body>
 </html>

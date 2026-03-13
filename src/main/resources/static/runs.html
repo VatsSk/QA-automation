@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Runs — QA Manager</title>
+    <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+<div class="app-layout">
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand"><span class="logo">🧪</span> QA Manager</div>
+        <nav class="sidebar-nav">
+            <a href="index.html">    <span class="icon">📊</span> Dashboard</a>
+            <a href="projects.html"> <span class="icon">📁</span> Projects</a>
+            <a href="modules.html">  <span class="icon">🗂️</span> Modules</a>
+            <a href="runs.html">     <span class="icon">▶️</span> Runs</a>
+        </nav>
+        <div class="sidebar-footer">
+            <div style="flex:1"><div class="u-name" id="sb-username">—</div><div class="u-role" id="sb-role">—</div></div>
+            <button class="btn btn-ghost btn-sm" id="logout-btn">⏏️</button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topnav">
+            <div class="topnav-left">
+                <span class="topnav-title">Runs</span>
+                <span class="breadcrumb" id="breadcrumb"></span>
+            </div>
+            <div class="topnav-right">
+                <select id="proj-select" class="form-control" style="width:160px;" aria-label="Select project">
+                    <option value="">Select project…</option>
+                </select>
+                <select id="mod-select" class="form-control" style="width:160px;" aria-label="Select module">
+                    <option value="">Select module…</option>
+                </select>
+                <button class="btn btn-primary" id="new-run-btn" disabled>+ New Run</button>
+                <button class="theme-btn" id="theme-btn">🌙</button>
+            </div>
+        </header>
+
+        <main class="page">
+
+            <!-- Quick filters + filter toggle -->
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" id="filter-toggle">
+                    🔽 Filters <span id="filter-badge" class="badge badge-running" style="display:none;margin-left:2px;"></span>
+                </button>
+                <div id="quick-bar" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            </div>
+
+            <!-- Active filter chips -->
+            <div id="chip-row" class="chip-row"></div>
+
+            <!-- Runs layout -->
+            <div class="runs-layout">
+
+                <!-- Filter panel -->
+                <aside class="filter-panel" id="filter-panel" aria-label="Filter runs">
+                    <div class="filter-header">
+                        <span>Filters</span>
+                        <button class="btn btn-ghost btn-sm btn-icon" id="filter-close" aria-label="Close">✕</button>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="filter-section">
+                        <div class="filter-section-label">Search</div>
+                        <input type="search" id="f-search" class="form-control" placeholder="Run name, statement…" aria-label="Text search" />
+                    </div>
+
+                    <!-- Status -->
+                    <div class="filter-section">
+                        <div class="filter-section-label">Status</div>
+                        <div class="filter-checks" id="f-status">
+                            <label><input type="checkbox" value="DRAFT"   /> Draft</label>
+                            <label><input type="checkbox" value="RUNNING" /> Running</label>
+                            <label><input type="checkbox" value="PASSED"  /> Passed</label>
+                            <label><input type="checkbox" value="FAILED"  /> Failed</label>
+                            <label><input type="checkbox" value="PARTIAL" /> Partial</label>
+                        </div>
+                    </div>
+
+                    <!-- Scenario Type -->
+                    <div class="filter-section">
+                        <div class="filter-section-label">Scenario Type</div>
+                        <div class="filter-checks" id="f-type">
+                            <label><input type="checkbox" value="URL"        /> URL</label>
+                            <label><input type="checkbox" value="MODAL"      /> Modal</label>
+                            <label><input type="checkbox" value="URL_NAV"    /> URL Nav</label>
+                            <label><input type="checkbox" value="MODAL_NAV"  /> Modal Nav</label>
+                            <label><input type="checkbox" value="SEARCH_NAV" /> Search Nav</label>
+                        </div>
+                    </div>
+
+                    <!-- Created by -->
+                    <div class="filter-section">
+                        <div class="filter-section-label">Created By</div>
+                        <select id="f-createdby" class="form-control">
+                            <option value="">All users</option>
+                        </select>
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="filter-section">
+                        <div class="filter-section-label">Tags</div>
+                        <div class="filter-checks" id="f-tags">
+                            <span style="font-size:12px;color:var(--text-muted)">Load a module first</span>
+                        </div>
+                    </div>
+
+                    <!-- Date range -->
+                    <div class="filter-section">
+                        <div class="filter-section-label">Date Range</div>
+                        <div class="form-group" style="margin-bottom:8px;">
+                            <label class="form-label" for="f-from">From</label>
+                            <input type="datetime-local" id="f-from" class="form-control" />
+                        </div>
+                        <div class="form-group" style="margin-bottom:0">
+                            <label class="form-label" for="f-to">To</label>
+                            <input type="datetime-local" id="f-to" class="form-control" />
+                        </div>
+                    </div>
+
+                    <div class="filter-section">
+                        <button class="btn btn-secondary btn-full" id="f-reset">↺ Reset Filters</button>
+                    </div>
+                </aside>
+
+                <!-- Runs main area -->
+                <div class="runs-main">
+                    <div class="runs-toolbar">
+                        <span class="runs-count" id="runs-count" aria-live="polite">—</span>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <label for="sort-sel" style="font-size:12px;color:var(--text-muted);margin:0;">Sort:</label>
+                            <select id="sort-sel" class="form-control" style="width:auto;padding:5px 10px;font-size:13px;">
+                                <option value="-createdAt">Newest first</option>
+                                <option value="createdAt">Oldest first</option>
+                                <option value="-updatedAt">Recently updated</option>
+                                <option value="status">Status</option>
+                                <option value="runName">Name A–Z</option>
+                                <option value="-runName">Name Z–A</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div id="runs-container">
+                            <div class="empty-state">
+                                <div class="state-icon">📂</div>
+                                <p>Select a project and module to view runs</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="pagination" class="pagination"></div>
+                </div>
+
+            </div><!-- /runs-layout -->
+        </main>
+    </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div id="del-modal" class="overlay" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal">
+        <div class="modal-header">
+            <span class="modal-title">Delete Run</span>
+            <button class="modal-close" id="del-close">✕</button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete <strong id="del-name"></strong>?<br/>This cannot be undone.</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" id="del-cancel">Cancel</button>
+            <button class="btn btn-danger"    id="del-confirm">Delete</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="js/runs.js"></script>
+</body>
+</html>

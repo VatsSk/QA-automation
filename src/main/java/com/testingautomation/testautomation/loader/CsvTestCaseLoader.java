@@ -2,7 +2,7 @@ package com.testingautomation.testautomation.loader;
 
 
 import com.opencsv.CSVReaderHeaderAware;
-import com.testingautomation.testautomation.dto.TestCase;
+import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.services.TestResultWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,9 +91,9 @@ public class CsvTestCaseLoader {
 //        return list;
 //    }
 
-    public List<TestCase> loadFromS3(String csvUrl) throws Exception {
+    public List<TestCaseDTO> loadFromS3(String csvUrl) throws Exception {
         logger.info("Loading CSV testcases from S3: {}", csvUrl);
-        List<TestCase> list = new ArrayList<>();
+        List<TestCaseDTO> list = new ArrayList<>();
         String key = extractKeyFromUrl(csvUrl);
 
         GetObjectRequest request = GetObjectRequest.builder()
@@ -106,13 +106,15 @@ public class CsvTestCaseLoader {
                      new CSVReaderHeaderAware(new InputStreamReader(inputStream))) {
 
             Map<String, String> row;
+            int counter=0;
 
             while ((row = reader.readMap()) != null) {
 
                 String id = row.getOrDefault(
                         "testCaseId",
-                        UUID.randomUUID().toString().substring(0, 8)
+                        counter+""
                 );
+                counter++;
 
                 String expectedResult = row.get("expectedResult");
 
@@ -120,7 +122,7 @@ public class CsvTestCaseLoader {
                 values.remove("testCaseId");
                 values.remove("expectedResult");
 
-                TestCase testCase = new TestCase(id, values);
+                TestCaseDTO testCase = new TestCaseDTO(id, values);
                 testCase.setExpectedResult(expectedResult);
 
                 list.add(testCase);
@@ -138,7 +140,7 @@ public class CsvTestCaseLoader {
         return csvUrl.substring(csvUrl.indexOf(".amazonaws.com/") + 14);
     }
 
-    public Path writeScenarioCsv(List<TestCase> testCases, Path scenarioDir) throws IOException {
+    public Path writeScenarioCsv(List<TestCaseDTO> testCases, Path scenarioDir) throws IOException {
 
         if (testCases == null || testCases.isEmpty()) {
             throw new IllegalArgumentException("No testcases found");
@@ -153,7 +155,7 @@ public class CsvTestCaseLoader {
                 StandardOpenOption.TRUNCATE_EXISTING)) {
 
             // header
-            TestCase first = testCases.get(0);
+            TestCaseDTO first = testCases.get(0);
 
             List<String> headers = new ArrayList<>(first.getValues().keySet());
 
@@ -163,7 +165,7 @@ public class CsvTestCaseLoader {
             writer.write(String.join(",", headers));
             writer.newLine();
 
-            for (TestCase tc : testCases) {
+            for (TestCaseDTO tc : testCases) {
 
                 List<String> row = new ArrayList<>();
 

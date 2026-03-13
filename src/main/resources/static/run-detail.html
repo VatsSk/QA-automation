@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Run Detail — QA Manager</title>
+    <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+<div class="app-layout">
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand"><span class="logo">🧪</span> QA Manager</div>
+        <nav class="sidebar-nav">
+            <a href="index.html">    <span class="icon">📊</span> Dashboard</a>
+            <a href="projects.html"> <span class="icon">📁</span> Projects</a>
+            <a href="modules.html">  <span class="icon">🗂️</span> Modules</a>
+            <a href="runs.html">     <span class="icon">▶️</span> Runs</a>
+        </nav>
+        <div class="sidebar-footer">
+            <div style="flex:1"><div class="u-name" id="sb-username">—</div><div class="u-role" id="sb-role">—</div></div>
+            <button class="btn btn-ghost btn-sm" id="logout-btn">⏏️</button>
+        </div>
+    </aside>
+
+    <div class="main">
+        <header class="topnav">
+            <div class="topnav-left">
+                <button class="btn btn-ghost btn-sm" id="back-btn">← Back</button>
+                <span class="topnav-title" id="run-name-title">Run Detail</span>
+                <span id="run-status-badge"></span>
+            </div>
+            <div class="topnav-right">
+                <button class="btn btn-secondary btn-sm" id="edit-btn">✏️ Edit</button>
+                <button class="btn btn-secondary btn-sm" id="clone-btn">📋 Clone</button>
+                <button class="btn btn-primary   btn-sm" id="run-btn">▶ Run Now</button>
+                <button class="theme-btn" id="theme-btn">🌙</button>
+            </div>
+        </header>
+
+        <main class="page">
+
+            <!-- Run summary -->
+            <div class="card" style="margin-bottom:20px;">
+                <div class="card-body" id="run-summary">
+                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                </div>
+            </div>
+
+            <!-- Results summary -->
+            <div class="card" style="margin-bottom:20px;" id="results-card">
+                <div class="card-header"><span class="card-title">Results</span></div>
+                <div class="card-body" id="results-body">
+                    <div style="color:var(--text-muted);font-size:14px;">Run has not been executed yet or results are loading…</div>
+                </div>
+            </div>
+
+            <!-- Scenario timeline -->
+            <div class="card">
+                <div class="card-header"><span class="card-title">Scenarios</span><span id="scenario-count" class="section-meta"></span></div>
+                <div class="card-body">
+                    <div class="timeline" id="timeline">
+                        <div class="spinner-wrap"><div class="spinner"></div></div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+</div>
+
+<!-- Scenario detail modal -->
+<div id="scenario-modal" class="overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="sc-modal-title">
+    <div class="modal modal-lg">
+        <div class="modal-header">
+            <span class="modal-title" id="sc-modal-title">Scenario Detail</span>
+            <button class="modal-close" id="sc-modal-close">✕</button>
+        </div>
+        <div class="modal-body" id="sc-modal-body"></div>
+    </div>
+</div>
+
+<!-- Screenshot lightbox -->
+<div id="lightbox" class="overlay" style="display:none;background:rgba(0,0,0,.85)" role="dialog" aria-modal="true" aria-label="Screenshot">
+    <div style="max-width:90vw;max-height:90vh;position:relative;">
+        <button id="lb-close" style="position:absolute;top:-36px;right:0;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;">✕</button>
+        <img id="lb-img" src="" alt="Screenshot" style="max-width:90vw;max-height:85vh;border-radius:8px;" />
+    </div>
+</div>
+
+<script type="module" src="js/run-detail.js"></script>
+</body>
+</html>

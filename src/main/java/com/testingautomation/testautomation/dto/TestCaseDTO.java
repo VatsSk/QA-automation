@@ -3,7 +3,7 @@ package com.testingautomation.testautomation.dto;
 import java.util.List;
 import java.util.Map;
 
-public class TestCase {
+public class TestCaseDTO {
     private String id;
     private List<String> ssUrls;
     private Map<String,String> values;
@@ -21,7 +21,7 @@ public class TestCase {
                 '}';
     }
 
-    public TestCase(String id ,Map<String, String> values) {
+    public TestCaseDTO(String id ,Map<String, String> values) {
         this.id = id;
         this.values = values;
     }
