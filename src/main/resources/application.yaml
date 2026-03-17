@@ -40,7 +40,7 @@ storage:
     base-prefix: ${S3_BASE_PREFIX}
     access-key: ${AWS_ACCESS_KEY_ID}
     secret-key: ${AWS_SECRET_ACCESS_KEY}
-    presigned-url-expiry-minutes: ${S3_PRESIGNED_EXPIRY_MINUTES}
+    presigned-url-expiry-minutes: ${S3_PRESIGNED_EXPIRY_MINUTES:60}
 logging:
   level:
     root: INFO
