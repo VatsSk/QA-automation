@@ -1,12 +1,12 @@
 package com.testingautomation.testautomation.orchestratorService;
 
 
+import com.testingautomation.testautomation.dto.FieldDescriptor;
+import com.testingautomation.testautomation.dto.ScenarioDescriptor;
+import com.testingautomation.testautomation.dto.StepAction;
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
-import com.testingautomation.testautomation.model.FieldDescriptor;
-import com.testingautomation.testautomation.model.ScenarioDescriptor;
-import com.testingautomation.testautomation.model.StepAction;
 import com.testingautomation.testautomation.model.TestCase;
 import com.testingautomation.testautomation.requestDto.TestConfigPayload;
 import com.testingautomation.testautomation.requestDto.TestConfigRequest;

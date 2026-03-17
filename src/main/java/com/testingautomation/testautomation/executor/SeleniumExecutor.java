@@ -1,6 +1,6 @@
 package com.testingautomation.testautomation.executor;
 
-import com.testingautomation.testautomation.model.StepAction;
+import com.testingautomation.testautomation.dto.StepAction;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -40,7 +40,7 @@ public class SeleniumExecutor {
      *  <resultsBaseDir>/<testCaseId>_<yyyy-MM-dd_HH-mm-ss>/
      * containing results.csv and screenshots/.
      */
-    public String run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,String successMsg) {
+    public String run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId, String successMsg) {
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));
         Path runDir = Paths.get(resultsBaseDir, testCaseId + "_" + timestamp);
         Path screenshotsDir = runDir.resolve("screenshots");
