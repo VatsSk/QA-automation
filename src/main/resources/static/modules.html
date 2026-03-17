@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Modules</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <div class="main-col">
+
+        <div class="topbar">
+            <div class="crumb">
+                <a class="crumb-link" href="/projects.html">Projects</a>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-cur" id="crumb-proj">…</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+            </div>
+        </div>
+
+        <div class="main-scroll">
+            <div class="page">
+
+                <div class="page-header row-between">
+                    <div>
+                        <div class="page-title" id="page-title">Modules</div>
+                        <div class="page-sub"  id="page-sub">Loading…</div>
+                    </div>
+                    <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+                </div>
+
+                <div id="mod-list">
+                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as api from './js/api.js';
+    import { esc, toast, openModal, closeModal,
+        requireLogin, logout, initTheme, toggleTheme, buildSidebar } from './js/utils.js';
+
+    window.toggleTheme = toggleTheme;
+    window.closeModal  = closeModal;
+
+    const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+
+    initTheme();
+    buildSidebar('modules', api);
+
+    // Read projectId from URL
+    const params    = new URLSearchParams(location.search);
+    const projectId = params.get('projectId');
+    if (!projectId) { window.location.href = '/projects.html'; }
+
+    let project = null;
+    let modules  = [];
+
+    // ── Load ──────────────────────────────────────────────────────────────
+    async function load() {
+        try {
+            [project, modules] = await Promise.all([
+                api.projects.get(projectId),
+                api.modules.list(projectId),
+            ]);
+            // Save for sidebar use
+            sessionStorage.setItem('qa_projectId', projectId);
+            render();
+        } catch (e) {
+            document.getElementById('mod-list').innerHTML =
+                `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
+        }
+    }
+
+    function render() {
+        document.getElementById('crumb-proj').textContent = project?.name || '—';
+        document.getElementById('page-title').textContent = project?.name || 'Modules';
+        document.getElementById('page-sub').textContent =
+            `${modules.length} module${modules.length !== 1 ? 's' : ''}${project?.description ? ' · ' + project.description : ''}`;
+
+        const container = document.getElementById('mod-list');
+        if (!modules.length) {
+            container.innerHTML = `
+        <div class="empty">
+          <div class="ei">🗂️</div>
+          <h3>No modules yet</h3>
+          <p>Create a module to group your test runs.</p>
+          <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+        </div>`;
+            return;
+        }
+
+        container.innerHTML = `
+      <div class="mod-list">
+        ${modules.map(moduleRow).join('')}
+      </div>`;
+    }
+
+    function moduleRow(m) {
+        const mid = m.id || m._id;
+        return `
+    <div class="mod-item"
+      onclick="window.location.href='/runs.html?projectId=${esc(projectId)}&moduleId=${esc(mid)}'">
+      <div class="mod-icon">🗂️</div>
+      <div class="mod-info">
+        <div class="mod-name">${esc(m.name)}</div>
+        <div class="mod-desc">${esc(m.description || 'No description')}</div>
+      </div>
+      <div class="mod-meta">
+        <button class="btn btn-danger btn-xs"
+          onclick="event.stopPropagation();deleteModule('${mid}')">✕</button>
+        <span class="badge badge-blue">View Runs →</span>
+      </div>
+    </div>`;
+    }
+
+    // ── New module ─────────────────────────────────────────────────────────
+    window.showNewModuleModal = function () {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🗂️ New Module</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="field">
+          <label class="lbl">Module Name *</label>
+          <input id="nm-name" class="inp" placeholder="Auth Tests" autofocus>
+        </div>
+        <div class="field">
+          <label class="lbl">Description</label>
+          <textarea id="nm-desc" class="inp" placeholder="What does this module test?"></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="createModule()">Create</button>
+        </div>
+      </div>`);
+    };
+
+    window.createModule = async function () {
+        const name = document.getElementById('nm-name').value.trim();
+        const desc = document.getElementById('nm-desc').value.trim();
+        if (!name) { toast('Module name is required', 'warning'); return; }
+        try {
+            const m = await api.modules.create(projectId, { name, description: desc });
+            modules.unshift(m);
+            closeModal();
+            render();
+            toast(`"${name}" created`, 'success');
+        } catch (e) { toast('Create failed: ' + e.message, 'error'); }
+    };
+
+    // ── Delete module ──────────────────────────────────────────────────────
+    window.deleteModule = async function (id) {
+        if (!confirm('Delete this module and all its runs?')) return;
+        try {
+            await api.modules.delete(id);
+            modules = modules.filter(m => (m.id || m._id) !== id);
+            render();
+            toast('Deleted', 'info');
+        } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
+    };
+
+    load();
+</script>
+</body>
+</html>

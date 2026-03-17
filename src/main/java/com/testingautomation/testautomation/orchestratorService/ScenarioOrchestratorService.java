@@ -1,7 +1,6 @@
 package com.testingautomation.testautomation.orchestratorService;
 
-import com.testingautomation.testautomation.dto.TestConfigPayload;
-import com.testingautomation.testautomation.dto.TestConfigRequest;
+
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
@@ -9,14 +8,14 @@ import com.testingautomation.testautomation.model.FieldDescriptor;
 import com.testingautomation.testautomation.model.ScenarioDescriptor;
 import com.testingautomation.testautomation.model.StepAction;
 import com.testingautomation.testautomation.model.TestCase;
+import com.testingautomation.testautomation.requestDto.TestConfigPayload;
+import com.testingautomation.testautomation.requestDto.TestConfigRequest;
 import com.testingautomation.testautomation.scan.UiScannerService;
-import org.openqa.selenium.By;
-import org.openqa.selenium.Keys;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -67,19 +66,23 @@ public class ScenarioOrchestratorService {
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
         ScenarioDescriptor lastUrlScenario = null;
         String lastUr="";
+        ScenarioDescriptor formModalSc= scenarios.stream().filter(s->s.getType()== ScenarioDescriptor.Type.FORM_MODAL).findFirst().orElse(null);
+        ScenarioDescriptor modalSc= scenarios.stream().filter(s->s.getType()== ScenarioDescriptor.Type.MODAL).findFirst().orElse(null);
+
+
         for (int i = 0; i < scenarios.size(); i++) {
             ScenarioDescriptor current = scenarios.get(i);
             String scenarioRunId = globalRunId + "_S" + (i + 1) + (current.getId() != null ? "_" + current.getId() : "");
             try {
                 if (current.getType() == ScenarioDescriptor.Type.URL) {
                     // check next scenario
-                        runUrlGeneric(
-                                driver,
-                                current.getUrl(),
-                                current.getCsvFile(),
-                                scenarioRunId,
-                                successMsg
-                        );
+                    runUrlGeneric(
+                            driver,
+                            current.getUrl(),
+                            current.getCsvFile(),
+                            scenarioRunId,
+                            successMsg
+                    );
                 }
                 else{
                     runModalGeneric(
@@ -277,7 +280,7 @@ public class ScenarioOrchestratorService {
 //        return currIdx;
 //    }
 
-    public int handleNavigation(WebDriver driver, List<ScenarioDescriptor> scenarios, int currIdx) {
+    public int handleNavigation(WebDriver driver, List<ScenarioDescriptor> scenarios, int currIdx,int modalFormTcIdx) {
 
         logger.info("Starting navigation handling from index {}", currIdx);
 
@@ -426,8 +429,17 @@ public class ScenarioOrchestratorService {
 
                     }
                 }
+                else if(currScenario.getType() == ScenarioDescriptor.Type.FORM_MODAL){
+//                  modalFormTcIdx= modalFormTcIdx==0?0:modalFormTcIdx--;
 
-                Thread.sleep(500);
+                    MultipartFile csvFile = currScenario.getCsvFile();
+                    List<TestCase> testCases = csvLoader.load(csvFile);
+                    TestCase tc= testCases.get(modalFormTcIdx);
+                    handleModalScenario(driver, currScenario, tc);
+
+                }
+
+                Thread.sleep(1000);
 
             }
             catch (Exception e) {
@@ -450,12 +462,12 @@ public class ScenarioOrchestratorService {
         logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
         List<TestCase> testCases=null;
 //       int modalIndex= handleNavigation(driver,scenarios,currIdx);
-        System.out.println("Driver beforeee-- "+driver);
+//        System.out.println("Driver beforeee-- "+driver);
 
-        int currEle=handleNavigation(driver,scenarios,currIdx);
+        int currEle=handleNavigation(driver,scenarios,currIdx,0);
 
-        System.out.println("Driver afterr  "+driver);
-       ScenarioDescriptor currModal=scenarios.get(currEle);
+//        System.out.println("Driver afterr  "+driver);
+        ScenarioDescriptor currModal=scenarios.get(currEle);
         try {
 
             // load modal testcases
@@ -470,10 +482,11 @@ public class ScenarioOrchestratorService {
                 try {
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
+                    logger.info("Generated Steps : {}",steps);
                     String result=executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
                     tc.setResult(result);
                     if(counterIdx<testCases.size())
-                        handleNavigation(driver,scenarios,currIdx);
+                        handleNavigation(driver,scenarios,currIdx,counterIdx);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -510,6 +523,8 @@ public class ScenarioOrchestratorService {
                     req.getUrl(),
                     req.getOpenerCss(),
                     csvFile,
+                    req.getIsClick(),
+                    req.getClickCss(),
                     req.getValue()
             );
 
@@ -517,7 +532,7 @@ public class ScenarioOrchestratorService {
             scenarios.add(descriptor);
 
         }
-            return  scenarios;
+        return  scenarios;
     }
 
 
@@ -554,5 +569,177 @@ public class ScenarioOrchestratorService {
         }
 
         return zipPath.toFile();
+    }
+
+    private void handleModalScenario(
+            WebDriver driver,
+            ScenarioDescriptor scenario,
+            TestCase tc
+    ) {
+
+        String cssSelector = scenario.getOpenerCss();
+        String value = scenario.getValue();
+        boolean isClick =scenario.getIsClick()!=null;
+        logger.info("is click : {}",isClick);
+        boolean isSearch = !isClick;
+        String secondId = scenario.getClickCss();
+        logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', isClickRaw='{}', isClick={}, isSearch={}, clickCss='{}'",
+                cssSelector,
+                value,
+                scenario.getIsClick(),
+                isClick,
+                isSearch,
+                secondId
+        );
+
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        WebElement element = wait.until(
+                ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector))
+        );
+
+        String tag = element.getTagName();
+
+        // =========================
+        // HANDLE SELECT DROPDOWN
+        // =========================
+
+        if ("select".equalsIgnoreCase(tag)) {
+
+            boolean isSelect2 = element.getAttribute("class") != null &&
+                    element.getAttribute("class").contains("select2-hidden-accessible");
+
+            if (isSelect2) {
+
+                handleSelect2(driver, element, value);
+
+            } else {
+
+                Select sel = new Select(element);
+                sel.selectByVisibleText(value);
+
+            }
+
+        } else {
+
+            element.clear();
+            element.sendKeys(value);
+        }
+
+        // Trigger change event
+        ((JavascriptExecutor) driver).executeScript(
+                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", element);
+
+        // =========================
+        // CLICK MODE
+        // =========================
+
+        if (isClick) {
+
+            logger.info("Click flag is TRUE. Attempting to click element with id: " + secondId);
+
+            try {
+
+                WebElement container = wait.until(
+                        ExpectedConditions.presenceOfElementLocated(By.cssSelector(secondId))
+                );
+
+                // 🔥 find actual clickable child (a/button)
+                WebElement clickable = container.findElement(By.xpath(".//a | .//button"));
+
+                // scroll into view
+                ((JavascriptExecutor) driver).executeScript(
+                        "arguments[0].scrollIntoView({block:'center'});", clickable);
+
+                // 🔥 remove disabled if present
+                ((JavascriptExecutor) driver).executeScript(
+                        "arguments[0].removeAttribute('disabled');", clickable);
+
+                // wait until clickable
+                wait.until(ExpectedConditions.elementToBeClickable(clickable));
+
+                try {
+                    clickable.click();
+                } catch (Exception e) {
+                    logger.warn("Normal click failed, using JS click");
+                    ((JavascriptExecutor) driver).executeScript(
+                            "arguments[0].click();", clickable);
+                }
+
+                logger.info("Click action completed successfully for id: " + secondId);
+
+            } catch (TimeoutException e) {
+                logger.error("Timeout: Element with id '" + secondId + "' was not clickable.", e);
+            } catch (Exception e) {
+                logger.error("Unexpected error while clicking element with id: " + secondId, e);
+            }
+
+        } else {
+            logger.info("Click flag is FALSE. Skipping click action.");
+        }
+
+        // =========================
+        // SCAN PAGE
+        // =========================
+
+        List<FieldDescriptor> fields = scannerService.scanCurrentPage(driver);
+
+        // create steps from fields + testcase
+        List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
+
+        // =========================
+        // EXECUTE
+        // =========================
+
+        executor.runOnRenderedPage(
+                driver,
+                steps,
+                tc.getId(),
+                null
+        );
+    }
+    private void handleSelect2(WebDriver driver, WebElement selectElement, String value) {
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        String selectId = selectElement.getAttribute("id");
+
+        WebElement container = driver.findElement(
+                By.xpath("//select[@id='" + selectId + "']/following-sibling::span")
+        );
+
+        container.click();
+
+        try {
+
+            // TRY SEARCH MODE
+            WebElement search = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                            By.cssSelector(".select2-search__field"))
+            );
+
+            search.clear();
+            search.sendKeys(value);
+
+            WebElement option = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                            By.xpath("//li[contains(@class,'select2-results__option') and contains(.,'" + value + "')]")
+                    )
+            );
+
+            option.click();
+
+        } catch (Exception e) {
+
+            // TRY DIRECT SELECT
+            WebElement option = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                            By.xpath("//li[contains(@class,'select2-results__option') and contains(.,'" + value + "')]")
+                    )
+            );
+
+            option.click();
+        }
     }
 }

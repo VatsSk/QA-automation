@@ -31,6 +31,7 @@ function addBlock() {
                 <option value="nav_url">Navigation URL</option>
                 <option value="nav_modal">Navigation Modal</option>
                  <option value="search_nav">Search Navigation</option> 
+                 <option value="form_modal">Form Modal</option>
             </select>
         </div>
 
@@ -67,6 +68,9 @@ function toggleFields(blockId) {
         fieldsContainer.innerHTML = getNavModalFieldsHTML();
     }else if (type === 'search_nav') {
         fieldsContainer.innerHTML = getSearchNavFieldsHTML();
+    }
+    else if (type === 'form_modal') {
+        fieldsContainer.innerHTML = getFormModalFieldsHTML(blockId);
     }
 }
 
@@ -140,6 +144,54 @@ function getSearchNavFieldsHTML() {
             <input type="text" class="input-search-value" placeholder="Enter text to search" required>
         </div>
     `;
+}
+
+function getFormModalFieldsHTML(blockId) {
+    return `
+        <div class="form-group">
+            <label>Opener CSS</label>
+            <input type="text" class="input-target" placeholder="#openModalBtn" required>
+        </div>
+
+        <div class="form-group">
+            <label>Field Value</label>
+            <input type="text" class="input-field-value" placeholder="Enter value to type" required>
+        </div>
+
+        <div class="form-group">
+            <label>Next Action</label>
+
+
+            <label>
+                <input type="radio" name="action-${blockId}" value="click" 
+                    onchange="toggleClickField('${blockId}', true)">
+                Click after input
+            </label>
+
+            <label style="margin-left: 15px;">
+                <input type="radio" name="action-${blockId}" value="none" 
+                    onchange="toggleClickField('${blockId}', false)" checked>
+                Do nothing
+            </label>
+        </div>
+
+        <div class="form-group click-css-container" id="click-container-${blockId}" style="display:none;">
+            <label>Click CSS</label>
+            <input type="text" class="input-click-css" placeholder="#submitBtn">
+        </div>
+
+        <!-- ✅ NEW CSV FIELD -->
+        <div class="form-group">
+            <label>Upload Test Cases (CSV)</label>
+            <input type="file" class="input-csv" accept=".csv">
+        </div>
+    `;
+}
+function toggleClickField(blockId, show) {
+    const container = document.getElementById(`click-container-${blockId}`);
+    if (container) {
+        container.style.display = show ? 'block' : 'none';
+    }
 }
 
 // 4. Function to collect data and generate the payload
@@ -230,6 +282,27 @@ async function runTests() {
                 type: "NAV_SEARCH",
                 openerCss: targetValue,
                 value: searchValue
+            });
+        }
+        else if (type === 'form_modal') {
+            const fieldValue = block.querySelector('.input-field-value').value;
+
+            const action = block.querySelector(`input[name="action-${block.id}"]:checked`).value;
+
+            let clickCss = null;
+            if (action === 'click') {
+                const clickElem = block.querySelector('.input-click-css');
+                clickCss = clickElem ? clickElem.value : null;
+            }
+
+            payload.tests.push({
+                type: "FORM_MODAL",
+                openerCss: targetValue,
+                value: fieldValue,
+                isClick: action,
+                clickCss: clickCss,
+                fileName: fileName,   // ✅ reuse existing file handling
+                fileKey: fileKey
             });
         }
     }

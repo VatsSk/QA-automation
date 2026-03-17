@@ -51,20 +51,39 @@ public class CsvTestCaseLoader {
 
             while ((row = reader.readMap()) != null) {
 
-                String id = row.getOrDefault("testCaseId", UUID.randomUUID().toString().substring(0,8));
-                String url = row.get("url");
+                Map<String,String> cleanedRow = new HashMap<>();
 
-                Map<String,String> values = new HashMap<>(row);
-                values.remove("testCaseId");
+                for (Map.Entry<String,String> e : row.entrySet()) {
 
-                list.add(new TestCase(id, url, values));
+                    String key = e.getKey();
+                    String value = e.getValue();
+
+                    if (key != null) {
+                        key = key.replace("\uFEFF","").trim();   // remove BOM
+                    }
+
+                    if (value != null) {
+                        value = value.trim();
+                    }
+
+                    cleanedRow.put(key, value);
+                }
+
+                String id = cleanedRow.getOrDefault("testCaseId",
+                        UUID.randomUUID().toString().substring(0,8));
+
+                String url = cleanedRow.get("url");
+
+                cleanedRow.remove("testCaseId");
+
+                list.add(new TestCase(id, url, cleanedRow));
 
                 logger.debug("Loaded testcase {} url={}", id, url);
             }
         }
 
         logger.info("Total testcases loaded: {}", list.size());
-        System.out.println("testcases   ----  "+list);
+        System.out.println("testcases ---- " + list);
 
         return list;
     }

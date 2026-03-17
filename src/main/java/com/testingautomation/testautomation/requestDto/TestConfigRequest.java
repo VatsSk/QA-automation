@@ -1,4 +1,4 @@
-package com.testingautomation.testautomation.dto;
+package com.testingautomation.testautomation.requestDto;
 
 import lombok.Data;
 
@@ -10,4 +10,6 @@ public class TestConfigRequest {
     private String openerCss; // Make sure your frontend JS sends this if needed!
     private String fileKey;// "file_0", "file_1"
     private String value;
+    private String clickCss;
+    private String isClick;
 }

@@ -40,3 +40,4 @@ test-results/
 .logs
 results.csv
 finalResult.csv
+.env

@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Run Detail</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <div class="main-col">
+
+        <div class="topbar">
+            <div class="crumb">
+                <a class="crumb-link" href="/projects.html">Projects</a>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-link" id="crumb-proj" style="cursor:pointer">…</span>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-link" id="crumb-mod"  style="cursor:pointer">…</span>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-cur" id="crumb-run">Run Detail</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+            </div>
+        </div>
+
+        <div class="main-scroll">
+            <div class="page">
+                <div id="page-content">
+                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<script type="module">
+    import * as api from './js/api.js';
+    import { esc, statusBadge, timeAgo, toast, openModal, closeModal,
+        requireLogin, initTheme, toggleTheme, buildSidebar, showLightbox } from './js/utils.js';
+    import { TYPES } from './js/config.js';
+
+    window.toggleTheme = toggleTheme;
+    window.closeModal  = closeModal;
+
+    const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+
+    initTheme();
+    buildSidebar('runs', api);
+
+    const runId = new URLSearchParams(location.search).get('runId');
+    if (!runId) { window.location.href = '/projects.html'; }
+
+    let run       = null;
+    let pollTimer = null;
+
+    // ── Load ──────────────────────────────────────────────────────────────
+    async function load() {
+        try {
+            run = await api.runs.get(runId);
+
+            // Populate breadcrumbs
+            document.getElementById('crumb-run').textContent = run.runName || 'Run Detail';
+            document.title = `${run.runName} — QA Studio`;
+            if (run.projectId) {
+                document.getElementById('crumb-proj').onclick = () =>
+                    window.location.href = `/modules.html?projectId=${run.projectId}`;
+            }
+            if (run.moduleId) {
+                document.getElementById('crumb-mod').onclick = () =>
+                    window.location.href = `/runs.html?projectId=${run.projectId}&moduleId=${run.moduleId}`;
+            }
+
+            renderPage();
+            if (run.status === 'RUNNING') startPolling();
+        } catch (e) {
+            document.getElementById('page-content').innerHTML =
+                `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load run</h3><p>${esc(e.message)}</p></div>`;
+        }
+    }
+
+    // ── Render full page ───────────────────────────────────────────────────
+    function renderPage() {
+        const isRunning = run.status === 'RUNNING';
+        const backUrl   = run.projectId && run.moduleId
+            ? `/runs.html?projectId=${run.projectId}&moduleId=${run.moduleId}`
+            : '/projects.html';
+
+        document.getElementById('page-content').innerHTML = `
+
+      <!-- Action bar -->
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+        <a href="${backUrl}" class="btn btn-ghost btn-sm">← Back to Runs</a>
+        <a href="/run-editor.html?runId=${esc(runId)}" class="btn btn-ghost btn-sm">✏️ Edit</a>
+        <button class="btn btn-ghost btn-sm" onclick="cloneRun()">📋 Clone</button>
+        <button id="run-btn" class="btn btn-success btn-sm"
+          onclick="executeRun()" ${isRunning ? 'disabled' : ''}>
+          ${isRunning ? '⏳ Running…' : '▶ Run Now'}
+        </button>
+      </div>
+
+      <!-- Run info card -->
+      <div class="run-hero">
+        <div class="run-hero-top">
+          <div>
+            <div class="run-hero-name">${esc(run.runName)}</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
+              ${statusBadge(run.status)}
+              ${(run.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="run-meta-grid">
+          <div>
+            <div class="rmi-label">Run Type</div>
+            <div class="rmi-val">${esc(run.runType || '—')}</div>
+          </div>
+          <div>
+            <div class="rmi-label">Scenarios</div>
+            <div class="rmi-val"><strong>${(run.scenariosList || []).length}</strong></div>
+          </div>
+          <div>
+            <div class="rmi-label">Last Updated</div>
+            <div class="rmi-val" style="font-size:12px">${timeAgo(run.updatedAt || run.createdAt)}</div>
+          </div>
+          ${run.resultStatement ? `
+          <div>
+            <div class="rmi-label">Assert Statement</div>
+            <div class="rmi-val" style="color:var(--gr)">${esc(run.resultStatement)}</div>
+          </div>` : ''}
+        </div>
+      </div>
+
+      <!-- Scenarios card -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">
+            Scenarios
+            <span class="badge badge-blue">${(run.scenariosList || []).length}</span>
+          </span>
+          <select class="inp inp-sm" style="width:160px" onchange="filterByType(this.value)">
+            <option value="">All types</option>
+            ${Object.entries(TYPES).map(([k, v]) =>
+            `<option value="${k}">${v.icon} ${v.label}</option>`).join('')}
+          </select>
+        </div>
+        <div class="card-body" style="padding:12px">
+          <div class="sc-list" id="sc-list">
+            ${renderScenarios(run.scenariosList || [])}
+          </div>
+        </div>
+      </div>`;
+    }
+
+    // ── Render scenario accordion rows ────────────────────────────────────
+    function renderScenarios(scenarios) {
+        if (!scenarios.length) {
+            return `<div class="empty" style="padding:28px">
+        <div class="ei">🔬</div><h3>No scenarios</h3>
+        <p>Edit this run to add scenarios.</p>
+      </div>`;
+        }
+        return scenarios.map((sc, i) => {
+            const cfg    = TYPES[sc.type] || { label: sc.type, icon: '?', color: 'var(--tx2)', bg: 'var(--sur3)' };
+            const typeBg = `style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.color.replace(')', ',0.3)')}"`;
+            const hasTCs = cfg.hasData && (sc.manualTestCases || []).length > 0;
+            const hasSS  = (sc.screenshots || []).length > 0;
+            const canExp = hasTCs || hasSS;
+
+            return `
+      <div class="sc-row ${canExp ? 'expandable' : ''}" id="sc-row-${i}">
+        <div class="sc-head ${canExp ? 'clickable' : ''}"
+          ${canExp ? `onclick="toggleRow(${i})"` : ''}>
+          <div class="sc-num">${i + 1}</div>
+          <span class="badge" ${typeBg}>${cfg.icon} ${cfg.label}</span>
+          <div class="sc-info">
+            ${sc.url       ? `<div class="sc-url-val">🔗 ${esc(sc.url)}</div>` : ''}
+            ${sc.cssOpener ? `<div class="sc-url-val">CSS: ${esc(sc.cssOpener)}</div>` : ''}
+            ${sc.value     ? `<div class="sc-url-val">Value: ${esc(sc.value)}</div>` : ''}
+          </div>
+          ${sc.status ? statusBadge(sc.status) : ''}
+          ${hasSS ? `<span class="badge badge-blue" style="font-size:10px">📸 ${sc.screenshots.length}</span>` : ''}
+          ${canExp ? `<span class="sc-chevron">▼</span>` : ''}
+        </div>
+
+        ${canExp ? `
+        <div class="sc-body" id="sc-body-${i}" style="display:none">
+          <div class="tc-filter-bar">
+            ${hasTCs ? `
+              <input class="inp inp-sm" style="width:220px"
+                placeholder="🔍 Filter test cases…"
+                oninput="filterTC(${i}, this.value)">` : ''}
+            ${hasSS ? `
+              <button class="btn btn-ghost btn-sm mla"
+                onclick="viewScreenshots(${i})">
+                📸 View Screenshots (${sc.screenshots.length})
+              </button>` : ''}
+          </div>
+          ${hasTCs ? `
+          <div class="tc-table" id="tc-table-${i}">
+            ${tcTable(sc.manualTestCases, i)}
+          </div>` : ''}
+        </div>` : ''}
+      </div>`;
+        }).join('');
+    }
+
+    // ── Test case table ────────────────────────────────────────────────────
+    function tcTable(tcs, scIdx) {
+        if (!tcs || !tcs.length) {
+            return `<div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">No test cases</div>`;
+        }
+        const keys = Object.keys(tcs[0]).filter(k => k !== 'testcaseId');
+        return `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          ${keys.map(k => `<th>${esc(k)}</th>`).join('')}
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${tcs.map((tc, i) => `
+        <tr class="tc-row" onclick="viewTCDetail(${scIdx}, ${i})">
+          <td class="mono-sm">${i + 1}</td>
+          ${keys.map(k => `<td>${esc(tc[k] || '')}</td>`).join('')}
+          <td><span class="badge badge-blue" style="font-size:10px">View →</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+    }
+
+    // ── Toggle scenario open/close ─────────────────────────────────────────
+    window.toggleRow = function (i) {
+        const body = document.getElementById(`sc-body-${i}`);
+        const row  = document.getElementById(`sc-row-${i}`);
+        if (!body) return;
+        const open = body.style.display !== 'none';
+        body.style.display = open ? 'none' : 'block';
+        row.classList.toggle('open', !open);
+    };
+
+    // ── Filter test cases inline ───────────────────────────────────────────
+    window.filterTC = function (scIdx, query) {
+        const sc = (run?.scenariosList || [])[scIdx];
+        if (!sc) return;
+        const q      = query.toLowerCase();
+        const result = q
+            ? sc.manualTestCases.filter(tc =>
+                Object.values(tc).some(v => String(v).toLowerCase().includes(q)))
+            : sc.manualTestCases;
+        const el = document.getElementById(`tc-table-${scIdx}`);
+        if (el) el.innerHTML = tcTable(result, scIdx);
+    };
+
+    // ── Filter scenarios by type ───────────────────────────────────────────
+    window.filterByType = function (type) {
+        document.querySelectorAll('.sc-row').forEach((row, i) => {
+            const sc = (run?.scenariosList || [])[i];
+            row.style.display = (!type || sc?.type === type) ? '' : 'none';
+        });
+    };
+
+    // ── View test case detail in modal ────────────────────────────────────
+    window.viewTCDetail = function (scIdx, tcIdx) {
+        const sc = (run?.scenariosList || [])[scIdx];
+        if (!sc) return;
+        const tc  = sc.manualTestCases[tcIdx];
+        const hasSS = (sc.screenshots || []).length > 0;
+        const fields = Object.entries(tc).filter(([k]) => k !== 'testcaseId');
+
+        openModal(`
+      <div class="modal modal-lg">
+        <div class="modal-head">
+          <h2>Test Case #${tcIdx + 1}</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <!-- Fields -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:20px">
+          ${fields.map(([k, v]) => `
+          <div>
+            <div class="lbl">${esc(k)}</div>
+            <div style="font-size:13.5px;font-weight:500">${esc(String(v || '—'))}</div>
+          </div>`).join('')}
+        </div>
+
+        <!-- Screenshots -->
+        <div class="sc-section">Screenshots</div>
+        ${hasSS
+            ? `<div class="ss-grid">
+               ${sc.screenshots.map((src, si) => `
+               <div class="ss-thumb" onclick="openLightboxLocal('${esc(src)}')">
+                 <img src="${esc(src)}" alt="Screenshot ${si + 1}"
+                   onerror="this.parentElement.style.display='none'">
+                 <div class="ss-name">Screenshot ${si + 1}</div>
+               </div>`).join('')}
+             </div>`
+            : `<div style="text-align:center;padding:24px;color:var(--tx3)">
+               <div style="font-size:28px;opacity:.3;margin-bottom:8px">📷</div>
+               <p style="font-size:12.5px">No screenshots for this test case.</p>
+             </div>`}
+      </div>`);
+    };
+
+    window.openLightboxLocal = showLightbox;
+
+    // ── View all screenshots for a scenario ───────────────────────────────
+    window.viewScreenshots = function (scIdx) {
+        const sc = (run?.scenariosList || [])[scIdx];
+        if (!sc || !sc.screenshots?.length) return;
+        openModal(`
+      <div class="modal modal-lg">
+        <div class="modal-head">
+          <h2>📸 Screenshots — Scenario ${scIdx + 1}</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="ss-grid">
+          ${sc.screenshots.map((src, i) => `
+          <div class="ss-thumb" onclick="openLightboxLocal('${esc(src)}')">
+            <img src="${esc(src)}" alt="Screenshot ${i + 1}"
+              onerror="this.parentElement.style.display='none'">
+            <div class="ss-name">${esc(src.split('/').pop() || `Screenshot ${i + 1}`)}</div>
+          </div>`).join('')}
+        </div>
+      </div>`);
+    };
+
+    // ── Clone run ──────────────────────────────────────────────────────────
+    window.cloneRun = async function () {
+        try {
+            const c = await api.runs.clone(runId);
+            toast(`Cloned as "${c.runName}"`, 'success');
+            window.location.href = `/run-editor.html?runId=${c.id || c._id}`;
+        } catch (e) { toast('Clone failed: ' + e.message, 'error'); }
+    };
+
+    // ── Execute run ────────────────────────────────────────────────────────
+    window.executeRun = async function () {
+        const btn = document.getElementById('run-btn');
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Running…';
+        try {
+            await api.runs.execute(runId);
+            toast('Run started!', 'success');
+            run.status = 'RUNNING';
+            startPolling();
+        } catch (e) {
+            toast('Execute failed: ' + e.message, 'error');
+            btn.disabled = false;
+            btn.innerHTML = '▶ Run Now';
+        }
+    };
+
+    // ── Poll for status updates ────────────────────────────────────────────
+    function startPolling() {
+        clearInterval(pollTimer);
+        pollTimer = setInterval(async () => {
+            try {
+                run = await api.runs.get(runId);
+                renderPage();
+                if (run.status !== 'RUNNING') clearInterval(pollTimer);
+            } catch { /* ignore poll errors */ }
+        }, 3000);
+    }
+
+    load();
+</script>
+</body>
+</html>

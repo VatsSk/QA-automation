@@ -50,7 +50,7 @@ public class StepGenerator {
 //            logger.info("Value which has been identified : {}",value);
 
             // Map tag/type -> action
-            if ("input".equalsIgnoreCase(f.tag)) {
+             if ("input".equalsIgnoreCase(f.tag)) {
                 String inputType = f.type != null ? f.type.toLowerCase() : "";
 
                 // common CSV truthy values that mean "check / click"

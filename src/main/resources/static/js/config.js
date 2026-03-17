@@ -1,0 +1,70 @@
+/**
+ * config.js — Scenario type definitions.
+ *
+ * Field rules (NO "statement" field on any scenario):
+ *
+ *   URL        → url field  +  test cases (CSV or manual)
+ *   MODAL      → cssSelector  +  test cases (CSV or manual)
+ *   URL_NAV    → url field only           (no test data)
+ *   MODAL_NAV  → cssSelector only         (no test data)
+ *   SEARCH_NAV → cssSelector + value      (no test data)
+ */
+
+export const TYPES = {
+    URL: {
+        label:   'URL',
+        icon:    '🔗',
+        color:   'var(--blue)',
+        bg:      'var(--blue-d)',
+        // Fields shown in the editor for this type
+        fields:  ['url'],
+        // Whether this type supports test data (CSV or manual rows)
+        hasData: true,
+        hint:    'Navigate to a URL and run test cases',
+    },
+    MODAL: {
+        label:   'Modal',
+        icon:    '◫',
+        color:   'var(--pu)',
+        bg:      'var(--pu-d)',
+        fields:  ['cssSelector'],
+        hasData: true,
+        hint:    'Open a modal by CSS selector and run test cases',
+    },
+    URL_NAV: {
+        label:   'URL Nav',
+        icon:    '→',
+        color:   'var(--te)',
+        bg:      'var(--te-d)',
+        fields:  ['url'],
+        hasData: false,
+        hint:    'Navigate to a URL — no test data needed',
+    },
+    MODAL_NAV: {
+        label:   'Modal Nav',
+        icon:    '⇌',
+        color:   'var(--am)',
+        bg:      'var(--am-d)',
+        fields:  ['cssSelector'],
+        hasData: false,
+        hint:    'Open a modal by CSS selector — no test data needed',
+    },
+    SEARCH_NAV: {
+        label:   'Search Nav',
+        icon:    '⌕',
+        color:   'var(--gr)',
+        bg:      'var(--gr-d)',
+        fields:  ['cssSelector', 'value'],
+        hasData: false,
+        hint:    'Navigate using a search field — enter selector and search term',
+    },
+};
+
+// Minimum required fields per type (used for validation before save)
+export const REQUIRED = {
+    URL:        ['url'],
+    MODAL:      ['cssSelector'],
+    URL_NAV:    ['url'],
+    MODAL_NAV:  ['cssSelector'],
+    SEARCH_NAV: ['cssSelector', 'value'],
+};

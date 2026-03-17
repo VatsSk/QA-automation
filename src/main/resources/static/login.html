@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Sign In</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div id="toasts"></div>
+
+<div class="login-wrap">
+    <div class="login-card">
+
+        <div class="login-brand">
+            <div class="login-mark">QA</div>
+            <div>
+                <h1>QA Studio</h1>
+                <div class="sub">Test Automation Manager</div>
+            </div>
+            <button class="btn-icon mla theme-btn" onclick="toggleTheme()" title="Toggle theme">☀</button>
+        </div>
+
+        <div class="field">
+            <label class="lbl">Username</label>
+            <input id="inp-username" class="inp" placeholder="johndoe" autocomplete="username">
+        </div>
+
+        <div class="field">
+            <label class="lbl">Password</label>
+            <input id="inp-password" class="inp" type="password" placeholder="••••••"
+                   autocomplete="current-password"
+                   onkeydown="if(event.key==='Enter') doLogin()">
+        </div>
+
+        <button id="login-btn" class="btn btn-primary" style="width:100%;margin-top:4px"
+                onclick="doLogin()">
+            Sign In →
+        </button>
+
+        <p style="margin-top:14px;font-size:11.5px;color:var(--tx3);text-align:center">
+            Accounts are created by admin via <code>POST /api/users</code>
+        </p>
+    </div>
+</div>
+
+<script type="module">
+    import { auth }          from './js/api.js';
+    import { toast, initTheme, toggleTheme } from './js/utils.js';
+
+    initTheme();
+    window.toggleTheme = toggleTheme;
+
+    // If already logged in, skip login
+    if (localStorage.getItem('qa_token') && localStorage.getItem('qa_user')) {
+        window.location.href = '/projects.html';
+    }
+
+    window.doLogin = async function () {
+        const username = document.getElementById('inp-username').value.trim();
+        const password = document.getElementById('inp-password').value;
+        if (!username || !password) {
+            toast('Please enter username and password', 'warning');
+            return;
+        }
+        const btn = document.getElementById('login-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin:0 auto"></div>';
+
+        try {
+            const user = await auth.login(username, password);
+            localStorage.setItem('qa_token', user.token || 'stub');
+            localStorage.setItem('qa_user',  JSON.stringify(user));
+            window.location.href = '/projects.html';
+        } catch (e) {
+            toast('Login failed: ' + e.message, 'error');
+            btn.disabled = false;
+            btn.textContent = 'Sign In →';
+        }
+    };
+</script>
+</body>
+</html>

@@ -165,7 +165,7 @@ public class SeleniumExecutor {
             }
 
             if(steps.size()>0){
-               writeFinalResultRow(driver1,finalCsv,testCaseId,steps.get(steps.size()-1),status,screenshotPath);
+                writeFinalResultRow(driver1,finalCsv,testCaseId,steps.get(steps.size()-1),status,screenshotPath);
             }else{
                 logger.info("step is empty");
             }
@@ -395,25 +395,81 @@ public class SeleniumExecutor {
         switch (s.getType()) {
 
             case TYPE:
+//                if (s.getPayload() != null && !s.getPayload().isBlank()) {
+//                    WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
+//                            .until(ExpectedConditions.visibilityOfElementLocated(by));
+//                    waitUntilEditable(driver1, el);
+//                    scrollIntoView(driver1, el);
+//                    String locator = s.getLocator().toLowerCase();
+//                    // Detect date/time fields automatically
+//                    if (locator.contains("date") || locator.contains("time")
+//                            || locator.contains("start") || locator.contains("end")) {
+//                        setDateUsingJS(driver1, el, s.getPayload());
+//                    } else {
+//                        el.clear();
+//                        el.sendKeys(s.getPayload());
+//                        // Trigger UI events for frameworks like React/Angular
+//                        ((JavascriptExecutor) driver1).executeScript(
+//                                "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
+//                        ((JavascriptExecutor) driver1).executeScript(
+//                                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+//                    }
+//                } else {
+//                    logger.info("Skipping TYPE for locator {} because payload is empty", s.getLocator());
+//                    throw new RuntimeException("SKIPPED");
+//                }
+
                 if (s.getPayload() != null && !s.getPayload().isBlank()) {
-                    WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
-                            .until(ExpectedConditions.visibilityOfElementLocated(by));
+
+                    WebDriverWait wait = new WebDriverWait(driver1, Duration.ofSeconds(10));
+
+                    WebElement el = wait.until(
+                            ExpectedConditions.visibilityOfElementLocated(by)
+                    );
+
                     waitUntilEditable(driver1, el);
                     scrollIntoView(driver1, el);
-                    String locator = s.getLocator().toLowerCase();
-                    // Detect date/time fields automatically
-                    if (locator.contains("date") || locator.contains("time")
-                            || locator.contains("start") || locator.contains("end")) {
-                        setDateUsingJS(driver1, el, s.getPayload());
-                    } else {
-                        el.clear();
-                        el.sendKeys(s.getPayload());
-                        // Trigger UI events for frameworks like React/Angular
-                        ((JavascriptExecutor) driver1).executeScript(
-                                "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
-                        ((JavascriptExecutor) driver1).executeScript(
-                                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+
+                    el.clear();
+                    el.sendKeys(s.getPayload());
+
+                    // Trigger UI events
+                    ((JavascriptExecutor) driver1).executeScript(
+                            "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
+
+                    ((JavascriptExecutor) driver1).executeScript(
+                            "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+
+                    // =========================
+                    // 🔥 AUTOCOMPLETE HANDLING
+                    // =========================
+
+                    boolean isAutoComplete =
+                            "combobox".equalsIgnoreCase(el.getAttribute("role")) ||
+                                    (el.getAttribute("class") != null &&
+                                            el.getAttribute("class").toLowerCase().contains("autocomplete"));
+
+                    if (isAutoComplete) {
+
+                        logger.info("Detected AUTOCOMPLETE field → waiting for suggestions");
+
+                        // wait for dropdown container
+                        WebElement container = wait.until(
+                                ExpectedConditions.visibilityOfElementLocated(
+                                        By.cssSelector(".autocomplete-results"))
+                        );
+
+                        // wait for items
+                        List<WebElement> options = wait.until(d -> {
+                            List<WebElement> list = container.findElements(By.cssSelector(".autocomplete-item"));
+                            return list.size() > 0 ? list : null;
+                        });
+
+                        logger.info("Selecting first autocomplete suggestion");
+
+                        options.get(0).click();
                     }
+
                 } else {
                     logger.info("Skipping TYPE for locator {} because payload is empty", s.getLocator());
                     throw new RuntimeException("SKIPPED");
@@ -455,15 +511,86 @@ public class SeleniumExecutor {
                 }
 
                 break;
+//            case SELECT:
+//                if (s.getPayload() != null && !s.getPayload().isBlank()) {
+//                    org.openqa.selenium.support.ui.Select sel =
+//                            new org.openqa.selenium.support.ui.Select(driver1.findElement(by));
+//                    sel.selectByVisibleText(s.getPayload());
+//                } else {
+//                    logger.info("Skipping SELECT for locator {} because payload is empty", s.getLocator());
+//                    throw new RuntimeException("SKIPPED");
+//                }
+//                break;
             case SELECT:
-                if (s.getPayload() != null && !s.getPayload().isBlank()) {
-                    org.openqa.selenium.support.ui.Select sel =
-                            new org.openqa.selenium.support.ui.Select(driver1.findElement(by));
-                    sel.selectByVisibleText(s.getPayload());
-                } else {
+
+                if (s.getPayload() == null || s.getPayload().isBlank()) {
                     logger.info("Skipping SELECT for locator {} because payload is empty", s.getLocator());
                     throw new RuntimeException("SKIPPED");
                 }
+
+                WebElement selectElement = driver1.findElement(by);
+
+                boolean isSelect2 = selectElement.getAttribute("class") != null &&
+                        selectElement.getAttribute("class").contains("select2-hidden-accessible");
+
+                if (!isSelect2) {
+
+                    // Normal HTML select
+                    org.openqa.selenium.support.ui.Select sel =
+                            new org.openqa.selenium.support.ui.Select(selectElement);
+
+                    sel.selectByVisibleText(s.getPayload());
+
+                } else {
+
+                    logger.info("Detected Select2 dropdown for {}", s.getLocator());
+
+                    String selectId = selectElement.getAttribute("id");
+
+                    WebDriverWait wait = new WebDriverWait(driver1, Duration.ofSeconds(10));
+
+                    // open dropdown
+                    WebElement container = driver1.findElement(
+                            By.xpath("//select[@id='" + selectId + "']/following-sibling::span")
+                    );
+                    container.click();
+
+                    try {
+
+                        // -------- FIRST TRY : search based select2 --------
+                        logger.info("Trying search-based Select2 selection");
+
+                        WebElement search = wait.until(
+                                ExpectedConditions.visibilityOfElementLocated(
+                                        By.cssSelector(".select2-search__field"))
+                        );
+
+                        search.clear();
+                        search.sendKeys(s.getPayload());
+
+                        WebElement option = wait.until(
+                                ExpectedConditions.visibilityOfElementLocated(
+                                        By.xpath("//li[contains(@class,'select2-results__option') and contains(.,'" + s.getPayload() + "')]")
+                                )
+                        );
+
+                        option.click();
+
+                    } catch (Exception searchFail) {
+
+                        logger.warn("Search select2 failed, trying direct select. Reason: {}", searchFail.getMessage());
+
+                        // -------- SECOND TRY : static select2 --------
+                        WebElement option = wait.until(
+                                ExpectedConditions.visibilityOfElementLocated(
+                                        By.xpath("//li[contains(@class,'select2-results__option') and contains(.,'" + s.getPayload() + "')]")
+                                )
+                        );
+
+                        option.click();
+                    }
+                }
+
                 break;
 
             case VERIFY_TEXT:

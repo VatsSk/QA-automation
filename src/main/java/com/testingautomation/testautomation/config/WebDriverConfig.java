@@ -11,15 +11,15 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class WebDriverConfig {
 
-    @Value("${autotest.headless:false}")
-    private boolean headless;
-
-    @Bean(destroyMethod = "quit")
-    public WebDriver webDriver() {
-        WebDriverManager.chromedriver().setup();
-        ChromeOptions opts = new ChromeOptions();
-        if (headless) opts.addArguments("--headless=new");
-        opts.addArguments("--no-sandbox","--disable-dev-shm-usage");
-        return new ChromeDriver(opts);
-    }
+//    @Value("${autotest.headless:false}")
+//    private boolean headless;
+//
+//    @Bean(destroyMethod = "quit")
+//    public WebDriver webDriver() {
+//        WebDriverManager.chromedriver().setup();
+//        ChromeOptions opts = new ChromeOptions();
+//        if (headless) opts.addArguments("--headless=new");
+//        opts.addArguments("--no-sandbox","--disable-dev-shm-usage");
+//        return new ChromeDriver(opts);
+//    }
 }
