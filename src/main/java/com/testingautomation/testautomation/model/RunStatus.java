@@ -5,5 +5,6 @@ public enum RunStatus {
     RUNNING,
     PASSED,
     FAILED,
-    PARTIAL
+    PARTIAL,
+    ERROR
 }

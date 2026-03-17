@@ -1,8 +1,9 @@
-package com.testingautomation.testautomation.model;
+package com.testingautomation.testautomation.dto;
 
 import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.logging.Logger;
 
 @Data
@@ -18,6 +19,10 @@ public class ScenarioDescriptor {
     private String isClick;
     private String clickCss;
     private String value;// CSV file uploaded
+    private String resultCsvPath;
+    private List<String> ssPaths;
+    private String csvUrl;
+    private int sno;
 
     public ScenarioDescriptor(Type type,
                               String id,

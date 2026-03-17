@@ -235,6 +235,14 @@ public class RunController {
                 .body(resource);
     }
 
+    @PostMapping(value = "/runs/{id}")
+    public ResponseEntity<?> receiveTests(
+            @PathVariable("id") String runId) {
+
+
+        return ResponseEntity.ok().build();
+    }
+
 
 
 }

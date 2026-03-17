@@ -1,4 +1,4 @@
-package com.testingautomation.testautomation.model;
+package com.testingautomation.testautomation.dto;
 
 import lombok.Data;
 

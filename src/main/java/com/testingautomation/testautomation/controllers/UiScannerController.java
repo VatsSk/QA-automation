@@ -1,12 +1,7 @@
 package com.testingautomation.testautomation.controllers;
 
-import com.testingautomation.testautomation.model.FieldDescriptor;
-import com.testingautomation.testautomation.model.UiElement;
-import com.testingautomation.testautomation.scan.UiScannerService;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @Controller
 //@RequestMapping("/scanner")

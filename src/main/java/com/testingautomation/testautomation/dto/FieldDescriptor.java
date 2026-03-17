@@ -1,6 +1,9 @@
-package com.testingautomation.testautomation.model;
+package com.testingautomation.testautomation.dto;
 
-public class UiElement {
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class FieldDescriptor {
     public String tag;
     public String type;
     public String id;
@@ -8,16 +11,21 @@ public class UiElement {
     public String text;
     public String css;
     public String xpath;
+    public String dataTarget;
 
     @Override
     public String toString() {
-        return "UiElement{" +
+        return "FieldDescriptor{" +
                 "tag='" + tag + '\'' +
+                ", type='" + type + '\'' +
                 ", id='" + id + '\'' +
                 ", name='" + name + '\'' +
                 ", text='" + text + '\'' +
                 ", css='" + css + '\'' +
                 ", xpath='" + xpath + '\'' +
+                ", dataTarget='" + dataTarget + '\'' +
                 '}';
     }
+
+    // getters/setters or keep public fields for brevity
 }

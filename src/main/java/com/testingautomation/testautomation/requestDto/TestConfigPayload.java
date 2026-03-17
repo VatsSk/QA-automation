@@ -6,5 +6,6 @@ import java.util.List;
 @Data
 public class TestConfigPayload {
     private List<TestConfigRequest> tests;
+    private String runId;
 }
 

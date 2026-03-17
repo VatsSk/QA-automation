@@ -3,11 +3,11 @@ package com.testingautomation.testautomation.client;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.testingautomation.testautomation.model.FieldDescriptor;
+import com.testingautomation.testautomation.dto.FieldDescriptor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.util.UriComponentsBuilder;
+
 import java.net.http.*;
 import java.net.URI;
 import java.time.Duration;
