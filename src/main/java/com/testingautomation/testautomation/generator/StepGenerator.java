@@ -14,7 +14,7 @@ public class StepGenerator {
     private final Logger logger = LoggerFactory.getLogger(StepGenerator.class);
 
     public List<StepAction> generateSteps(List<FieldDescriptor> fields, TestCaseDTO testCase) {
-        logger.info("Generating steps for testcase {}", testCase.getId());
+        logger.info("Generating steps for testcase {}", testCase.getTestcaseId());
         List<StepAction> steps = new ArrayList<>();
 
 //        logger.info("fds : {}",fields);
@@ -192,7 +192,7 @@ public class StepGenerator {
             }
         }
 
-        logger.debug("Generated {} steps for testcase {}", steps.size(), testCase.getId());
+        logger.debug("Generated {} steps for testcase {}", steps.size(), testCase.getTestcaseId());
         return steps;
     }
 }

@@ -24,7 +24,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 public class CsvTestCaseLoader {
     private final Logger logger = LoggerFactory.getLogger(CsvTestCaseLoader.class);
     private final S3Client s3Client;
-    @Value("${aws.s3.bucket}")
+
+    @Value("${storage.s3.bucket-name}")
     private String bucketName;
 
     public CsvTestCaseLoader(S3Client s3Client) {
@@ -106,8 +107,14 @@ public class CsvTestCaseLoader {
 
     public List<TestCaseDTO> loadFromS3(String csvUrl) throws Exception {
         logger.info("Loading CSV testcases from S3: {}", csvUrl);
+
         List<TestCaseDTO> list = new ArrayList<>();
+
         String key = extractKeyFromUrl(csvUrl);
+
+        // ADD THESE LOGS
+        logger.info("Extracted S3 key: {}", key);
+        logger.info("S3 GET -> bucket='{}', key='{}'", bucketName, key);
 
         GetObjectRequest request = GetObjectRequest.builder()
                 .bucket(bucketName)
@@ -116,17 +123,14 @@ public class CsvTestCaseLoader {
 
         try (InputStream inputStream = s3Client.getObject(request);
              CSVReaderHeaderAware reader =
-                     new CSVReaderHeaderAware(new InputStreamReader(inputStream))) {
+                     new CSVReaderHeaderAware(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
 
             Map<String, String> row;
-            int counter=0;
+            int counter = 0;
 
             while ((row = reader.readMap()) != null) {
 
-                String id = row.getOrDefault(
-                        "testCaseId",
-                        counter+""
-                );
+                String id = row.getOrDefault("testCaseId", String.valueOf(counter));
                 counter++;
 
                 String expectedResult = row.get("expectedResult");
@@ -142,15 +146,20 @@ public class CsvTestCaseLoader {
 
                 logger.debug("Loaded testcase {}", id);
             }
+
+        } catch (Exception e) {
+            logger.error("S3 read failed -> bucket='{}', key='{}', error='{}'",
+                    bucketName, key, e.getMessage(), e);
+            throw e;
         }
 
         logger.info("Total testcases loaded: {}", list.size());
 
         return list;
     }
-
     private String extractKeyFromUrl(String csvUrl) {
-        return csvUrl.substring(csvUrl.indexOf(".amazonaws.com/") + 14);
+        String marker = ".amazonaws.com/";
+        return csvUrl.substring(csvUrl.indexOf(marker) + marker.length());
     }
 
     public Path writeScenarioCsv(List<TestCaseDTO> testCases, Path scenarioDir) throws IOException {

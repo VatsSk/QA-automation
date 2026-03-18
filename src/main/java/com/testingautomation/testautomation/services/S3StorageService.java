@@ -14,7 +14,7 @@ public class S3StorageService {
     @Autowired
     private S3Client s3Client;
 
-    @Value("${aws.s3.bucket}")
+    @Value("${storage.s3.bucket-name}")
     private String bucket;
 
     public String uploadFile(Path file, String key) {

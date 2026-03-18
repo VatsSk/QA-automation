@@ -16,6 +16,7 @@ import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -42,6 +43,8 @@ import java.util.zip.ZipOutputStream;
 @RequiredArgsConstructor
 public class ScenarioOrchestratorService {
     private final String resultsBaseDir = "test-results";
+    @Value("${storage.s3.base-prefix}")
+    private  String basePrefix;
     private final Logger logger = LoggerFactory.getLogger(ScenarioOrchestratorService.class);
 
     // your existing components (assumed to be available)
@@ -68,7 +71,7 @@ public class ScenarioOrchestratorService {
      * Keeps single driver/session alive (login should be done before calling this).
      */
     public Run executeScenarios(Run run, WebDriver driver, String globalRunId) {
-        String baseS3Prefix =
+        String baseS3Prefix =basePrefix+"/"+
                 run.getProjectId()+ "/" +
                         run.getModuleId() + "/" +
                         globalRunId;
@@ -76,9 +79,9 @@ public class ScenarioOrchestratorService {
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
         for (int i = 0; i < scenarios.size(); i++) {
             Scenario current = scenarios.get(i);
-            String scenarioId = i+"";
+            String scenarioId = (i+1)+"";
             String scenarioPrefix =
-                    baseS3Prefix + "/scenarios/" + scenarioId;
+                    baseS3Prefix + "/" + scenarioId;
             String scenarioRunId = globalRunId + "_S" + (i + 1) + (current.getId() != null ? "_" + current.getId() : "");
             try {
                 ScenarioTestDto scenarioTestDto=null;
@@ -157,10 +160,11 @@ public class ScenarioOrchestratorService {
 
         // 3) for each testcase -> generate steps & run
         for (TestCaseDTO tc : testCases) {
+            System.out.println("Test case "+ tc);
 
-            String tcRunId ="tc_" + tc.getId();
+            String tcRunId =tc.getTestcaseId();
             try {
-                logger.info("[{}] Generating steps for testcase {}", tcRunId, tc.getId());
+                logger.info("[{}] Generating steps for testcase {}", tcRunId, tc.getTestcaseId());
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
                 logger.info("generated steps are : {}",steps);
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
@@ -208,98 +212,8 @@ public class ScenarioOrchestratorService {
     }
 
 
-    /**
-     * Generic Modal method:
-     * - click opener button (css) to open modal
-     * - scan current page DOM for modal fields
-     * - load testcases from csvPath
-     * - loop over each testcase -> generate steps & run using executor.runOnRenderedPage(...)
-     */
-//    public int handleNavigation(WebDriver driver, List<ScenarioDescriptor> scenarios, int currIdx) {
-//
-//        while (currIdx < scenarios.size()) {
-//
-//            ScenarioDescriptor currScenario = scenarios.get(currIdx);
-//
-//            if (currScenario.getType() == ScenarioDescriptor.Type.MODAL) {
-//                return currIdx;
-//            }
-//
-//            try {
-//
-//                if (currScenario.getType() == ScenarioDescriptor.Type.NAV_URL) {
-//
-//                    driver.get(currScenario.getUrl());
-//
-//                } else if (currScenario.getType() == ScenarioDescriptor.Type.NAV_MODAL) {
-//                    WebElement opener= driver.findElement(By.cssSelector(currScenario.getOpenerCss()));
-//                    opener.click();
-//                }
-////                else if(currScenario.getType()==ScenarioDescriptor.Type.NAV_SEARCH){
-////                    WebElement opener=driver.findElement(By.cssSelector(currScenario.getOpenerCss()));
-////                    opener.sendKeys(currScenario.getValue());
-////
-////                }
-//                else if(currScenario.getType() == ScenarioDescriptor.Type.NAV_SEARCH){
-//
-//                    WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-//
-//                    WebElement opener = wait.until(ExpectedConditions.presenceOfElementLocated(
-//                            By.cssSelector(currScenario.getOpenerCss())
-//                    ));
-//
-//                    String value = currScenario.getValue();
-//
-//                    // If element is input -> type search
-//                    if(opener.getTagName().equalsIgnoreCase("input") ||
-//                            "true".equals(opener.getAttribute("contenteditable"))) {
-//
-//                        opener.clear();
-//                        opener.sendKeys(value);
-//                        opener.sendKeys(Keys.ENTER);
-//
-//                    } else {
-//
-//                        // Otherwise open dropdown
-//                        wait.until(ExpectedConditions.elementToBeClickable(opener)).click();
-//
-//                        try {
-//                            WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                    By.cssSelector("[data-title='" + value + "']")
-//                            ));
-//                            option.click();
-//
-//                        } catch(Exception ignored) {
-//
-//                            try {
-//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                        By.xpath("//*[text()='" + value + "']")
-//                                ));
-//                                option.click();
-//
-//                            } catch(Exception ignored2) {
-//
-//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                        By.xpath("//*[contains(text(),'" + value + "')]")
-//                                ));
-//                                option.click();
-//                            }
-//                        }
-//                    }
-//                }
-//                Thread.sleep(1000);
-//
-//            } catch (Exception e) {
-//                logger.error("Navigation step failed", e);
-//            }
-//
-//            currIdx++;
-//        }
-//
-//        return currIdx;
-//    }
 
-    public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx,int modalFormTcIdx) {
+    public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx,int modalFormTcIdx,String baseS3Prefix) {
 
         logger.info("Starting navigation handling from index {}", currIdx);
 
@@ -481,9 +395,9 @@ public class ScenarioOrchestratorService {
     public ScenarioTestDto runModalGeneric(WebDriver driver, String runIdPrefix,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run) throws Exception {
         List<TestCaseDTO> testCases=null;
 
-        int currEle=handleNavigation(driver,scenarios,currIdx,0);
+        int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix);
         String scenarioPrefix =
-                baseS3Prefix + "/scenarios/" + currEle;
+                baseS3Prefix + "/scenarios-" + currEle;
         Scenario currModal=scenarios.get(currEle);
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
         Files.createDirectories(scenarioDir);
@@ -497,7 +411,7 @@ public class ScenarioOrchestratorService {
             logger.info("[{}] loaded {} modal testcases from", runIdPrefix, testCases.size());
 
             for (TestCaseDTO tc : testCases) {
-                String tcRunId = runIdPrefix + "_" + tc.getId();
+                String tcRunId = tc.getTestcaseId();
                 List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
                 logger.info("[{}] scanned {} modal fields", runIdPrefix, modalFields.size());
                 counterIdx++;
@@ -505,7 +419,7 @@ public class ScenarioOrchestratorService {
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
                     String expected = tc.getExpectedResult();
-                    com.testingautomation.testautomation.dto.ResultRun resultRun =executor.runOnRenderedPage(driver, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
+                    ResultRun resultRun =executor.runOnRenderedPage(driver, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
                     if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
                         tc.setResult("Passed");
                         totalPasses++;
@@ -515,7 +429,7 @@ public class ScenarioOrchestratorService {
                     }
                     tc.setUrls(resultRun.getScreenshots());
                     if(counterIdx<testCases.size())
-                        handleNavigation(driver,scenarios,currIdx,counterIdx);
+                        handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -739,7 +653,7 @@ public class ScenarioOrchestratorService {
         executor.runOnRenderedPage(
                 driver,
                 steps,
-                tc.getId(),
+                tc.getTestcaseId(),
                 null,
                 null,
                 null,

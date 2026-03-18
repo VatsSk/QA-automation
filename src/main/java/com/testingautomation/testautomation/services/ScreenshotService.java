@@ -20,10 +20,13 @@ import java.time.format.DateTimeFormatter;
 public class ScreenshotService {
     private final Logger logger = LoggerFactory.getLogger(ScreenshotService.class);
 
-    @Autowired
-    private S3StorageService s3StorageService;
+    private final S3StorageService s3StorageService;
 
-//    @Value("${automation.screenshots.prefix}")
+    public ScreenshotService(S3StorageService s3StorageService) {
+        this.s3StorageService = s3StorageService;
+    }
+
+    //    @Value("${automation.screenshots.prefix}")
 //    private String screenshotPrefix;
     /**
      * Takes screenshot and returns the saved filename (full path) or empty string on failure.
@@ -67,7 +70,7 @@ public class ScreenshotService {
                     .format(Instant.now())
                     .replace(":", "-");
 
-            String filename = name + "_" + timestamp + ".png";
+            String filename = name  + ".png";
 
             Path localPath = screenshotsDir.resolve(filename);
 

@@ -92,7 +92,7 @@ public class SeleniumExecutor {
                         String screenshotUrl = screenshotService.takeScreenshot(
                                 driver1,
                                 testCaseId,
-                                testCaseId + "_step" + stepNo,
+                                 "step_" + stepNo,
                                 screenshotsDir,
                                 scenarioPrefix
                         );
@@ -114,7 +114,7 @@ public class SeleniumExecutor {
                     String screenshotUrl = screenshotService.takeScreenshot(
                             driver1,
                             testCaseId,
-                            testCaseId + "_step" + stepNo,
+                            "step" + stepNo,
                             screenshotsDir,
                             scenarioPrefix
                     );
@@ -132,7 +132,7 @@ public class SeleniumExecutor {
                 String screenshotUrl=screenshotService.takeScreenshot(
                         driver1,
                         testCaseId,
-                        testCaseId + "_final_check",
+                        "final_check",
                         screenshotsDir,
                         scenarioPrefix
                 );
@@ -216,7 +216,7 @@ public class SeleniumExecutor {
                         String screenshotUrl = screenshotService.takeScreenshot(
                                 driver1,
                                 testCaseId,
-                                testCaseId + "_step" + stepNo,
+                                "step" + stepNo,
                                 screenshotsDir,
                                 scenarioPrefix
                         );
@@ -237,7 +237,7 @@ public class SeleniumExecutor {
                     String screenshotUrl = screenshotService.takeScreenshot(
                             driver1,
                             testCaseId,
-                            testCaseId + "_step" + stepNo,
+                            "step" + stepNo,
                             screenshotsDir,
                             scenarioPrefix
                     );
@@ -258,7 +258,7 @@ public class SeleniumExecutor {
                 String screenshotUrl = screenshotService.takeScreenshot(
                         driver1,
                         testCaseId,
-                        testCaseId + "_final_check",
+                        "final_check",
                         screenshotsDir,
                         scenarioPrefix
                 );
@@ -336,16 +336,54 @@ public class SeleniumExecutor {
                     waitUntilEditable(driver1, el);
                     scrollIntoView(driver1, el);
 
-                    el.clear();
-                    el.sendKeys(s.getPayload());
+                    String locator = s.getLocator() != null ? s.getLocator().toLowerCase() : "";
+                    String elementId = el.getAttribute("id") != null ? el.getAttribute("id").toLowerCase() : "";
+                    String classes = el.getAttribute("class") != null ? el.getAttribute("class").toLowerCase() : "";
+                    String type = el.getAttribute("type") != null ? el.getAttribute("type").toLowerCase() : "";
+                    boolean readOnly = el.getAttribute("readonly") != null;
 
-                    // Trigger UI events
-                    ((JavascriptExecutor) driver1).executeScript(
-                            "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
+                    boolean isDateOrReadonly =
+                            readOnly ||
+                                    locator.contains("date") ||
+                                    locator.contains("time") ||
+                                    locator.contains("start") ||
+                                    locator.contains("end") ||
+                                    elementId.contains("date") ||
+                                    elementId.contains("time") ||
+                                    classes.contains("date") ||
+                                    classes.contains("daterange") ||
+                                    type.contains("date") ||
+                                    type.contains("datetime");
 
-                    ((JavascriptExecutor) driver1).executeScript(
-                            "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+                    if (isDateOrReadonly) {
+                        JavascriptExecutor js = (JavascriptExecutor) driver1;
 
+                        // remove readonly if present
+                        js.executeScript("arguments[0].removeAttribute('readonly');", el);
+
+                        // clear + set via JS
+                        js.executeScript("arguments[0].value = '';", el);
+                        js.executeScript("arguments[0].value = arguments[1];", el, s.getPayload());
+
+                        // trigger UI events
+                        js.executeScript(
+                                "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));" +
+                                        "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));" +
+                                        "arguments[0].dispatchEvent(new Event('blur', { bubbles: true }));",
+                                el
+                        );
+
+                    } else {
+                        el.clear();
+                        el.sendKeys(s.getPayload());
+
+                        // Trigger UI events
+                        ((JavascriptExecutor) driver1).executeScript(
+                                "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
+
+                        ((JavascriptExecutor) driver1).executeScript(
+                                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+                    }
                     // =========================
                     // 🔥 AUTOCOMPLETE HANDLING
                     // =========================

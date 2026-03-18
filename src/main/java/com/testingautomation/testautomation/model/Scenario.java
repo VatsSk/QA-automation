@@ -64,4 +64,5 @@ public class Scenario {
     private Instant createdAt;
     private Instant updatedAt;
     private String clickCss;
+    private String scenarioBasePath;
 }

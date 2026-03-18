@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TestCaseDTO {
-    private String id;
+    private String testcaseId;
     private List<String> ssUrls;
     private Map<String,String> values;
     private String result;
@@ -13,7 +13,7 @@ public class TestCaseDTO {
     @Override
     public String toString() {
         return "TestCase{" +
-                "id='" + id + '\'' +
+                "id='" + testcaseId + '\'' +
                 ", url='" + ssUrls + '\'' +
                 ", values=" + values +
                 ", result='" + result + '\'' +
@@ -21,15 +21,15 @@ public class TestCaseDTO {
                 '}';
     }
 
-    public TestCaseDTO(String id ,Map<String, String> values) {
-        this.id = id;
+    public TestCaseDTO(String testcaseId ,Map<String, String> values) {
+        this.testcaseId = testcaseId;
         this.values = values;
     }
     public Map<String,String> getValues() {
         return values;
     }
     public String getValue(String key) { return values.get(key); }
-    public String getId() { return id; }
+    public String getTestcaseId() { return testcaseId; }
     public List<String> getUrls() { return ssUrls; }
     public void setUrls(List<String> ssUrls){
         this.ssUrls=ssUrls;
