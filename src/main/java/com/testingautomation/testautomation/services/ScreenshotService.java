@@ -66,10 +66,6 @@ public class ScreenshotService {
 
             File src = ((TakesScreenshot) driver1).getScreenshotAs(OutputType.FILE);
 
-            String timestamp = DateTimeFormatter.ISO_INSTANT
-                    .format(Instant.now())
-                    .replace(":", "-");
-
             String filename = name  + ".png";
 
             Path localPath = screenshotsDir.resolve(filename);

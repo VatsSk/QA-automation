@@ -11,6 +11,7 @@ import com.testingautomation.testautomation.requestDto.TestConfigPayload;
 import com.testingautomation.testautomation.requestDto.TestConfigRequest;
 import com.testingautomation.testautomation.scan.UiScannerService;
 import com.testingautomation.testautomation.services.S3StorageService;
+import com.testingautomation.testautomation.services.ScreenshotService;
 import lombok.RequiredArgsConstructor;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -43,6 +44,7 @@ import java.util.zip.ZipOutputStream;
 @RequiredArgsConstructor
 public class ScenarioOrchestratorService {
     private final String resultsBaseDir = "test-results";
+    private final ScreenshotService screenshotService;
     @Value("${storage.s3.base-prefix}")
     private  String basePrefix;
     private final Logger logger = LoggerFactory.getLogger(ScenarioOrchestratorService.class);
@@ -91,7 +93,6 @@ public class ScenarioOrchestratorService {
                             driver,
                             current.getUrl(),
                             current.getCsv(),
-                            scenarioRunId,
                             run.getResultStatement(),
                             scenarioPrefix,
                             i,
@@ -142,16 +143,16 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
-    public ScenarioTestDto runUrlGeneric(WebDriver driver, String url, String csvUrl, String runIdPrefix,String successMsg,String scenarioPrefix,int currIdx,int sizeOfScenarios) throws Exception {
-        logger.info("[{}] runUrlGeneric start for URL: {}", runIdPrefix, url);
+    public ScenarioTestDto runUrlGeneric(WebDriver driver, String url, String csvUrl,String successMsg,String scenarioPrefix,int currIdx,int sizeOfScenarios) throws Exception {
+//        logger.info("[{}] runUrlGeneric start for URL: {}", runIdPrefix, url);
         List<TestCaseDTO> testCases=null;
         // 1) scan page (fields)
         List<FieldDescriptor> fields = scannerService.scanPage(url, driver);
-        logger.info("[{}] scanned {} fields", runIdPrefix, fields.size());
+//        logger.info("[{}] scanned {} fields", runIdPrefix, fields.size());
         // 2) load testcases for this scenario
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvUrl);
         testCases = csvLoader.loadFromS3(csvUrl);
-        logger.info("[{}] loaded {} testcases", runIdPrefix, testCases.size());
+//        logger.info("[{}] loaded {} testcases", runIdPrefix, testCases.size());
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
         Files.createDirectories(scenarioDir);
 
@@ -213,13 +214,25 @@ public class ScenarioOrchestratorService {
 
 
 
-    public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx,int modalFormTcIdx,String baseS3Prefix) {
+    public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx,int modalFormTcIdx,String baseS3Prefix,Run run) {
 
         logger.info("Starting navigation handling from index {}", currIdx);
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        Path navigationScreenshotDir =
+                Paths.get(resultsBaseDir, baseS3Prefix, "navigation", "screenshots");
+
+        try {
+            Files.createDirectories(navigationScreenshotDir);
+        } catch (IOException e) {
+            logger.error("Failed creating navigation screenshot directory", e);
+        }
 
         while (currIdx < scenarios.size()) {
+            int stepCounter = 1;
+            String scenarioId = (currIdx+1)+"";
+            String scenarioPrefix =
+                    baseS3Prefix + "/" + scenarioId;
 
             Scenario currScenario = scenarios.get(currIdx);
 
@@ -236,6 +249,14 @@ public class ScenarioOrchestratorService {
 
                     logger.info("Navigating to URL: {}", currScenario.getUrl());
                     driver.get(currScenario.getUrl());
+                    String url = screenshotService.takeScreenshot(
+                            driver,
+                            "navigation",
+                            "nav_url" ,
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+//                    appendNavigationScreenshot(run.getId(), currIdx, url);
 
                 }
                 else if (currScenario.getType() == ScenarioType.MODAL_NAV) {
@@ -247,6 +268,14 @@ public class ScenarioOrchestratorService {
                     ));
 
                     opener.click();
+                    String url = screenshotService.takeScreenshot(
+                            driver,
+                            "nav_modal",
+                            "nav_url",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+//                    appendNavigationScreenshot(run.getId(), currIdx, url);
 
                     logger.info("Modal opener clicked successfully");
 
@@ -283,6 +312,14 @@ public class ScenarioOrchestratorService {
 
                         opener.clear();
                         opener.sendKeys(value);
+                        // 📸 Step 1 → after typing
+                        screenshotService.takeScreenshot(
+                                driver,
+                                "searchNav",
+                                "step_" + stepCounter++,
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
 
                         logger.info("Typed search value: {}", value);
 
@@ -296,12 +333,30 @@ public class ScenarioOrchestratorService {
                         option.click();
 
                         logger.info("Clicked checkbox for option: {}", value);
+                        // 📸 Step 2 → after selecting option
+                        screenshotService.takeScreenshot(
+                                driver,
+                                "searchNav",
+                                "step_" + stepCounter++,
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+
 
                         // close dropdown to apply filter
 //                        opener.sendKeys(Keys.TAB);
 //                        logger.info("Closed dropdown using TAB");
                         driver.findElement(By.tagName("body")).click();
                         logger.info("Closed dropdown using body click fallback");
+                        // 📸 Step 3 → after closing dropdown
+                        screenshotService.takeScreenshot(
+                                driver,
+                                "searchNav",
+                                "step_" + stepCounter++,
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+//                        appendNavigationScreenshot(run.getId(), currIdx, url);
 
                     }
 
@@ -323,6 +378,14 @@ public class ScenarioOrchestratorService {
                             option.click();
 
                             logger.info("Clicked checkbox for option: {}", value);
+                            screenshotService.takeScreenshot(
+                                    driver,
+                                    "searchNav",
+                                    "step_" + stepCounter++,
+                                    navigationScreenshotDir,
+                                    scenarioPrefix
+                            );
+//                            appendNavigationScreenshot(run.getId(), currIdx, url);
 
                         }
                         catch (Exception ignored) {
@@ -338,6 +401,14 @@ public class ScenarioOrchestratorService {
                                 option.click();
 
                                 logger.info("Option selected using exact text");
+                                screenshotService.takeScreenshot(
+                                        driver,
+                                        "searchNav",
+                                        "step_" + stepCounter++,
+                                        navigationScreenshotDir,
+                                        scenarioPrefix
+                                );
+//                                appendNavigationScreenshot(run.getId(), currIdx, url);
 
                             }
                             catch (Exception ignored2) {
@@ -351,6 +422,14 @@ public class ScenarioOrchestratorService {
                                 option.click();
 
                                 logger.info("Option selected using partial text");
+                                screenshotService.takeScreenshot(
+                                        driver,
+                                        "searchNav",
+                                        "step_" + stepCounter++,
+                                        navigationScreenshotDir,
+                                        scenarioPrefix
+                                );
+//                                appendNavigationScreenshot(run.getId(), currIdx, url);
                             }
                         }
 
@@ -359,6 +438,14 @@ public class ScenarioOrchestratorService {
 //                        logger.info("Closed dropdown using TAB");
                         driver.findElement(By.tagName("body")).click();
                         logger.info("Closed dropdown using body click fallback");
+                        screenshotService.takeScreenshot(
+                                driver,
+                                "searchNav",
+                                "step_" + stepCounter++,
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+//                        appendNavigationScreenshot(run.getId(), currIdx, url);
 
                     }
                 }
@@ -369,7 +456,7 @@ public class ScenarioOrchestratorService {
                     logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvFile);
                     List<TestCaseDTO> testCases = csvLoader.loadFromS3(csvFile);
                     TestCaseDTO tc= testCases.get(modalFormTcIdx);
-                    handleModalScenario(driver, currScenario, tc);
+                    handleModalScenario(driver, currScenario, tc,scenarioPrefix,navigationScreenshotDir);
 
                 }
 
@@ -395,7 +482,7 @@ public class ScenarioOrchestratorService {
     public ScenarioTestDto runModalGeneric(WebDriver driver, String runIdPrefix,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run) throws Exception {
         List<TestCaseDTO> testCases=null;
 
-        int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix);
+        int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run);
         String scenarioPrefix =
                 baseS3Prefix + "/scenarios-" + currEle;
         Scenario currModal=scenarios.get(currEle);
@@ -429,7 +516,7 @@ public class ScenarioOrchestratorService {
                     }
                     tc.setUrls(resultRun.getScreenshots());
                     if(counterIdx<testCases.size())
-                        handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix);
+                        handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -532,8 +619,11 @@ public class ScenarioOrchestratorService {
     private void handleModalScenario(
             WebDriver driver,
             Scenario scenario,
-            TestCaseDTO tc
+            TestCaseDTO tc,
+            String scenarioPrefix,
+            Path navigationScreenshotDir
     ) {
+        int stepCounter = 1;
 
         String cssSelector = scenario.getCssOpener();
         String value = scenario.getValue();
@@ -569,9 +659,10 @@ public class ScenarioOrchestratorService {
                     element.getAttribute("class").contains("select2-hidden-accessible");
 
             if (isSelect2) {
-
-                handleSelect2(driver, element, value);
-
+                // 🔥 pass stepCounter using wrapper array (mutable)
+                int[] counter = new int[]{stepCounter};
+                handleSelect2(driver, element, value, counter, navigationScreenshotDir, scenarioPrefix);
+                stepCounter = counter[0]; // update back
             } else {
 
                 Select sel = new Select(element);
@@ -589,6 +680,14 @@ public class ScenarioOrchestratorService {
         ((JavascriptExecutor) driver).executeScript(
                 "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", element);
 
+        // 📸 Step 1 → after input/select
+        screenshotService.takeScreenshot(
+                driver,
+                "modal_form",
+                "step_" + stepCounter++,
+                navigationScreenshotDir,
+                scenarioPrefix
+        );
         // =========================
         // CLICK MODE
         // =========================
@@ -625,6 +724,15 @@ public class ScenarioOrchestratorService {
                             "arguments[0].click();", clickable);
                 }
 
+                // 📸 Step 2 → after click
+                screenshotService.takeScreenshot(
+                        driver,
+                        "modal_form",
+                        "step_" + stepCounter++,
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+
                 logger.info("Click action completed successfully for id: " + secondId);
 
             } catch (TimeoutException e) {
@@ -655,13 +763,13 @@ public class ScenarioOrchestratorService {
                 steps,
                 tc.getTestcaseId(),
                 null,
-                null,
-                null,
+                navigationScreenshotDir,
+                scenarioPrefix,
                 tc.getExpectedResult()
 
         );
     }
-    private void handleSelect2(WebDriver driver, WebElement selectElement, String value) {
+    private void handleSelect2(WebDriver driver, WebElement selectElement, String value,int[]stepCounter,Path navigationScreenshotDir, String scenarioPrefix) {
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
@@ -672,6 +780,14 @@ public class ScenarioOrchestratorService {
         );
 
         container.click();
+        // 📸 Step → dropdown opened
+        screenshotService.takeScreenshot(
+                driver,
+                "modal_form",
+                "step_" + stepCounter[0]++,
+                navigationScreenshotDir,
+                scenarioPrefix
+        );
 
         try {
 
@@ -683,6 +799,15 @@ public class ScenarioOrchestratorService {
 
             search.clear();
             search.sendKeys(value);
+
+            // 📸 Step → typed in select2 search
+            screenshotService.takeScreenshot(
+                    driver,
+                    "modal_form",
+                    "step_" + stepCounter[0]++,
+                    navigationScreenshotDir,
+                    scenarioPrefix
+            );
 
             WebElement option = wait.until(
                     ExpectedConditions.visibilityOfElementLocated(
@@ -703,5 +828,13 @@ public class ScenarioOrchestratorService {
 
             option.click();
         }
+        // 📸 Step → option selected
+        screenshotService.takeScreenshot(
+                driver,
+                "modal_form",
+                "step_" + stepCounter[0]++,
+                navigationScreenshotDir,
+                scenarioPrefix
+        );
     }
 }
