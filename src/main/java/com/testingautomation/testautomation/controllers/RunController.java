@@ -8,6 +8,7 @@ import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
 import com.testingautomation.testautomation.model.TestCase;
 import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
 import com.testingautomation.testautomation.scan.UiScannerService;
+import com.testingautomation.testautomation.services.RunService;
 import org.springframework.core.io.Resource;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
@@ -38,8 +39,9 @@ public class RunController {
     private final StepGenerator stepGenerator;
     private final SeleniumExecutor executor;
     private final ScenarioOrchestratorService scenarioOrchestratorService;
+    private final RunService runService;
 
-    public RunController(UiScannerService scannerService, CsvTestCaseLoader csvLoader, StepGenerator stepGenerator, SeleniumExecutor executor,ScenarioOrchestratorService scenarioOrchestratorService) {
+    public RunController(UiScannerService scannerService, CsvTestCaseLoader csvLoader, StepGenerator stepGenerator, SeleniumExecutor executor, ScenarioOrchestratorService scenarioOrchestratorService, RunService runService) {
 //        this.scannerClient = scannerClient;
 
         this.csvLoader = csvLoader;
@@ -47,6 +49,7 @@ public class RunController {
         this.stepGenerator = stepGenerator;
         this.executor = executor;
         this.scenarioOrchestratorService=scenarioOrchestratorService;
+        this.runService = runService;
     }
 //
 //    /**
@@ -193,52 +196,50 @@ public class RunController {
 //        }
 //    }
 
-    @PostMapping(value = "/run-auth", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> receiveTests(
-            @RequestPart("testConfiguration") TestConfigPayload payload,
-            @RequestParam("testResultStatement") String successMsg,
-            MultipartHttpServletRequest request) {
+//    @PostMapping(value = "/run-auth", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+//    public ResponseEntity<?> receiveTests(
+//            @RequestPart("testConfiguration") TestConfigPayload payload,
+//            @RequestParam("testResultStatement") String successMsg,
+//            MultipartHttpServletRequest request) {
+//
+//        String runId = "run_" +LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm")) +"_" + UUID.randomUUID().toString().substring(0,6);
+//
+//
+//        ChromeOptions options = new ChromeOptions();
+//        options.addArguments("--disable-gpu");
+//        options.addArguments("--window-size=1366,768");
+//        WebDriver driver = new ChromeDriver(options);
+//
+//        List<ScenarioDescriptor> scenarios = scenarioOrchestratorService.scenarioDescriptorMapper(payload,request);
+//        if(scenarios==null){
+//            return ResponseEntity.badRequest().body("no scenario to look up to!");
+//        }
+//        // --- At this point, you have a List<ScenarioDescriptor> ready for Selenium! ---
+//        System.out.println("Successfully created " + scenarios.size() + " ScenarioDescriptors.");
+//        File zipFile=null;
+//        Resource resource=null;
+//        try {
+//            scenarioOrchestratorService.executeScenarios(driver, scenarios, runId,successMsg);
+//            zipFile = scenarioOrchestratorService.zipTestResults(runId);
+//            resource = new FileSystemResource(zipFile);
+//
+//        }catch (Exception ex){
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                    .body("Test execution failed");
+//        }finally {
+//           driver.quit();
+//        }
+//        return ResponseEntity.ok()
+//                .header(HttpHeaders.CONTENT_DISPOSITION,
+//                        "attachment; filename=\"" + zipFile.getName() + "\"")
+//                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+//                .body(resource);
+//    }
 
-        String runId = "run_" +LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm")) +"_" + UUID.randomUUID().toString().substring(0,6);
-
-
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("--disable-gpu");
-        options.addArguments("--window-size=1366,768");
-        WebDriver driver = new ChromeDriver(options);
-
-        List<ScenarioDescriptor> scenarios = scenarioOrchestratorService.scenarioDescriptorMapper(payload,request);
-        if(scenarios==null){
-            return ResponseEntity.badRequest().body("no scenario to look up to!");
-        }
-        // --- At this point, you have a List<ScenarioDescriptor> ready for Selenium! ---
-        System.out.println("Successfully created " + scenarios.size() + " ScenarioDescriptors.");
-        File zipFile=null;
-        Resource resource=null;
-        try {
-            scenarioOrchestratorService.executeScenarios(driver, scenarios, runId,successMsg);
-            zipFile = scenarioOrchestratorService.zipTestResults(runId);
-            resource = new FileSystemResource(zipFile);
-
-        }catch (Exception ex){
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Test execution failed");
-        }finally {
-           driver.quit();
-        }
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"" + zipFile.getName() + "\"")
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(resource);
-    }
-
-    @PostMapping(value = "/runs/{id}")
+    @PostMapping(value = "/runs/{id}/execute")
     public ResponseEntity<?> receiveTests(
             @PathVariable("id") String runId) {
-
-
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(runService.executeRun(runId));
     }
 
 

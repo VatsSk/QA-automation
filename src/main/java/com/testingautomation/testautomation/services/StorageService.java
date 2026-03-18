@@ -105,7 +105,7 @@ public class StorageService {
             log.info("Uploaded to S3: s3://{}/{}", props.getBucketName(), finalKey);
 
             return s3Client.utilities()
-                    .getUrl(builder -> builder.bucket(props.getBucketName()).key(key))
+                    .getUrl(builder -> builder.bucket(props.getBucketName()).key(finalKey))
                     .toExternalForm();
 
         } catch (IOException e) {

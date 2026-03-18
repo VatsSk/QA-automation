@@ -10,6 +10,8 @@ import java.util.List;
 @Repository
 public interface RunRepository extends MongoRepository<Run, String>, RunRepositoryCustom {
 
+    Run getRunById(String id);
+
     List<Run> findByProjectIdAndModuleIdOrderByCreatedAtDesc(String projectId, String moduleId);
 
     long countByProjectIdAndModuleId(String projectId, String moduleId);

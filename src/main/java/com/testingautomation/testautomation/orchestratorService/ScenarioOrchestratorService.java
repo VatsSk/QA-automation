@@ -1,25 +1,26 @@
 package com.testingautomation.testautomation.orchestratorService;
 
 
-import com.testingautomation.testautomation.dto.FieldDescriptor;
-import com.testingautomation.testautomation.dto.ScenarioDescriptor;
-import com.testingautomation.testautomation.dto.StepAction;
+import com.testingautomation.testautomation.dto.*;
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
-import com.testingautomation.testautomation.model.TestCase;
+import com.testingautomation.testautomation.model.*;
+import com.testingautomation.testautomation.repo.RunRepository;
 import com.testingautomation.testautomation.requestDto.TestConfigPayload;
 import com.testingautomation.testautomation.requestDto.TestConfigRequest;
 import com.testingautomation.testautomation.scan.UiScannerService;
+import com.testingautomation.testautomation.services.S3StorageService;
+import lombok.RequiredArgsConstructor;
 import org.openqa.selenium.*;
-import org.openqa.selenium.interactions.Actions;
-import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
-import io.github.bonigarcia.wdm.WebDriverManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,12 +35,13 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Service
+@RequiredArgsConstructor
 public class ScenarioOrchestratorService {
+    private final String resultsBaseDir = "test-results";
     private final Logger logger = LoggerFactory.getLogger(ScenarioOrchestratorService.class);
 
     // your existing components (assumed to be available)
@@ -47,105 +49,88 @@ public class ScenarioOrchestratorService {
     private final UiScannerService scannerService;
     private final StepGenerator stepGenerator;
     private final SeleniumExecutor executor;
+    private final RunRepository runRepository;
+    private final MongoTemplate mongoTemplate;
+    private final S3StorageService s3StorageService;
 
-    public ScenarioOrchestratorService(CsvTestCaseLoader csvLoader,
-                                       UiScannerService scannerService,
-                                       StepGenerator stepGenerator,
-                                       SeleniumExecutor executor) {
-        this.csvLoader = csvLoader;
-        this.scannerService = scannerService;
-        this.stepGenerator = stepGenerator;
-        this.executor = executor;
+    private void appendNavigationScreenshot(String runId, int scenarioIndex, String url) {
+
+        Query query = new Query(Criteria.where("_id").is(runId));
+
+        Update update = new Update()
+                .push("scenariosList." + scenarioIndex + ".ssPaths", url);
+
+        mongoTemplate.updateFirst(query, update, Run.class);
     }
 
     /**
      * Top-level: execute the list of scenarios in sequence (one by one).
      * Keeps single driver/session alive (login should be done before calling this).
      */
-    public void executeScenarios(WebDriver driver,List<ScenarioDescriptor> scenarios,String globalRunId,String successMsg) {
+    public Run executeScenarios(Run run, WebDriver driver, String globalRunId) {
+        String baseS3Prefix =
+                run.getProjectId()+ "/" +
+                        run.getModuleId() + "/" +
+                        globalRunId;
+        List<Scenario> scenarios = run.getScenariosList();
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
-        ScenarioDescriptor lastUrlScenario = null;
-        String lastUr="";
-        ScenarioDescriptor formModalSc= scenarios.stream().filter(s->s.getType()== ScenarioDescriptor.Type.FORM_MODAL).findFirst().orElse(null);
-        ScenarioDescriptor modalSc= scenarios.stream().filter(s->s.getType()== ScenarioDescriptor.Type.MODAL).findFirst().orElse(null);
-
-
         for (int i = 0; i < scenarios.size(); i++) {
-            ScenarioDescriptor current = scenarios.get(i);
+            Scenario current = scenarios.get(i);
+            String scenarioId = i+"";
+            String scenarioPrefix =
+                    baseS3Prefix + "/scenarios/" + scenarioId;
             String scenarioRunId = globalRunId + "_S" + (i + 1) + (current.getId() != null ? "_" + current.getId() : "");
             try {
-                if (current.getType() == ScenarioDescriptor.Type.URL) {
+                ScenarioTestDto scenarioTestDto=null;
+                if (current.getType() == ScenarioType.URL) {
                     // check next scenario
-                    runUrlGeneric(
+                    scenarioTestDto=runUrlGeneric(
                             driver,
                             current.getUrl(),
-                            current.getCsvFile(),
+                            current.getCsv(),
                             scenarioRunId,
-                            successMsg
+                            run.getResultStatement(),
+                            scenarioPrefix,
+                            i,
+                            scenarios.size()
                     );
+                    Scenario dbScenario = run.getScenariosList().get(i);
+
+                    dbScenario.setResultCsv(scenarioTestDto.getResultCsv());
+                    run.setStatus(scenarioTestDto.getOverAllScenarioStatus());
                 }
                 else{
-                    runModalGeneric(
+                    scenarioTestDto=runModalGeneric(
                             driver,
-                            current.getOpenerCss(),
-                            current.getCsvFile(),
                             scenarioRunId,
                             scenarios,
-                            successMsg,
-                            i
+                            run.getResultStatement(),
+                            i,
+                            baseS3Prefix,
+                            run
+
                     );
+                    Scenario dbScenario = run.getScenariosList().get(i);
+
+                    dbScenario.setResultCsv(scenarioTestDto.getResultCsv());
+                    run.setStatus(scenarioTestDto.getOverAllScenarioStatus());
                     break;
                 }
-//                if (current.getType() == ScenarioDescriptor.Type.MODAL) {
-//                    runModalGeneric(driver, current.getOpenerCss(), current.getCsvFile(), scenarioRunId, scenarios,lastUrlIdx,
-//                            successMsg
-//                    );
-//                }
 
             } catch (Exception e) {
+                run.setStatus(RunStatus.ERROR);
 
                 logger.error("[{}] scenario failed but continuing: {}",scenarioRunId,e.getMessage(), e);
             }
         }
 
-    }
 
-    private int handleModalChain(WebDriver driver, List<ScenarioDescriptor> scenarios,int urlIndex,
-                                 ScenarioDescriptor urlScenario,
-                                 String globalRunId,
-                                 String successMsg) {
-        String scenarioRunId = globalRunId + "_S" + (urlIndex + 1);
-        // execute the URL first
-        try{
-            runUrlGeneric(driver, urlScenario.getUrl(), urlScenario.getCsvFile(), scenarioRunId, successMsg);
-        }catch (Exception ex){
-            logger.error("ex while url firing!");
-        }
 
-        int i = urlIndex + 1;
 
-        logger.info("inside Handle modal chain and urlIdx is : {} and {}",i,i < scenarios.size() && scenarios.get(i).getType() == ScenarioDescriptor.Type.MODAL);
 
-        // find last modal
-        while (i < scenarios.size() && scenarios.get(i).getType() == ScenarioDescriptor.Type.MODAL) {
-            i++;
-        }
-        int lastModalIndex = i - 1;
-        logger.info("Last modal idx is : {} ",lastModalIndex);
-        try {
-            // open intermediate modals
-            for (int j = urlIndex + 1; j < lastModalIndex; j++) {
-                ScenarioDescriptor modal = scenarios.get(j);
-                logger.info("[{}] Opening intermediate modal {}", globalRunId, modal.getId());
-                WebElement opener = driver.findElement(By.cssSelector(modal.getOpenerCss()));
-                opener.click();
-                Thread.sleep(1000);
-            }
-
-        } catch (Exception e) {
-            logger.error("[{}] modal chain failed", globalRunId, e);
-        }
-        return lastModalIndex-1;
+//        run.setStatus(RunStatus.COMPLETED);
+        runRepository.save(run);
+        return run;
     }
 
     /**
@@ -154,40 +139,74 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
-    public List<TestCase> runUrlGeneric(WebDriver driver, String url, MultipartFile csvFile, String runIdPrefix,String successMsg) throws Exception {
+    public ScenarioTestDto runUrlGeneric(WebDriver driver, String url, String csvUrl, String runIdPrefix,String successMsg,String scenarioPrefix,int currIdx,int sizeOfScenarios) throws Exception {
         logger.info("[{}] runUrlGeneric start for URL: {}", runIdPrefix, url);
-        List<TestCase> testCases=null;
+        List<TestCaseDTO> testCases=null;
         // 1) scan page (fields)
         List<FieldDescriptor> fields = scannerService.scanPage(url, driver);
         logger.info("[{}] scanned {} fields", runIdPrefix, fields.size());
-//        for(FieldDescriptor fieldDescriptor: fields){
-//            if(fieldDescriptor.dataTarget!=null && fieldDescriptor.dataTarget.equalsIgnoreCase("#edit-employee-modal")){
-//                System.out.println("found: "+fieldDescriptor);
-//            }
-//        }
-
         // 2) load testcases for this scenario
-        testCases = csvLoader.load(csvFile);
-        logger.info("[{}] loaded {} testcases from {}", runIdPrefix, testCases.size(), csvFile.getOriginalFilename());
+        logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvUrl);
+        testCases = csvLoader.loadFromS3(csvUrl);
+        logger.info("[{}] loaded {} testcases", runIdPrefix, testCases.size());
+        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
+        Files.createDirectories(scenarioDir);
 
+        int totalPasses = 0;
+        int totalFails = 0;
 
         // 3) for each testcase -> generate steps & run
-        for (TestCase tc : testCases) {
-            String tcRunId = runIdPrefix + "_" + tc.getId();
+        for (TestCaseDTO tc : testCases) {
+
+            String tcRunId ="tc_" + tc.getId();
             try {
                 logger.info("[{}] Generating steps for testcase {}", tcRunId, tc.getId());
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
                 logger.info("generated steps are : {}",steps);
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
-                String result=executor.run(driver, url, steps, tcRunId,successMsg);
-                tc.setResult(result);
+                String expected = tc.getExpectedResult();
+                ResultRun runResult =executor.run(driver, url, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,currIdx,sizeOfScenarios,expected);
+
+
+                if (expected != null) {
+                    if(expected.equalsIgnoreCase(runResult.getStatus()) ){
+                        tc.setResult("Passed");
+                        totalPasses++;
+                    }else{
+                        tc.setResult(runResult.getStatus());
+                        totalFails++;
+                    }
+                }
+
+
+                tc.setUrls(runResult.getScreenshots());
                 logger.info("[{}] Completed testcase {}", tcRunId, tc);
             } catch (Exception e) {
                 logger.error("[{}] testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
             }
         }
-        return testCases;
+        Path scenarioCsv = csvLoader.writeScenarioCsv(testCases, scenarioDir);
+        String s3Key = scenarioPrefix + "/scenario-results.csv";
+
+        String finalCsvUrl=s3StorageService.uploadFile(scenarioCsv, s3Key);
+
+
+        ScenarioTestDto scenarioTestDto=new ScenarioTestDto(testCases,finalCsvUrl);
+        if (totalPasses == testCases.size()) {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PASSED);
+        }
+        else if (totalFails == testCases.size()) {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.FAILED);
+        }
+        else {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PARTIAL);
+
+        }
+
+
+        return scenarioTestDto;
     }
+
 
     /**
      * Generic Modal method:
@@ -280,7 +299,7 @@ public class ScenarioOrchestratorService {
 //        return currIdx;
 //    }
 
-    public int handleNavigation(WebDriver driver, List<ScenarioDescriptor> scenarios, int currIdx,int modalFormTcIdx) {
+    public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx,int modalFormTcIdx) {
 
         logger.info("Starting navigation handling from index {}", currIdx);
 
@@ -288,29 +307,29 @@ public class ScenarioOrchestratorService {
 
         while (currIdx < scenarios.size()) {
 
-            ScenarioDescriptor currScenario = scenarios.get(currIdx);
+            Scenario currScenario = scenarios.get(currIdx);
 
             logger.info("Processing scenario index {} type {}", currIdx, currScenario.getType());
 
-            if (currScenario.getType() == ScenarioDescriptor.Type.MODAL) {
+            if (currScenario.getType() == ScenarioType.MODAL) {
                 logger.info("Reached MODAL scenario at index {}, stopping navigation phase", currIdx);
                 return currIdx;
             }
 
             try {
 
-                if (currScenario.getType() == ScenarioDescriptor.Type.NAV_URL) {
+                if (currScenario.getType() == ScenarioType.URL_NAV) {
 
                     logger.info("Navigating to URL: {}", currScenario.getUrl());
                     driver.get(currScenario.getUrl());
 
                 }
-                else if (currScenario.getType() == ScenarioDescriptor.Type.NAV_MODAL) {
+                else if (currScenario.getType() == ScenarioType.MODAL_NAV) {
 
-                    logger.info("Opening modal using selector: {}", currScenario.getOpenerCss());
+                    logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
 
                     WebElement opener = wait.until(ExpectedConditions.elementToBeClickable(
-                            By.cssSelector(currScenario.getOpenerCss())
+                            By.cssSelector(currScenario.getCssOpener())
                     ));
 
                     opener.click();
@@ -318,13 +337,13 @@ public class ScenarioOrchestratorService {
                     logger.info("Modal opener clicked successfully");
 
                 }
-                else if (currScenario.getType() == ScenarioDescriptor.Type.NAV_SEARCH) {
+                else if (currScenario.getType() == ScenarioType.SEARCH_NAV) {
 
                     logger.info("Executing NAV_SEARCH using selector: {} and value: {}",
-                            currScenario.getOpenerCss(), currScenario.getValue());
+                            currScenario.getCssOpener(), currScenario.getValue());
 
                     WebElement opener = wait.until(ExpectedConditions.presenceOfElementLocated(
-                            By.cssSelector(currScenario.getOpenerCss())
+                            By.cssSelector(currScenario.getCssOpener())
                     ));
 
                     String value = currScenario.getValue();
@@ -429,12 +448,13 @@ public class ScenarioOrchestratorService {
 
                     }
                 }
-                else if(currScenario.getType() == ScenarioDescriptor.Type.FORM_MODAL){
+                else if(currScenario.getType() == ScenarioType.FORM_MODAL){
 //                  modalFormTcIdx= modalFormTcIdx==0?0:modalFormTcIdx--;
 
-                    MultipartFile csvFile = currScenario.getCsvFile();
-                    List<TestCase> testCases = csvLoader.load(csvFile);
-                    TestCase tc= testCases.get(modalFormTcIdx);
+                    String csvFile = currScenario.getCsv();
+                    logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvFile);
+                    List<TestCaseDTO> testCases = csvLoader.loadFromS3(csvFile);
+                    TestCaseDTO tc= testCases.get(modalFormTcIdx);
                     handleModalScenario(driver, currScenario, tc);
 
                 }
@@ -447,7 +467,7 @@ public class ScenarioOrchestratorService {
                 logger.error("Navigation step failed at index {} type {} selector {}",
                         currIdx,
                         currScenario.getType(),
-                        currScenario.getOpenerCss(),
+                        currScenario.getCssOpener(),
                         e);
             }
 
@@ -458,23 +478,25 @@ public class ScenarioOrchestratorService {
 
         return currIdx;
     }
-    public List<TestCase> runModalGeneric(WebDriver driver, String openerCss, MultipartFile csvFile, String runIdPrefix,List<ScenarioDescriptor> scenarios,String successMsg,int currIdx) throws Exception {
-        logger.info("[{}] runModalGeneric start using opener: {}", runIdPrefix, openerCss);
-        List<TestCase> testCases=null;
-//       int modalIndex= handleNavigation(driver,scenarios,currIdx);
-//        System.out.println("Driver beforeee-- "+driver);
+    public ScenarioTestDto runModalGeneric(WebDriver driver, String runIdPrefix,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run) throws Exception {
+        List<TestCaseDTO> testCases=null;
 
         int currEle=handleNavigation(driver,scenarios,currIdx,0);
-
-//        System.out.println("Driver afterr  "+driver);
-        ScenarioDescriptor currModal=scenarios.get(currEle);
+        String scenarioPrefix =
+                baseS3Prefix + "/scenarios/" + currEle;
+        Scenario currModal=scenarios.get(currEle);
+        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
+        Files.createDirectories(scenarioDir);
+        int counterIdx=0;
+        int totalPasses = 0;
+        int totalFails = 0;
         try {
 
             // load modal testcases
-            testCases = csvLoader.load(currModal.getCsvFile());
+            testCases = csvLoader.loadFromS3(currModal.getCsv());
             logger.info("[{}] loaded {} modal testcases from", runIdPrefix, testCases.size());
-            int counterIdx=0;
-            for (TestCase tc : testCases) {
+
+            for (TestCaseDTO tc : testCases) {
                 String tcRunId = runIdPrefix + "_" + tc.getId();
                 List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
                 logger.info("[{}] scanned {} modal fields", runIdPrefix, modalFields.size());
@@ -482,9 +504,16 @@ public class ScenarioOrchestratorService {
                 try {
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-                    logger.info("Generated Steps : {}",steps);
-                    String result=executor.runOnRenderedPage(driver, steps, tcRunId,successMsg);
-                    tc.setResult(result);
+                    String expected = tc.getExpectedResult();
+                    com.testingautomation.testautomation.dto.ResultRun resultRun =executor.runOnRenderedPage(driver, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
+                    if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
+                        tc.setResult("Passed");
+                        totalPasses++;
+                    } else {
+                        tc.setResult(resultRun.getStatus());
+                        totalFails++;
+                    }
+                    tc.setUrls(resultRun.getScreenshots());
                     if(counterIdx<testCases.size())
                         handleNavigation(driver,scenarios,currIdx,counterIdx);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
@@ -496,7 +525,22 @@ public class ScenarioOrchestratorService {
         } catch (Exception e) {
             logger.error("[{}] failed to open modal or execute tests: {}", runIdPrefix, e.getMessage(), e);
         }
-        return testCases;
+        Path scenarioCsv = csvLoader.writeScenarioCsv(testCases, scenarioDir);
+        String s3Key = scenarioPrefix + "/scenario-results.csv";
+
+        String finalCsvUrl=s3StorageService.uploadFile(scenarioCsv, s3Key);
+        ScenarioTestDto scenarioTestDto=new ScenarioTestDto(testCases,finalCsvUrl);
+        if (totalPasses == testCases.size()) {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PASSED);
+        }
+        else if (totalFails == testCases.size()) {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.FAILED);
+        }
+        else {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PARTIAL);
+        }
+
+        return scenarioTestDto;
     }
 
     public List<ScenarioDescriptor> scenarioDescriptorMapper(TestConfigPayload payload,
@@ -573,20 +617,20 @@ public class ScenarioOrchestratorService {
 
     private void handleModalScenario(
             WebDriver driver,
-            ScenarioDescriptor scenario,
-            TestCase tc
+            Scenario scenario,
+            TestCaseDTO tc
     ) {
 
-        String cssSelector = scenario.getOpenerCss();
+        String cssSelector = scenario.getCssOpener();
         String value = scenario.getValue();
-        boolean isClick =scenario.getIsClick()!=null;
+        boolean isClick =scenario.getClickCss()!=null;
         logger.info("is click : {}",isClick);
         boolean isSearch = !isClick;
         String secondId = scenario.getClickCss();
-        logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', isClickRaw='{}', isClick={}, isSearch={}, clickCss='{}'",
+        logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', clickCss='{}', isClick={}, isSearch={}, clickCss='{}'",
                 cssSelector,
                 value,
-                scenario.getIsClick(),
+                scenario.getClickCss(),
                 isClick,
                 isSearch,
                 secondId
@@ -696,7 +740,11 @@ public class ScenarioOrchestratorService {
                 driver,
                 steps,
                 tc.getId(),
-                null
+                null,
+                null,
+                null,
+                tc.getExpectedResult()
+
         );
     }
     private void handleSelect2(WebDriver driver, WebElement selectElement, String value) {

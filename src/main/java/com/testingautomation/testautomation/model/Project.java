@@ -24,7 +24,7 @@ public class Project {
     private String id;
 
     private String name;
-    private String desc;
+    private String description;
 
     /** ID of the user who created this project */
     @Indexed

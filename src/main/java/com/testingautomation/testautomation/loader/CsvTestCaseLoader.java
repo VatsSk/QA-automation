@@ -2,18 +2,34 @@ package com.testingautomation.testautomation.loader;
 
 
 import com.opencsv.CSVReaderHeaderAware;
+import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.model.TestCase;
+import com.testingautomation.testautomation.services.TestResultWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import java.io.FileReader;
-import java.io.InputStreamReader;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 
 @Component
 public class CsvTestCaseLoader {
     private final Logger logger = LoggerFactory.getLogger(CsvTestCaseLoader.class);
+    private final S3Client s3Client;
+    @Value("${aws.s3.bucket}")
+    private String bucketName;
+
+    public CsvTestCaseLoader(S3Client s3Client) {
+        this.s3Client = s3Client;
+    }
 
     /**
      * CSV format expectation:
@@ -86,5 +102,98 @@ public class CsvTestCaseLoader {
         System.out.println("testcases ---- " + list);
 
         return list;
+    }
+
+    public List<TestCaseDTO> loadFromS3(String csvUrl) throws Exception {
+        logger.info("Loading CSV testcases from S3: {}", csvUrl);
+        List<TestCaseDTO> list = new ArrayList<>();
+        String key = extractKeyFromUrl(csvUrl);
+
+        GetObjectRequest request = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .build();
+
+        try (InputStream inputStream = s3Client.getObject(request);
+             CSVReaderHeaderAware reader =
+                     new CSVReaderHeaderAware(new InputStreamReader(inputStream))) {
+
+            Map<String, String> row;
+            int counter=0;
+
+            while ((row = reader.readMap()) != null) {
+
+                String id = row.getOrDefault(
+                        "testCaseId",
+                        counter+""
+                );
+                counter++;
+
+                String expectedResult = row.get("expectedResult");
+
+                Map<String, String> values = new LinkedHashMap<>(row);
+                values.remove("testCaseId");
+                values.remove("expectedResult");
+
+                TestCaseDTO testCase = new TestCaseDTO(id, values);
+                testCase.setExpectedResult(expectedResult);
+
+                list.add(testCase);
+
+                logger.debug("Loaded testcase {}", id);
+            }
+        }
+
+        logger.info("Total testcases loaded: {}", list.size());
+
+        return list;
+    }
+
+    private String extractKeyFromUrl(String csvUrl) {
+        return csvUrl.substring(csvUrl.indexOf(".amazonaws.com/") + 14);
+    }
+
+    public Path writeScenarioCsv(List<TestCaseDTO> testCases, Path scenarioDir) throws IOException {
+
+        if (testCases == null || testCases.isEmpty()) {
+            throw new IllegalArgumentException("No testcases found");
+        }
+
+        Path file = scenarioDir.resolve("scenario-results.csv");
+
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                file,
+                StandardCharsets.UTF_8,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING)) {
+
+            // header
+            TestCaseDTO first = testCases.get(0);
+
+            List<String> headers = new ArrayList<>(first.getValues().keySet());
+
+            headers.add("expectedResult");
+            headers.add("Result");
+
+            writer.write(String.join(",", headers));
+            writer.newLine();
+
+            for (TestCaseDTO tc : testCases) {
+
+                List<String> row = new ArrayList<>();
+
+                for (String key : tc.getValues().keySet()) {
+                    row.add(TestResultWriter.safe(tc.getValue(key)));
+                }
+
+                row.add(TestResultWriter.safe(tc.getExpectedResult()));
+                row.add(TestResultWriter.safe(tc.getResult()));
+
+                writer.write(String.join(",", row));
+                writer.newLine();
+            }
+        }
+
+        return file;
     }
 }

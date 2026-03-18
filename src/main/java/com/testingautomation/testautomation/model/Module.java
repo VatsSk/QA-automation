@@ -26,7 +26,7 @@ public class Module {
     private String projectId;
 
     private String name;
-    private String desc;
+    private String description;
 
     @Indexed
     private String createdBy;

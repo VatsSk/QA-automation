@@ -13,7 +13,7 @@ import com.testingautomation.testautomation.dto.FieldDescriptor;
 public class StepGenerator {
     private final Logger logger = LoggerFactory.getLogger(StepGenerator.class);
 
-    public List<StepAction> generateSteps(List<FieldDescriptor> fields, TestCase testCase) {
+    public List<StepAction> generateSteps(List<FieldDescriptor> fields, TestCaseDTO testCase) {
         logger.info("Generating steps for testcase {}", testCase.getId());
         List<StepAction> steps = new ArrayList<>();
 

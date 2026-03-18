@@ -10,11 +10,15 @@ import com.testingautomation.testautomation.model.Run;
 import com.testingautomation.testautomation.model.RunStatus;
 import com.testingautomation.testautomation.model.Scenario;
 import com.testingautomation.testautomation.model.ScenarioStatus;
+import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
 import com.testingautomation.testautomation.pojo.RunFilterParams;
 import com.testingautomation.testautomation.repo.RunRepository;
 import com.testingautomation.testautomation.requestDto.RunRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -30,6 +34,7 @@ public class RunService {
     private final RunRepository runRepository;
     private final EntityMapper mapper;
     private final RunnerService runnerService;
+    private final ScenarioOrchestratorService scenarioOrchestratorService;
 
     // ── Filtered list ─────────────────────────────────────────────────
 
@@ -150,16 +155,32 @@ public class RunService {
      */
     public RunResponse executeRun(String id) {
         Run run = findRunOrThrow(id);
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1366,768");
+        WebDriver driver = new ChromeDriver(options);
 
-        if (run.getStatus() == RunStatus.RUNNING) {
+        Run updated = run;
+
+        if (run.getStatus()==RunStatus.RUNNING ) {
             throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
         }
         if (run.getScenariosList() == null || run.getScenariosList().isEmpty()) {
             throw new GlobalExceptionHandler.BadRequestException("Cannot execute a run with no scenarios");
         }
 
+        try {
+            updated= scenarioOrchestratorService.executeScenarios(run,driver,id);
+
+        }catch (Exception ex){
+//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+//                    .body("Test execution failed");
+        }finally {
+            driver.quit();
+        }
+
         log.info("Executing run {} (resultStatement='{}')", id, run.getResultStatement());
-        Run updated = runnerService.executeRun(run);
+//        Run updated = runnerService.executeRun(run);
         return mapper.toRunResponse(updated);
     }
 

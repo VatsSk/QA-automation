@@ -10,5 +10,6 @@ public enum ScenarioType {
     MODAL,
     URL_NAV,
     MODAL_NAV,
-    SEARCH_NAV
+    SEARCH_NAV,
+    FORM_MODAL
 }

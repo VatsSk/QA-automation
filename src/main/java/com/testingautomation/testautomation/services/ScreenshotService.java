@@ -23,8 +23,8 @@ public class ScreenshotService {
     @Autowired
     private S3StorageService s3StorageService;
 
-    @Value("${automation.screenshots.prefix}")
-    private String screenshotPrefix;
+//    @Value("${automation.screenshots.prefix}")
+//    private String screenshotPrefix;
     /**
      * Takes screenshot and returns the saved filename (full path) or empty string on failure.
      * Ensures a small repaint buffer and scroll to top before capture.

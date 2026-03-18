@@ -63,4 +63,5 @@ public class Scenario {
     private Instant actionPerformedAt;
     private Instant createdAt;
     private Instant updatedAt;
+    private String clickCss;
 }
