@@ -73,18 +73,15 @@ public class ScenarioOrchestratorService {
      * Keeps single driver/session alive (login should be done before calling this).
      */
     public Run executeScenarios(Run run, WebDriver driver, String globalRunId) {
-        String baseS3Prefix =basePrefix+"/"+
-                run.getProjectId()+ "/" +
-                        run.getModuleId() + "/" +
-                        globalRunId;
+        String baseS3Prefix =basePrefix+"/"+ run.getProjectId()+ "/" + run.getModuleId() + "/" + globalRunId;
         List<Scenario> scenarios = run.getScenariosList();
+
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
         for (int i = 0; i < scenarios.size(); i++) {
             Scenario current = scenarios.get(i);
             String scenarioId = (i+1)+"";
             String scenarioPrefix =
                     baseS3Prefix + "/" + scenarioId;
-            String scenarioRunId = globalRunId + "_S" + (i + 1) + (current.getId() != null ? "_" + current.getId() : "");
             try {
                 ScenarioTestDto scenarioTestDto=null;
                 if (current.getType() == ScenarioType.URL) {
@@ -101,12 +98,13 @@ public class ScenarioOrchestratorService {
                     Scenario dbScenario = run.getScenariosList().get(i);
 
                     dbScenario.setResultCsv(scenarioTestDto.getResultCsv());
+                    dbScenario.setScenarioBasePath(scenarioPrefix);
+                    run.getScenariosList().set(i,dbScenario);
                     run.setStatus(scenarioTestDto.getOverAllScenarioStatus());
                 }
                 else{
                     scenarioTestDto=runModalGeneric(
                             driver,
-                            scenarioRunId,
                             scenarios,
                             run.getResultStatement(),
                             i,
@@ -114,9 +112,9 @@ public class ScenarioOrchestratorService {
                             run
 
                     );
-                    Scenario dbScenario = run.getScenariosList().get(i);
+//                    Scenario dbScenario = run.getScenariosList().get(i);
 
-                    dbScenario.setResultCsv(scenarioTestDto.getResultCsv());
+//                    dbScenario.setResultCsv(scenarioTestDto.getResultCsv());
                     run.setStatus(scenarioTestDto.getOverAllScenarioStatus());
                     break;
                 }
@@ -124,12 +122,12 @@ public class ScenarioOrchestratorService {
             } catch (Exception e) {
                 run.setStatus(RunStatus.ERROR);
 
-                logger.error("[{}] scenario failed but continuing: {}",scenarioRunId,e.getMessage(), e);
+                logger.error("[{}] scenario failed but continuing: {}",scenarioPrefix,e.getMessage(), e);
             }
         }
 
 
-
+        logger.info("execution completed");
 
 
 //        run.setStatus(RunStatus.COMPLETED);
@@ -208,6 +206,8 @@ public class ScenarioOrchestratorService {
 
         }
 
+        scenarioTestDto.setResultCsv(finalCsvUrl);
+
 
         return scenarioTestDto;
     }
@@ -233,6 +233,10 @@ public class ScenarioOrchestratorService {
             String scenarioId = (currIdx+1)+"";
             String scenarioPrefix =
                     baseS3Prefix + "/" + scenarioId;
+
+            Scenario scenario = run.getScenariosList().get(currIdx);
+            scenario.setScenarioBasePath(scenarioPrefix);
+            run.getScenariosList().set(currIdx,scenario);
 
             Scenario currScenario = scenarios.get(currIdx);
 
@@ -479,12 +483,12 @@ public class ScenarioOrchestratorService {
 
         return currIdx;
     }
-    public ScenarioTestDto runModalGeneric(WebDriver driver, String runIdPrefix,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run) throws Exception {
+    public ScenarioTestDto runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run) throws Exception {
         List<TestCaseDTO> testCases=null;
 
         int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run);
         String scenarioPrefix =
-                baseS3Prefix + "/scenarios-" + currEle;
+                baseS3Prefix + "/scenarios-" + (currEle+1);
         Scenario currModal=scenarios.get(currEle);
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
         Files.createDirectories(scenarioDir);
@@ -495,12 +499,12 @@ public class ScenarioOrchestratorService {
 
             // load modal testcases
             testCases = csvLoader.loadFromS3(currModal.getCsv());
-            logger.info("[{}] loaded {} modal testcases from", runIdPrefix, testCases.size());
+            logger.info("[{}] loaded {} modal testcases from", scenarioPrefix, testCases.size());
 
             for (TestCaseDTO tc : testCases) {
                 String tcRunId = tc.getTestcaseId();
                 List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
-                logger.info("[{}] scanned {} modal fields", runIdPrefix, modalFields.size());
+                logger.info("[{}] scanned {} modal fields", scenarioPrefix, modalFields.size());
                 counterIdx++;
                 try {
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
@@ -524,7 +528,7 @@ public class ScenarioOrchestratorService {
             }
 
         } catch (Exception e) {
-            logger.error("[{}] failed to open modal or execute tests: {}", runIdPrefix, e.getMessage(), e);
+            logger.error("[{}] failed to open modal or execute tests: {}",scenarioPrefix, e.getMessage(), e);
         }
         Path scenarioCsv = csvLoader.writeScenarioCsv(testCases, scenarioDir);
         String s3Key = scenarioPrefix + "/scenario-results.csv";
@@ -540,6 +544,10 @@ public class ScenarioOrchestratorService {
         else {
             scenarioTestDto.setOverAllScenarioStatus(RunStatus.PARTIAL);
         }
+        Scenario scenario= run.getScenariosList().get(currEle);
+        logger.info("currEl {} Scenario must be last : {}",currEle,scenario);
+        scenario.setResultCsv(finalCsvUrl);
+        run.getScenariosList().set(currEle,scenario);
 
         return scenarioTestDto;
     }
