@@ -17,7 +17,7 @@ import java.util.Map;
 @AllArgsConstructor
 public class TestCase {
 
-    private String id;
+    private String testcaseId;
     private String name;
 
     private String url;
@@ -38,7 +38,7 @@ public class TestCase {
     private List<String> screenshotPaths;
 
     public TestCase(String id,String url,Map<String,String> values){
-        this.id=id;
+        this.testcaseId=id;
         this.url=url;
         this.value=values;
     }

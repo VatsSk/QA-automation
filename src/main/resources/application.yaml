@@ -19,9 +19,6 @@ spring:
       max-file-size: 50MB
       max-request-size: 100MB
 
-aws:
-  s3:
-    bucket: interns-tf-project/qa_automation
 
 
 server:
@@ -33,18 +30,6 @@ server:
     timeout-seconds: ${RUNNER_TIMEOUT:120}
 
   # MinIO / S3 configuration
-storage:
-  s3:
-    region: ${AWS_REGION}
-    bucket-name: ${S3_BUCKET}
-    base-prefix: ${S3_BASE_PREFIX}
-    access-key: ${AWS_ACCESS_KEY_ID}
-    secret-key: ${AWS_SECRET_ACCESS_KEY}
-    presigned-url-expiry-minutes: ${S3_PRESIGNED_EXPIRY_MINUTES:60}
-
-
-
-
 
 
 logging:

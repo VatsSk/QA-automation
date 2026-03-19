@@ -63,6 +63,12 @@
     let run       = null;
     let pollTimer = null;
 
+    // NEW: cache result CSV data per scenario index
+    const scenarioResultsCache = {};   // { [scIdx]: { headers: [], rows: [] } }
+
+    // NEW: cache screenshots per scenario + value
+    const screenshotCache = {};        // { [`${scIdx}|${column}|${value}`]: [url1, url2] }
+
     // ── Load ──────────────────────────────────────────────────────────────
     async function load() {
         try {
@@ -86,6 +92,124 @@
             document.getElementById('page-content').innerHTML =
                 `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load run</h3><p>${esc(e.message)}</p></div>`;
         }
+    }
+    // // ── Helpers: CSV fetch / parse / presign ──────────────────────────────────
+    // async function resolveFileUrl(fileInfo) {
+    //     // backend may return { url } directly OR { key }
+    //     if (fileInfo?.url) return fileInfo.url;
+    //
+    //     if (fileInfo?.key) {
+    //         const signed = await api.files.presign(fileInfo.key);
+    //         return signed.url;
+    //     }
+    //
+    //     throw new Error('No file url/key returned from backend');
+    // }
+    //
+    // async function fetchCsvText(fileInfo) {
+    //     const url = await resolveFileUrl(fileInfo);
+    //     const res = await fetch(url);
+    //     if (!res.ok) throw new Error(`Failed to fetch CSV (${res.status})`);
+    //     return await res.text();
+    // }
+    //
+    // // Basic CSV parser (supports quoted values)
+    // function parseCSV(text) {
+    //     text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+    //     if (!text) return { headers: [], rows: [] };
+    //
+    //     const lines = text.split('\n');
+    //
+    //     function splitCsvLine(line) {
+    //         const result = [];
+    //         let cur = '';
+    //         let inQuotes = false;
+    //
+    //         for (let i = 0; i < line.length; i++) {
+    //             const ch = line[i];
+    //             const next = line[i + 1];
+    //
+    //             if (ch === '"' && inQuotes && next === '"') {
+    //                 cur += '"';
+    //                 i++;
+    //             } else if (ch === '"') {
+    //                 inQuotes = !inQuotes;
+    //             } else if (ch === ',' && !inQuotes) {
+    //                 result.push(cur);
+    //                 cur = '';
+    //             } else {
+    //                 cur += ch;
+    //             }
+    //         }
+    //
+    //         result.push(cur);
+    //         return result.map(v => v.trim());
+    //     }
+
+    //     const headers = splitCsvLine(lines[0]);
+    //
+    //     const rows = lines.slice(1).filter(Boolean).map(line => {
+    //         const vals = splitCsvLine(line);
+    //         const obj = {};
+    //         headers.forEach((h, i) => {
+    //             obj[h] = vals[i] ?? '';
+    //         });
+    //         return obj;
+    //     });
+    //
+    //     return { headers, rows };
+    // }
+
+    // ── Load scenario result CSV from backend ─────────────────────────────────
+    async function loadScenarioResultCsv(scIdx) {
+        if (scenarioResultsCache[scIdx]) return scenarioResultsCache[scIdx];
+
+        const sc = (run?.scenariosList || [])[scIdx];
+        if (!sc) throw new Error('Scenario not found');
+
+        // ✅ take resultCsv path directly from current scenario
+        const s3Path = sc.resultCsv;
+
+        if (!s3Path) {
+            throw new Error('Result CSV path not found for this scenario');
+        }
+
+        // ✅ backend now returns parsed rows directly
+        const rows = await api.runs.getScenarioResultCsv(s3Path);
+
+        const parsed = {
+            headers: rows.length ? Object.keys(rows[0]) : [],
+            rows
+        };
+
+        scenarioResultsCache[scIdx] = parsed;
+        return parsed;
+    }
+
+    // ── Render result CSV table ───────────────────────────────────────────────
+    function resultCsvTable(headers, rows, scIdx) {
+        if (!headers.length || !rows.length) {
+            return `<div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">No result rows found</div>`;
+        }
+
+        return `
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          ${headers.map(h => `<th>${esc(h)}</th>`).join('')}
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map((row, i) => `
+        <tr class="tc-row" onclick="viewResultRow(${scIdx}, ${i})">
+          <td class="mono-sm">${i + 1}</td>
+          ${headers.map(h => `<td>${esc(row[h] || '')}</td>`).join('')}
+          <td><span class="badge badge-blue" style="font-size:10px">View →</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
     }
 
     // ── Render full page ───────────────────────────────────────────────────
@@ -169,17 +293,14 @@
         <p>Edit this run to add scenarios.</p>
       </div>`;
         }
+
         return scenarios.map((sc, i) => {
             const cfg    = TYPES[sc.type] || { label: sc.type, icon: '?', color: 'var(--tx2)', bg: 'var(--sur3)' };
             const typeBg = `style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.color.replace(')', ',0.3)')}"`;
-            const hasTCs = cfg.hasData && (sc.manualTestCases || []).length > 0;
-            const hasSS  = (sc.screenshots || []).length > 0;
-            const canExp = hasTCs || hasSS;
 
             return `
-      <div class="sc-row ${canExp ? 'expandable' : ''}" id="sc-row-${i}">
-        <div class="sc-head ${canExp ? 'clickable' : ''}"
-          ${canExp ? `onclick="toggleRow(${i})"` : ''}>
+      <div class="sc-row expandable" id="sc-row-${i}">
+        <div class="sc-head clickable" onclick="toggleRow(${i})">
           <div class="sc-num">${i + 1}</div>
           <span class="badge" ${typeBg}>${cfg.icon} ${cfg.label}</span>
           <div class="sc-info">
@@ -188,79 +309,81 @@
             ${sc.value     ? `<div class="sc-url-val">Value: ${esc(sc.value)}</div>` : ''}
           </div>
           ${sc.status ? statusBadge(sc.status) : ''}
-          ${hasSS ? `<span class="badge badge-blue" style="font-size:10px">📸 ${sc.screenshots.length}</span>` : ''}
-          ${canExp ? `<span class="sc-chevron">▼</span>` : ''}
+          <span class="sc-chevron">▼</span>
         </div>
 
-        ${canExp ? `
         <div class="sc-body" id="sc-body-${i}" style="display:none">
           <div class="tc-filter-bar">
-            ${hasTCs ? `
-              <input class="inp inp-sm" style="width:220px"
-                placeholder="🔍 Filter test cases…"
-                oninput="filterTC(${i}, this.value)">` : ''}
-            ${hasSS ? `
-              <button class="btn btn-ghost btn-sm mla"
-                onclick="viewScreenshots(${i})">
-                📸 View Screenshots (${sc.screenshots.length})
-              </button>` : ''}
+            <input class="inp inp-sm" style="width:220px"
+              placeholder="🔍 Filter result rows…"
+              oninput="filterResultRows(${i}, this.value)">
           </div>
-          ${hasTCs ? `
+
           <div class="tc-table" id="tc-table-${i}">
-            ${tcTable(sc.manualTestCases, i)}
-          </div>` : ''}
-        </div>` : ''}
+            <div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">
+              Click to load result CSV…
+            </div>
+          </div>
+        </div>
       </div>`;
         }).join('');
     }
 
     // ── Test case table ────────────────────────────────────────────────────
     function tcTable(tcs, scIdx) {
+        // kept only for compatibility if referenced somewhere
         if (!tcs || !tcs.length) {
-            return `<div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">No test cases</div>`;
+            return `<div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">No rows</div>`;
         }
-        const keys = Object.keys(tcs[0]).filter(k => k !== 'testcaseId');
-        return `
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          ${keys.map(k => `<th>${esc(k)}</th>`).join('')}
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${tcs.map((tc, i) => `
-        <tr class="tc-row" onclick="viewTCDetail(${scIdx}, ${i})">
-          <td class="mono-sm">${i + 1}</td>
-          ${keys.map(k => `<td>${esc(tc[k] || '')}</td>`).join('')}
-          <td><span class="badge badge-blue" style="font-size:10px">View →</span></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
+        const headers = Object.keys(tcs[0]);
+        return resultCsvTable(headers, tcs, scIdx);
     }
 
     // ── Toggle scenario open/close ─────────────────────────────────────────
-    window.toggleRow = function (i) {
+    window.toggleRow = async function (i) {
         const body = document.getElementById(`sc-body-${i}`);
         const row  = document.getElementById(`sc-row-${i}`);
         if (!body) return;
+
         const open = body.style.display !== 'none';
         body.style.display = open ? 'none' : 'block';
         row.classList.toggle('open', !open);
+
+        // only load when opening
+        if (!open) {
+            const tableEl = document.getElementById(`tc-table-${i}`);
+            if (!scenarioResultsCache[i]) {
+                tableEl.innerHTML = `
+              <div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">
+                Loading result CSV…
+              </div>`;
+                try {
+                    const parsed = await loadScenarioResultCsv(i);
+                    tableEl.innerHTML = resultCsvTable(parsed.headers, parsed.rows, i);
+                } catch (e) {
+                    tableEl.innerHTML = `
+                  <div style="padding:14px;text-align:center;color:var(--rd);font-size:12.5px">
+                    Failed to load result CSV: ${esc(e.message)}
+                  </div>`;
+                }
+            }
+        }
     };
 
     // ── Filter test cases inline ───────────────────────────────────────────
-    window.filterTC = function (scIdx, query) {
-        const sc = (run?.scenariosList || [])[scIdx];
-        if (!sc) return;
-        const q      = query.toLowerCase();
-        const result = q
-            ? sc.manualTestCases.filter(tc =>
-                Object.values(tc).some(v => String(v).toLowerCase().includes(q)))
-            : sc.manualTestCases;
+    window.filterResultRows = function (scIdx, query) {
+        const parsed = scenarioResultsCache[scIdx];
+        if (!parsed) return;
+
+        const q = query.toLowerCase().trim();
+
+        const rows = q
+            ? parsed.rows.filter(row =>
+                Object.values(row).some(v => String(v).toLowerCase().includes(q)))
+            : parsed.rows;
+
         const el = document.getElementById(`tc-table-${scIdx}`);
-        if (el) el.innerHTML = tcTable(result, scIdx);
+        if (el) el.innerHTML = resultCsvTable(parsed.headers, rows, scIdx);
     };
 
     // ── Filter scenarios by type ───────────────────────────────────────────
@@ -272,70 +395,45 @@
     };
 
     // ── View test case detail in modal ────────────────────────────────────
-    window.viewTCDetail = function (scIdx, tcIdx) {
-        const sc = (run?.scenariosList || [])[scIdx];
-        if (!sc) return;
-        const tc  = sc.manualTestCases[tcIdx];
-        const hasSS = (sc.screenshots || []).length > 0;
-        const fields = Object.entries(tc).filter(([k]) => k !== 'testcaseId');
+    window.viewResultRow = function (scIdx, rowIdx) {
+        const parsed = scenarioResultsCache[scIdx];
+        if (!parsed) return;
+
+        const row = parsed.rows[rowIdx];
+        if (!row) return;
+
+        const fields = Object.entries(row);
 
         openModal(`
       <div class="modal modal-lg">
         <div class="modal-head">
-          <h2>Test Case #${tcIdx + 1}</h2>
+          <h2>Result Row #${rowIdx + 1}</h2>
           <button class="modal-close" onclick="closeModal()">✕</button>
         </div>
 
-        <!-- Fields -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-bottom:20px">
-          ${fields.map(([k, v]) => `
-          <div>
-            <div class="lbl">${esc(k)}</div>
-            <div style="font-size:13.5px;font-weight:500">${esc(String(v || '—'))}</div>
-          </div>`).join('')}
+        <div style="font-size:12px;color:var(--tx2);margin-bottom:12px">
+          Click any field value below to fetch screenshots for that column/value.
         </div>
 
-        <!-- Screenshots -->
-        <div class="sc-section">Screenshots</div>
-        ${hasSS
-            ? `<div class="ss-grid">
-               ${sc.screenshots.map((src, si) => `
-               <div class="ss-thumb" onclick="openLightboxLocal('${esc(src)}')">
-                 <img src="${esc(src)}" alt="Screenshot ${si + 1}"
-                   onerror="this.parentElement.style.display='none'">
-                 <div class="ss-name">Screenshot ${si + 1}</div>
-               </div>`).join('')}
-             </div>`
-            : `<div style="text-align:center;padding:24px;color:var(--tx3)">
-               <div style="font-size:28px;opacity:.3;margin-bottom:8px">📷</div>
-               <p style="font-size:12.5px">No screenshots for this test case.</p>
-             </div>`}
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px">
+          ${fields.map(([k, v]) => `
+          <div style="border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sur2)">
+            <div class="lbl">${esc(k)}</div>
+            <button class="btn btn-ghost btn-sm" style="margin-top:6px;width:100%;justify-content:flex-start"
+              onclick="fetchRowScreenshots(${scIdx}, '${esc(k)}', '${esc(String(v || ''))}')">
+              ${esc(String(v || '—'))}
+            </button>
+          </div>`).join('')}
+        </div>
       </div>`);
     };
 
     window.openLightboxLocal = showLightbox;
 
     // ── View all screenshots for a scenario ───────────────────────────────
-    window.viewScreenshots = function (scIdx) {
-        const sc = (run?.scenariosList || [])[scIdx];
-        if (!sc || !sc.screenshots?.length) return;
-        openModal(`
-      <div class="modal modal-lg">
-        <div class="modal-head">
-          <h2>📸 Screenshots — Scenario ${scIdx + 1}</h2>
-          <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <div class="ss-grid">
-          ${sc.screenshots.map((src, i) => `
-          <div class="ss-thumb" onclick="openLightboxLocal('${esc(src)}')">
-            <img src="${esc(src)}" alt="Screenshot ${i + 1}"
-              onerror="this.parentElement.style.display='none'">
-            <div class="ss-name">${esc(src.split('/').pop() || `Screenshot ${i + 1}`)}</div>
-          </div>`).join('')}
-        </div>
-      </div>`);
+    window.viewScreenshots = function () {
+    toast('Screenshots are now fetched from result CSV row values.', 'info');
     };
-
     // ── Clone run ──────────────────────────────────────────────────────────
     window.cloneRun = async function () {
         try {
@@ -373,6 +471,58 @@
             } catch { /* ignore poll errors */ }
         }, 3000);
     }
+
+    // ── Fetch screenshots for selected column + value ────────────────────────
+    window.fetchRowScreenshots = async function (scIdx, column, value) {
+        try {
+            const sc = (run?.scenariosList || [])[scIdx];
+            if (!sc) return;
+
+            const sequenceNo = sc.sequenceNo || (scIdx + 1);
+            const cacheKey = `${scIdx}|${column}|${value}`;
+
+            let screenshots = screenshotCache[cacheKey];
+
+            if (!screenshots) {
+                const resp = await api.runs.getScenarioScreenshots(runId, sequenceNo, column, value);
+                screenshots = resp?.screenshots || [];
+
+                // convert keys -> signed urls if needed
+                screenshots = await Promise.all(
+                    screenshots.map(async (item) => {
+                        if (/^https?:\/\//i.test(item)) return item;
+                        const signed = await api.files.presign(item);
+                        return signed.url;
+                    })
+                );
+
+                screenshotCache[cacheKey] = screenshots;
+            }
+
+            if (!screenshots.length) {
+                toast('No screenshots found', 'info');
+                return;
+            }
+
+            openModal(`
+          <div class="modal modal-lg">
+            <div class="modal-head">
+              <h2>📸 Screenshots</h2>
+              <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="ss-grid">
+              ${screenshots.map((src, i) => `
+              <div class="ss-thumb" onclick="openLightboxLocal('${esc(src)}')">
+                <img src="${esc(src)}" alt="Screenshot ${i + 1}"
+                  onerror="this.style.opacity=.3; this.nextElementSibling.textContent='Failed to load'">
+                <div class="ss-name">${esc(src.split('/').pop() || `Screenshot ${i + 1}`)}</div>
+              </div>`).join('')}
+            </div>
+          </div>`);
+        } catch (e) {
+            toast('Failed to fetch screenshots: ' + e.message, 'error');
+        }
+    };
 
     load();
 </script>

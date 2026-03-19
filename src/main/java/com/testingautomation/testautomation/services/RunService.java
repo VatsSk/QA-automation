@@ -1,6 +1,8 @@
 package com.testingautomation.testautomation.services;
 
 
+import com.testingautomation.testautomation.config.StorageProperties;
+import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.dto.responseDto.PagedResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResultsResponse;
@@ -21,7 +23,17 @@ import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -35,6 +47,8 @@ public class RunService {
     private final EntityMapper mapper;
     private final RunnerService runnerService;
     private final ScenarioOrchestratorService scenarioOrchestratorService;
+    private final StorageProperties storageProperties;
+    private final S3Client s3Client;
 
     // ── Filtered list ─────────────────────────────────────────────────
 
@@ -255,5 +269,146 @@ public class RunService {
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .build();
+    }
+
+
+
+    public List<LinkedHashMap<String, String>> getScenarioWiseResult(String s3Path) {
+        try {
+            // 1) Convert full S3 URL -> S3 object key
+            String key = extractKeyFromS3Url(s3Path);
+
+            // 2) Fetch object from S3 using credentials configured in S3Client
+            GetObjectRequest request = GetObjectRequest.builder()
+                    .bucket(storageProperties.getBucketName())
+                    .key(key)
+                    .build();
+
+            try (ResponseInputStream<GetObjectResponse> inputStream = s3Client.getObject(request);
+                 BufferedReader reader = new BufferedReader(
+                         new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+
+                // 3) Read header row
+                String headerLine = reader.readLine();
+                if (headerLine == null || headerLine.isBlank()) {
+                    return List.of();
+                }
+
+                List<String> headers = parseCsvLine(headerLine);
+
+                // remove UTF-8 BOM from first header if present
+                if (!headers.isEmpty()) {
+                    headers.set(0, removeBom(headers.get(0)));
+                }
+
+                // 4) Read all rows
+                List<LinkedHashMap<String, String>> result = new ArrayList<>();
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    if (line.isBlank()) continue;
+
+                    List<String> values = parseCsvLine(line);
+
+                    LinkedHashMap<String, String> rowMap = new LinkedHashMap<>();
+                    for (int i = 0; i < headers.size(); i++) {
+                        String header = headers.get(i);
+                        String value = i < values.size() ? values.get(i) : "";
+                        rowMap.put(header, value);
+                    }
+
+                    result.add(rowMap);
+                }
+
+                return result;
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to load scenario result CSV from S3 path: " + s3Path, e);
+        }
+    }
+
+    /**
+     * Extract S3 key from full S3 URL.
+     *
+     * Example input:
+     * https://interns-tf-project.s3.ap-southeast-1.amazonaws.com/qa_automation/.../scenario-results.csv
+     *
+     * Output:
+     * qa_automation/.../scenario-results.csv
+     */
+    private String extractKeyFromS3Url(String s3Path) {
+        try {
+            URI uri = URI.create(s3Path);
+
+            String path = uri.getPath();
+            if (path == null || path.isBlank()) {
+                throw new IllegalArgumentException("Invalid S3 URL: empty path");
+            }
+
+            // remove leading slash
+            if (path.startsWith("/")) {
+                path = path.substring(1);
+            }
+
+            String basePrefix = storageProperties.getBasePrefix();
+
+            // If basePrefix exists and path does not already contain it, prepend it
+            if (basePrefix != null && !basePrefix.isBlank()) {
+                String normalizedPrefix = basePrefix.endsWith("/")
+                        ? basePrefix.substring(0, basePrefix.length() - 1)
+                        : basePrefix;
+
+                if (!path.startsWith(normalizedPrefix + "/") && !path.equals(normalizedPrefix)) {
+                    path = normalizedPrefix + "/" + path;
+                }
+            }
+
+            return path;
+
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid S3 URL: " + s3Path, e);
+        }
+    }
+
+    /**
+     * CSV parser supporting quoted values and escaped quotes ("")
+     */
+    private List<String> parseCsvLine(String line) {
+        List<String> result = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        boolean inQuotes = false;
+
+        for (int i = 0; i < line.length(); i++) {
+            char ch = line.charAt(i);
+
+            if (ch == '"') {
+                // escaped quote inside quoted value
+                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                    current.append('"');
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (ch == ',' && !inQuotes) {
+                result.add(current.toString());
+                current.setLength(0);
+            } else {
+                current.append(ch);
+            }
+        }
+
+        result.add(current.toString());
+        return result;
+    }
+
+    /**
+     * Remove UTF-8 BOM if present in first header
+     */
+    private String removeBom(String value) {
+        if (value != null && !value.isEmpty() && value.charAt(0) == '\uFEFF') {
+            return value.substring(1);
+        }
+        return value;
     }
 }
