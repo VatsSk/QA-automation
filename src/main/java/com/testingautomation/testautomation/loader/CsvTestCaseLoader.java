@@ -24,7 +24,6 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 public class CsvTestCaseLoader {
     private final Logger logger = LoggerFactory.getLogger(CsvTestCaseLoader.class);
     private final S3Client s3Client;
-
     @Value("${storage.s3.bucket-name}")
     private String bucketName;
 

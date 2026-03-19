@@ -101,8 +101,28 @@ export const runs = {
     delete:  (id)      => request('DELETE', `/api/runs/${id}`),
     clone:   (id)      => request('POST',   `/api/runs/${id}/clone`),
     execute: (id)      => request('POST',   `/api/runs/${id}/execute`),
+
+    getScenarioResultCsv: (s3Path) =>
+        request('GET', `/api/runs/scenario/result?s3Path=${encodeURIComponent(s3Path)}`),
+    // ✅ NEW: Get screenshots for a selected column + value from scenario result CSV
+    // Example:
+    // /api/runs/{runId}/scenarios/{sequenceNo}/screenshots?column=testcaseId&value=TC_001
+    getScenarioScreenshots: (runId, sequenceNo, column, value) =>
+        request(
+            'GET',
+            `/api/runs/${runId}/scenarios/${sequenceNo}/screenshots?column=${encodeURIComponent(column)}&value=${encodeURIComponent(value)}`
+        ),
 };
 
+// ── Files / S3 access ──────────────────────────────────────────────────────
+export const files = {
+    /**
+     * Convert an S3 key into a browser-accessible URL (usually pre-signed URL)
+     * Backend should return: { url: "https://..." }
+     */
+    presign: (key) =>
+        request('GET', `/api/files/presign?key=${encodeURIComponent(key)}`),
+};
 // ── Uploads ────────────────────────────────────────────────────────────────
 export const uploads = {
     /**

@@ -37,6 +37,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -46,7 +47,7 @@ public class ScenarioOrchestratorService {
     private final String resultsBaseDir = "test-results";
     private final ScreenshotService screenshotService;
     @Value("${storage.s3.base-prefix}")
-    private  String basePrefix;
+    private String basePrefix;
     private final Logger logger = LoggerFactory.getLogger(ScenarioOrchestratorService.class);
 
     // your existing components (assumed to be available)
@@ -540,7 +541,8 @@ public class ScenarioOrchestratorService {
         else {
             scenarioTestDto.setOverAllScenarioStatus(RunStatus.PARTIAL);
         }
-
+        logger.info("Final CSV URL   :"+finalCsvUrl);
+        scenarioTestDto.setResultCsv(finalCsvUrl);
         return scenarioTestDto;
     }
 

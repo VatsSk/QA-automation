@@ -92,7 +92,7 @@ public class SeleniumExecutor {
                         String screenshotUrl = screenshotService.takeScreenshot(
                                 driver1,
                                 testCaseId,
-                                 "step_" + stepNo,
+                                "step_" + stepNo,
                                 screenshotsDir,
                                 scenarioPrefix
                         );

@@ -24,8 +24,27 @@ public class UiScannerController {
 
     @GetMapping("/auth")
     public String getAuth(){
-
         System.out.println("AUTH controller calleld::");
         return "runs.html";
+    }
+
+    @GetMapping("/run-detail")
+    public String getRunDetail(){
+        return "run-detail.html";
+    }
+
+    @GetMapping("/run-editor")
+    public String getRunEditor(){
+        return "run-editor.html";
+    }
+
+    @GetMapping("/projects")
+    public String getProjects(){
+        return "projects.html";
+    }
+
+    @GetMapping("/modules")
+    public String getModules(){
+        return "modules.html";
     }
 }

@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.controllers;
 
 
+import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.dto.responseDto.PagedResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResultsResponse;
@@ -158,6 +159,10 @@ public class RunControllerNew {
         return ResponseEntity.ok(runService.getRunResults(id));
     }
 
+    @GetMapping("/api/runs/scenario/result")
+    public ResponseEntity<List<LinkedHashMap<String,String>>> getScenarioWiseResult(@RequestParam("s3Path") String s3Path) {
+        return ResponseEntity.ok(runService.getScenarioWiseResult(s3Path));
+    }
     // ── Parse helpers ─────────────────────────────────────────────────
 
     private List<RunStatus> parseStatuses(String statusParam) {
