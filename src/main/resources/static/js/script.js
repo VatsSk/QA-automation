@@ -32,6 +32,7 @@ function addBlock() {
                 <option value="nav_modal">Navigation Modal</option>
                  <option value="search_nav">Search Navigation</option> 
                  <option value="form_modal">Form Modal</option>
+                 <option value="assert">Assertion</option>
             </select>
         </div>
 
@@ -72,6 +73,9 @@ function toggleFields(blockId) {
     else if (type === 'form_modal') {
         fieldsContainer.innerHTML = getFormModalFieldsHTML(blockId);
     }
+    else if (type === 'assert') {
+        fieldsContainer.innerHTML = getAssertionFieldsHTML(blockId);
+    }
 }
 
 // HTML templates for dynamic inputs
@@ -87,7 +91,47 @@ function getUrlFieldsHTML() {
         </div>
     `;
 }
+function getAssertionFieldsHTML(blockId) {
+    return `
+        <div id="assertions-${blockId}">
+            ${getSingleAssertionRow()}
+        </div>
 
+        <button type="button" onclick="addAssertionRow('${blockId}')">
+            + Add Assertion
+        </button>
+    `;
+}
+function getSingleAssertionRow() {
+    return `
+        <div class="assert-row">
+            <select class="assert-type">
+                <option value="ASSERT_VISIBLE">Visible</option>
+                <option value="ASSERT_ELEMENT_PRESENT">Present</option>
+                <option value="ASSERT_TEXT_EQUALS">Text Equals</option>
+                <option value="ASSERT_COLUMN_PRESENT">Column</option>
+                <option value="ASSERT_SORT_ORDER">Sorting</option>
+                <option value="ASSERT_COUNT">Count</option>
+            </select>
+
+            <input type="text" class="assert-locator" placeholder="#id / .class">
+
+            <input type="text" class="assert-expected" placeholder="expected">
+
+            <input type="text" class="assert-value" placeholder="value">
+
+            <button onclick="removeAssertionRow(this)">✖</button>
+        </div>
+    `;
+}
+function addAssertionRow(blockId) {
+    const container = document.getElementById(`assertions-${blockId}`);
+    container.insertAdjacentHTML('beforeend', getSingleAssertionRow());
+}
+function addAssertionRow(blockId) {
+    const container = document.getElementById(`assertions-${blockId}`);
+    container.insertAdjacentHTML('beforeend', getSingleAssertionRow());
+}
 function getModelFieldsHTML() {
     return `
         <div class="form-group">
@@ -303,6 +347,32 @@ async function runTests() {
                 clickCss: clickCss,
                 fileName: fileName,   // ✅ reuse existing file handling
                 fileKey: fileKey
+            });
+        }
+        else if (type === 'assert') {
+
+            const rows = block.querySelectorAll('.assert-row');
+
+            const assertions = [];
+
+            rows.forEach(row => {
+
+                const assertType = row.querySelector('.assert-type').value;
+                const locator = row.querySelector('.assert-locator').value;
+                const expected = row.querySelector('.assert-expected').value;
+                const value = row.querySelector('.assert-value').value;
+
+                assertions.push({
+                    type: assertType,
+                    locator: locator,
+                    expected: expected,
+                    value: value
+                });
+            });
+
+            payload.tests.push({
+                type: "ASSERT",
+                assertions: assertions
             });
         }
     }

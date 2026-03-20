@@ -11,6 +11,7 @@ import com.testingautomation.testautomation.repo.RunRepository;
 import com.testingautomation.testautomation.requestDto.TestConfigPayload;
 import com.testingautomation.testautomation.requestDto.TestConfigRequest;
 import com.testingautomation.testautomation.scan.UiScannerService;
+import com.testingautomation.testautomation.services.AssertionStepGenerator;
 import com.testingautomation.testautomation.services.S3StorageService;
 import com.testingautomation.testautomation.services.ScreenshotService;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -46,6 +48,7 @@ import java.util.zip.ZipOutputStream;
 public class ScenarioOrchestratorService {
     private final String resultsBaseDir = "test-results";
     private final ScreenshotService screenshotService;
+    private final AssertionStepGenerator assertionStepGenerator;
     @Value("${storage.s3.base-prefix}")
     private  String basePrefix;
     private final Logger logger = LoggerFactory.getLogger(ScenarioOrchestratorService.class);
@@ -59,15 +62,6 @@ public class ScenarioOrchestratorService {
     private final MongoTemplate mongoTemplate;
     private final S3StorageService s3StorageService;
 
-    private void appendNavigationScreenshot(String runId, int scenarioIndex, String url) {
-
-        Query query = new Query(Criteria.where("_id").is(runId));
-
-        Update update = new Update()
-                .push("scenariosList." + scenarioIndex + ".ssPaths", url);
-
-        mongoTemplate.updateFirst(query, update, Run.class);
-    }
 
     /**
      * Top-level: execute the list of scenarios in sequence (one by one).
@@ -493,6 +487,9 @@ public class ScenarioOrchestratorService {
                 baseS3Prefix + "/" + (currEle+1);
 
         Scenario currModal=scenarios.get(currEle);
+        if(currModal.getType()==ScenarioType.ASSERT){
+            return runAssertionGeneric(driver,currModal,baseS3Prefix,run);
+        }
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
         Files.createDirectories(scenarioDir);
         int counterIdx=0;
@@ -553,6 +550,73 @@ public class ScenarioOrchestratorService {
         run.getScenariosList().set(currEle,scenario);
 
         return scenarioTestDto;
+    }
+
+    public ScenarioTestDto runAssertionGeneric(
+            WebDriver driver,
+            Scenario scenario,
+            String baseS3Prefix,
+            Run run
+    ) throws Exception {
+
+        int scenarioId = scenario.getSequenceNo();
+        String scenarioPrefix = baseS3Prefix + "/" + scenarioId;
+
+        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
+        Files.createDirectories(scenarioDir);
+
+        List<StepAction> steps =
+                assertionStepGenerator.generateAssertionSteps(
+                        scenario.getAssertions()
+                );
+
+        int totalPass = 0;
+        int totalFail = 0;
+
+        try {
+
+            // 🔥 SINGLE CALL (correct)
+            executor.runAssertionSteps(driver, steps);
+
+            totalPass = steps.size();
+
+        } catch (Exception e) {
+
+            // if any step fails → mark fail
+            totalFail = 1;
+            totalPass = steps.size() - 1;
+        }
+
+        // Build minimal result (can enhance later)
+        List<TestCaseDTO> results = new ArrayList<>();
+
+        TestCaseDTO tc = new TestCaseDTO("1", new HashMap<>());
+
+        if (totalFail == 0) {
+            tc.setResult("Passed");
+        } else {
+            tc.setResult("Failed");
+        }
+
+        results.add(tc);
+
+        // Save CSV
+//        Path scenarioCsv = csvLoader.writeScenarioCsv(results, scenarioDir);
+//        String s3Key = scenarioPrefix + "/scenario-results.csv";
+
+//        String finalCsvUrl = s3StorageService.uploadFile(scenarioCsv, s3Key);
+
+        ScenarioTestDto dto = new ScenarioTestDto(results, null);
+
+        if (totalFail == 0) {
+            dto.setOverAllScenarioStatus(RunStatus.PASSED);
+        } else {
+            dto.setOverAllScenarioStatus(RunStatus.FAILED);
+        }
+
+//        scenario.setResultCsv(null);
+
+        return dto;
     }
 
     public List<ScenarioDescriptor> scenarioDescriptorMapper(TestConfigPayload payload,

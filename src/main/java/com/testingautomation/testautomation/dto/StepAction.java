@@ -1,10 +1,24 @@
 package com.testingautomation.testautomation.dto;
-
 import lombok.Data;
 
 @Data
 public class StepAction {
-    public enum ActionType { TYPE, CLICK, SELECT, VERIFY_TEXT, WAIT }
+    public enum ActionType { TYPE,
+        CLICK,
+        SELECT,
+        VERIFY_TEXT,
+        WAIT,
+        ASSERT_VISIBLE,
+        ASSERT_NOT_VISIBLE,
+        ASSERT_ELEMENT_PRESENT,
+        ASSERT_TEXT_EQUALS,
+        ASSERT_TEXT_CONTAINS,
+        ASSERT_COLUMN_PRESENT,
+        ASSERT_SORT_ORDER,
+        ASSERT_COUNT,
+        ASSERT_API_CALLED,
+        ASSERT_ATTRIBUTE
+    }
     private ActionType type;
     private String locatorType; // css / xpath / id
 
@@ -28,5 +42,4 @@ public class StepAction {
         this.type = type; this.locatorType = locatorType; this.locator = locator; this.payload = payload; this.description = description;
     }
 
-    // getters...
 }

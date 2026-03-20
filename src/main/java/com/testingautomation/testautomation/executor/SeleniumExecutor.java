@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -301,30 +302,6 @@ public class SeleniumExecutor {
         switch (s.getType()) {
 
             case TYPE:
-//                if (s.getPayload() != null && !s.getPayload().isBlank()) {
-//                    WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
-//                            .until(ExpectedConditions.visibilityOfElementLocated(by));
-//                    waitUntilEditable(driver1, el);
-//                    scrollIntoView(driver1, el);
-//                    String locator = s.getLocator().toLowerCase();
-//                    // Detect date/time fields automatically
-//                    if (locator.contains("date") || locator.contains("time")
-//                            || locator.contains("start") || locator.contains("end")) {
-//                        setDateUsingJS(driver1, el, s.getPayload());
-//                    } else {
-//                        el.clear();
-//                        el.sendKeys(s.getPayload());
-//                        // Trigger UI events for frameworks like React/Angular
-//                        ((JavascriptExecutor) driver1).executeScript(
-//                                "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
-//                        ((JavascriptExecutor) driver1).executeScript(
-//                                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
-//                    }
-//                } else {
-//                    logger.info("Skipping TYPE for locator {} because payload is empty", s.getLocator());
-//                    throw new RuntimeException("SKIPPED");
-//                }
-
                 if (s.getPayload() != null && !s.getPayload().isBlank()) {
 
                     WebDriverWait wait = new WebDriverWait(driver1, Duration.ofSeconds(10));
@@ -552,6 +529,7 @@ public class SeleniumExecutor {
                 logger.warn("Unknown action type: {}", s.getType());
         }
     }
+
     private void setDateUsingJS(WebDriver driver, WebElement el, String value) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
         js.executeScript("arguments[0].value=arguments[1];", el, value);
@@ -565,79 +543,6 @@ public class SeleniumExecutor {
         return By.xpath(locator);
     }
 
-    /**
-     * Takes screenshot and returns the saved filename (full path) or empty string on failure.
-     * Ensures a small repaint buffer and scroll to top before capture.
-     */
-    private String takeScreenshot(WebDriver driver1,String name, Path screenshotsDir) {
-        try {
-            // ensure top-left visible and allow repaint
-            try {
-                ((JavascriptExecutor) driver1).executeScript("window.scrollTo(0,0)");
-                Thread.sleep(300);
-            } catch (Exception ignored) {}
-
-            File src = ((TakesScreenshot) driver1).getScreenshotAs(OutputType.FILE);
-            String timestamp = DateTimeFormatter.ISO_INSTANT.format(Instant.now()).replace(":", "-");
-            String filename = screenshotsDir.resolve(name + "_" + timestamp + ".png").toString();
-            FileUtils.copyFile(src, new File(filename));
-            logger.info("Saved screenshot: {}", filename);
-            return filename;
-        } catch (Exception ex) {
-            logger.error("Failed to take screenshot: {}", ex.getMessage(), ex);
-            return "";
-        }
-    }
-
-    /**
-     * Writes a CSV row describing a single step result to the given CSV path.
-     */
-    private void writeStepResultRow(WebDriver driver1,Path resultsCsv, String testCaseId, int stepNo, StepAction s,
-                                    String status, String errorMessage, String screenshotPath) {
-        String desc = s.getDescription() != null ? s.getDescription().replaceAll(",", " ") : "";
-        String locatorType = s.getLocatorType() != null ? s.getLocatorType() : "";
-        String locator = s.getLocator() != null ? s.getLocator().replaceAll(",", " ") : "";
-        String payload = s.getPayload() != null ? s.getPayload().replaceAll(",", " ") : "";
-        String pageUrl = driver1 != null ? safe(driver1.getCurrentUrl()) : "";
-        String timestamp = safe(Instant.now().toString());
-        String line = String.format("%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s",
-                testCaseId,
-                stepNo,
-                desc,
-                locatorType,
-                locator,
-                payload,
-                status,
-                errorMessage,
-                screenshotPath,
-                pageUrl,
-                timestamp
-        );
-        writeCsvLine(resultsCsv, line);
-    }
-
-    private void writeFinalResultRow(WebDriver driver1,Path resultsCsv, String testCaseId,StepAction s,
-                                     String status, String screenshotPath) {
-        String desc = s.getDescription() != null ? s.getDescription().replaceAll(",", " ") : "";
-        String locatorType = s.getLocatorType() != null ? s.getLocatorType() : "";
-        String locator = s.getLocator() != null ? s.getLocator().replaceAll(",", " ") : "";
-        String payload = s.getPayload() != null ? s.getPayload().replaceAll(",", " ") : "";
-        String pageUrl = driver1 != null ? safe(driver1.getCurrentUrl()) : "";
-        String timestamp = safe(Instant.now().toString());
-        String line = String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s",
-                testCaseId,
-//                    stepNo,
-                desc,
-                locatorType,
-                locator,
-                payload,
-                status,
-                screenshotPath,
-                pageUrl,
-                timestamp
-        );
-        writeCsvLine(resultsCsv, line);
-    }
     private boolean waitForUrlChange(WebDriver driver1,String beforeUrl) {
         try {
             WebDriverWait wait = new WebDriverWait(driver1, Duration.ofSeconds(5));
@@ -649,18 +554,6 @@ public class SeleniumExecutor {
 
         } catch (Exception e) {
             return false;
-        }
-    }
-    /**
-     * Append a line to CSV file in a thread-safe manner.
-     */
-    private synchronized void writeCsvLine(Path resultsCsv, String line) {
-        try (BufferedWriter bw = Files.newBufferedWriter(resultsCsv, StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE, StandardOpenOption.APPEND)) {
-            bw.write(line);
-            bw.newLine();
-        } catch (IOException ex) {
-            logger.error("Failed to write CSV line: {}", ex.getMessage(), ex);
         }
     }
 
@@ -742,6 +635,261 @@ public class SeleniumExecutor {
             logger.warn("Error while checking visible text in viewport: {}", ex.getMessage());
             return false;
         }
+    }
+
+    public void runAssertionSteps(WebDriver driver, List<StepAction> steps) {
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        for (StepAction step : steps) {
+
+            try {
+                System.out.println("Executing assertion: " + step);
+
+                switch (step.getType()) {
+
+                    case ASSERT_VISIBLE:
+                        assertVisible(driver, wait, step);
+                        break;
+
+                    case ASSERT_NOT_VISIBLE:
+                        assertNotVisible(driver, wait, step);
+                        break;
+
+                    case ASSERT_ELEMENT_PRESENT:
+                        assertElementPresent(driver, step);
+                        break;
+
+                    case ASSERT_TEXT_EQUALS:
+                        assertTextEquals(driver, wait, step);
+                        break;
+
+                    case ASSERT_TEXT_CONTAINS:
+                        assertTextContains(driver, wait, step);
+                        break;
+
+                    case ASSERT_COLUMN_PRESENT:
+                        assertAllColumnsPresent(driver, step);
+                        break;
+
+                    case ASSERT_COUNT:
+                        assertCount(driver, step);
+                        break;
+
+                    case ASSERT_SORT_ORDER:
+                        assertSorting(driver, step);
+                        break;
+
+                    case ASSERT_API_CALLED:
+                        assertApiCalled(step);
+                        break;
+
+                    case ASSERT_ATTRIBUTE:
+                        assertAttribute(driver, wait, step);
+                        break;
+
+                    default:
+                        throw new IllegalArgumentException("Unsupported assertion: " + step.getType());
+                }
+
+            } catch (Exception e) {
+                throw new RuntimeException(
+                        "Assertion failed: " + step.getDescription(),
+                        e
+                );
+            }
+        }
+    }
+    private void assertElementPresent(WebDriver driver, StepAction step) {
+
+        List<WebElement> elements = driver.findElements(getBy(step));
+
+        if (elements == null || elements.isEmpty()) {
+            throw new AssertionError("Element not present in DOM: " + step.getLocator());
+        }
+    }
+    private WebElement find(WebDriver driver, StepAction step) {
+
+        if ("css".equalsIgnoreCase(step.getLocatorType())) {
+            return driver.findElement(By.cssSelector(step.getLocator()));
+        }
+        else if ("xpath".equalsIgnoreCase(step.getLocatorType())) {
+            return driver.findElement(By.xpath(step.getLocator()));
+        }
+        else {
+            throw new IllegalArgumentException("Invalid locator type");
+        }
+    }
+    private void assertVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
+
+        WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                getBy(step)
+        ));
+
+        if (!el.isDisplayed()) {
+            throw new AssertionError("Element not visible: " + step.getLocator());
+        }
+    }
+    private void assertNotVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
+
+        boolean invisible = wait.until(
+                ExpectedConditions.invisibilityOfElementLocated(getBy(step))
+        );
+
+        if (!invisible) {
+            throw new AssertionError("Element is visible but should not be");
+        }
+    }
+
+    private void assertTextEquals(WebDriver driver, WebDriverWait wait, StepAction step) {
+
+        WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                getBy(step)
+        ));
+
+        String actual = el.getText().trim();
+
+        if (!actual.equals(step.getPayload())) {
+            throw new AssertionError("Expected: " + step.getPayload() + " but got: " + actual);
+        }
+    }
+
+    private void assertTextContains(WebDriver driver, WebDriverWait wait, StepAction step) {
+
+        WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(
+                getBy(step)
+        ));
+
+        String actual = el.getText();
+
+        if (!actual.contains(step.getPayload())) {
+            throw new AssertionError("Text does not contain: " + step.getPayload());
+        }
+    }
+
+//    private void assertColumnPresent(WebDriver driver, StepAction step) {
+//
+//        List<WebElement> headers = driver.findElements(By.cssSelector("th"));
+//
+//        boolean found = headers.stream()
+//                .anyMatch(h -> h.getText().trim()
+//                        .equalsIgnoreCase(step.getPayload()));
+//
+//        if (!found) {
+//            throw new AssertionError("Column not found: " + step.getPayload());
+//        }
+//    }
+
+    private void assertAllColumnsPresent(WebDriver driver, StepAction step) {
+
+        // Expected columns → comma separated
+        String payload = step.getPayload();
+        logger.info("Received column payload: {}", payload);
+
+        List<String> expectedColumns = Arrays.stream(payload.split(","))
+                .map(String::trim)
+                .toList();
+
+        logger.info("Parsed expected columns: {}", expectedColumns);
+
+        // Get actual headers
+        List<WebElement> headers = driver.findElements(By.cssSelector("th"));
+        logger.info("Total headers found on page: {}", headers.size());
+
+        List<String> actualColumns = headers.stream()
+                .map(h -> h.getText().trim())
+                .toList();
+
+        logger.info("Actual columns from UI: {}", actualColumns);
+
+        // Check each expected column
+        List<String> missingColumns = new ArrayList<>();
+
+        for (String expected : expectedColumns) {
+            boolean found = actualColumns.stream()
+                    .anyMatch(a -> a.equalsIgnoreCase(expected));
+
+            if (found) {
+                logger.info("✅ Column FOUND: {}", expected);
+            } else {
+                logger.warn("❌ Column MISSING: {}", expected);
+                missingColumns.add(expected);
+            }
+        }
+
+        // Final assertion
+        if (!missingColumns.isEmpty()) {
+            logger.error("Assertion failed. Missing columns: {} | Actual columns: {}",
+                    missingColumns, actualColumns);
+
+            throw new AssertionError("Missing columns: " + missingColumns +
+                    " | Actual: " + actualColumns);
+        }
+
+        logger.info("✅ All expected columns are present.");
+    }
+    private void assertCount(WebDriver driver, StepAction step) {
+
+        List<WebElement> elements = driver.findElements(getBy(step));
+
+        int expected = Integer.parseInt(step.getPayload());
+
+        if (elements.size() != expected) {
+            throw new AssertionError("Expected count: " + expected + " but got: " + elements.size());
+        }
+    }
+
+    private void assertSorting(WebDriver driver, StepAction step) {
+
+        List<WebElement> elements = driver.findElements(getBy(step));
+
+        List<String> actual = elements.stream()
+                .map(e -> e.getText().trim())
+                .toList();
+
+        List<String> sorted = new ArrayList<>(actual);
+
+        if ("desc".equalsIgnoreCase(step.getPayload())) {
+            sorted.sort(Collections.reverseOrder());
+        } else {
+            sorted.sort(String::compareTo);
+        }
+
+        if (!actual.equals(sorted)) {
+            throw new AssertionError("Sorting is incorrect");
+        }
+    }
+
+    private void assertAttribute(WebDriver driver, WebDriverWait wait, StepAction step) {
+
+        WebElement el = wait.until(ExpectedConditions.presenceOfElementLocated(
+                getBy(step)
+        ));
+
+        //need to look out
+        String actual = el.getAttribute(step.getPayload());
+
+        if (!actual.equals(step.getPayload())) {
+            throw new AssertionError("Attribute mismatch");
+        }
+    }
+
+    private void assertApiCalled(StepAction step) {
+
+        // TODO: integrate DevTools later
+        System.out.println("API assertion placeholder: " + step.getPayload());
+    }
+
+    private By getBy(StepAction step) {
+
+        if ("css".equalsIgnoreCase(step.getLocatorType())) {
+            return By.cssSelector(step.getLocator());
+        }
+        else if ("xpath".equalsIgnoreCase(step.getLocatorType())) {
+            return By.xpath(step.getLocator());
+        }
+
+        throw new IllegalArgumentException("Invalid locator type");
     }
 
 
