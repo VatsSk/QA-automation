@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.model;
 
 
+import com.testingautomation.testautomation.dto.AssertionDto;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -51,6 +52,7 @@ public class Scenario {
 
     /** Inline manual test cases */
     private List<TestCase> manualTestCases;
+    private List<AssertionDto> assertions;
 
     /** S3/MinIO path to result CSV written by runner */
     private String resultCsv;

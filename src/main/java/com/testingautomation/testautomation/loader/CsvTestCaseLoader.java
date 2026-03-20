@@ -130,6 +130,7 @@ public class CsvTestCaseLoader {
             while ((row = reader.readMap()) != null) {
 
                 String id = row.getOrDefault("testCaseId", String.valueOf(counter));
+                logger.info("test case id : {}",id);
                 counter++;
 
                 String expectedResult = row.get("expectedResult");
@@ -182,6 +183,7 @@ public class CsvTestCaseLoader {
 
             headers.add("expectedResult");
             headers.add("Result");
+            headers.add("testCaseId");
 
             writer.write(String.join(",", headers));
             writer.newLine();
@@ -196,6 +198,7 @@ public class CsvTestCaseLoader {
 
                 row.add(TestResultWriter.safe(tc.getExpectedResult()));
                 row.add(TestResultWriter.safe(tc.getResult()));
+                row.add(tc.getTestcaseId());
 
                 writer.write(String.join(",", row));
                 writer.newLine();
