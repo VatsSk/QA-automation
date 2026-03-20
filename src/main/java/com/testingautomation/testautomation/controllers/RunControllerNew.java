@@ -5,11 +5,13 @@ import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.dto.responseDto.PagedResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResultsResponse;
+import com.testingautomation.testautomation.dto.responseDto.ScenarioScreenshotsResponse;
 import com.testingautomation.testautomation.model.RunStatus;
 import com.testingautomation.testautomation.model.ScenarioType;
 import com.testingautomation.testautomation.pojo.RunFilterParams;
 import com.testingautomation.testautomation.requestDto.RunRequest;
 import com.testingautomation.testautomation.services.RunService;
+import com.testingautomation.testautomation.services.ScreenshotService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
 public class RunControllerNew {
 
     private final RunService runService;
+    private final ScreenshotService screenshotService;
 
     @Value("${pagination.default-page-size:20}")
     private int defaultPageSize;
@@ -162,6 +165,13 @@ public class RunControllerNew {
     @GetMapping("/api/runs/scenario/result")
     public ResponseEntity<List<LinkedHashMap<String,String>>> getScenarioWiseResult(@RequestParam("s3Path") String s3Path) {
         return ResponseEntity.ok(runService.getScenarioWiseResult(s3Path));
+    }
+
+    @GetMapping("/scenario-screenshots")
+    public ResponseEntity<ScenarioScreenshotsResponse> getScenarioScreenshots(
+            @RequestParam("prefix") String prefix
+    ) {
+        return ResponseEntity.ok(screenshotService.getScenarioScreenshots(prefix));
     }
     // ── Parse helpers ─────────────────────────────────────────────────
 

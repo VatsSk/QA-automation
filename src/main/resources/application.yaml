@@ -31,7 +31,6 @@ server:
 
   # MinIO / S3 configuration
 
-
 logging:
   level:
     root: INFO

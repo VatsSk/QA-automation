@@ -2,7 +2,12 @@ package com.testingautomation.testautomation.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.context.annotation.Bean;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 @Data
 @Component
@@ -26,4 +31,5 @@ public class StorageProperties {
 
     /** Presigned URL expiry in minutes (default 60) */
     private int presignedUrlExpiryMinutes = 60;
+
 }

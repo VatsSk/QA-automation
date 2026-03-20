@@ -22,7 +22,7 @@
                 <span class="crumb-sep">›</span>
                 <span class="crumb-link" id="crumb-proj" style="cursor:pointer">…</span>
                 <span class="crumb-sep">›</span>
-                <span class="crumb-link" id="crumb-mod"  style="cursor:pointer">…</span>
+                <span class="crumb-link" id="crumb-mod" style="cursor:pointer">…</span>
                 <span class="crumb-sep">›</span>
                 <span class="crumb-cur" id="crumb-run">Run Detail</span>
             </div>
@@ -44,12 +44,22 @@
 
 <script type="module">
     import * as api from './js/api.js';
-    import { esc, statusBadge, timeAgo, toast, openModal, closeModal,
-        requireLogin, initTheme, toggleTheme, buildSidebar, showLightbox } from './js/utils.js';
+    import {
+        esc,
+        statusBadge,
+        timeAgo,
+        toast,
+        openModal,
+        closeModal,
+        requireLogin,
+        initTheme,
+        toggleTheme,
+        buildSidebar
+    } from './js/utils.js';
     import { TYPES } from './js/config.js';
 
     window.toggleTheme = toggleTheme;
-    window.closeModal  = closeModal;
+    window.closeModal = closeModal;
 
     const user = requireLogin();
     if (!user) throw new Error('not logged in');
@@ -58,291 +68,288 @@
     buildSidebar('runs', api);
 
     const runId = new URLSearchParams(location.search).get('runId');
-    if (!runId) { window.location.href = '/projects.html'; }
+    if (!runId) {
+        window.location.href = '/projects.html';
+    }
 
-    let run       = null;
+    let run = null;
     let pollTimer = null;
 
-    // NEW: cache result CSV data per scenario index
-    const scenarioResultsCache = {};   // { [scIdx]: { headers: [], rows: [] } }
+    // Cache result CSV data per scenario index
+    const scenarioResultsCache = {}; // { [scIdx]: { headers: [], rows: [] } }
 
-    // NEW: cache screenshots per scenario + value
-    const screenshotCache = {};        // { [`${scIdx}|${column}|${value}`]: [url1, url2] }
+    // Cache screenshots by final prefix
+    const screenshotCache = {}; // { [prefix]: [ {url, fileName}, ... ] }
 
-    // ── Load ──────────────────────────────────────────────────────────────
+    // Viewer state
+    let viewerState = {
+        prefix: '',
+        screenshots: [],
+        index: 0,
+        zoom: 1,
+        fullscreen: false
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────
+    function getTestCaseIdFromRow(row) {
+        return String(row?.testCaseId || '').trim();
+    }
+
+    function buildScreenshotPrefix(sc, testCaseId) {
+        const base = String(sc?.scenarioBasePath || '').replace(/\/+$/, '');
+        const tcId = String(testCaseId || '').trim();
+
+        if (!base) throw new Error('scenarioBasePath not found');
+        if (!tcId) throw new Error('testCaseId not found');
+
+        // If your real folder is /screenshot/ instead, change here only
+        return `${base}/${tcId}/screenshots/`;
+    }
+
+    function getScreenshotSrc(item) {
+        if (typeof item === 'string') return item;
+        return item?.url || item?.previewUrl || '';
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Load
+    // ─────────────────────────────────────────────────────────────
     async function load() {
         try {
             run = await api.runs.get(runId);
 
             // Populate breadcrumbs
             document.getElementById('crumb-run').textContent = run.runName || 'Run Detail';
-            document.title = `${run.runName} — QA Studio`;
+            document.title = `${run.runName || 'Run Detail'} — QA Studio`;
+
             if (run.projectId) {
                 document.getElementById('crumb-proj').onclick = () =>
                     window.location.href = `/modules.html?projectId=${run.projectId}`;
             }
+
             if (run.moduleId) {
                 document.getElementById('crumb-mod').onclick = () =>
                     window.location.href = `/runs.html?projectId=${run.projectId}&moduleId=${run.moduleId}`;
             }
 
             renderPage();
-            if (run.status === 'RUNNING') startPolling();
+
+            if (run.status === 'RUNNING') {
+                startPolling();
+            }
         } catch (e) {
-            document.getElementById('page-content').innerHTML =
-                `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load run</h3><p>${esc(e.message)}</p></div>`;
+            document.getElementById('page-content').innerHTML = `
+                <div class="empty">
+                    <div class="ei">⚠️</div>
+                    <h3>Failed to load run</h3>
+                    <p>${esc(e.message || 'Unknown error')}</p>
+                </div>
+            `;
         }
     }
-    // // ── Helpers: CSV fetch / parse / presign ──────────────────────────────────
-    // async function resolveFileUrl(fileInfo) {
-    //     // backend may return { url } directly OR { key }
-    //     if (fileInfo?.url) return fileInfo.url;
-    //
-    //     if (fileInfo?.key) {
-    //         const signed = await api.files.presign(fileInfo.key);
-    //         return signed.url;
-    //     }
-    //
-    //     throw new Error('No file url/key returned from backend');
-    // }
-    //
-    // async function fetchCsvText(fileInfo) {
-    //     const url = await resolveFileUrl(fileInfo);
-    //     const res = await fetch(url);
-    //     if (!res.ok) throw new Error(`Failed to fetch CSV (${res.status})`);
-    //     return await res.text();
-    // }
-    //
-    // // Basic CSV parser (supports quoted values)
-    // function parseCSV(text) {
-    //     text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
-    //     if (!text) return { headers: [], rows: [] };
-    //
-    //     const lines = text.split('\n');
-    //
-    //     function splitCsvLine(line) {
-    //         const result = [];
-    //         let cur = '';
-    //         let inQuotes = false;
-    //
-    //         for (let i = 0; i < line.length; i++) {
-    //             const ch = line[i];
-    //             const next = line[i + 1];
-    //
-    //             if (ch === '"' && inQuotes && next === '"') {
-    //                 cur += '"';
-    //                 i++;
-    //             } else if (ch === '"') {
-    //                 inQuotes = !inQuotes;
-    //             } else if (ch === ',' && !inQuotes) {
-    //                 result.push(cur);
-    //                 cur = '';
-    //             } else {
-    //                 cur += ch;
-    //             }
-    //         }
-    //
-    //         result.push(cur);
-    //         return result.map(v => v.trim());
-    //     }
 
-    //     const headers = splitCsvLine(lines[0]);
-    //
-    //     const rows = lines.slice(1).filter(Boolean).map(line => {
-    //         const vals = splitCsvLine(line);
-    //         const obj = {};
-    //         headers.forEach((h, i) => {
-    //             obj[h] = vals[i] ?? '';
-    //         });
-    //         return obj;
-    //     });
-    //
-    //     return { headers, rows };
-    // }
-
-    // ── Load scenario result CSV from backend ─────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Load scenario result CSV from backend
+    // ─────────────────────────────────────────────────────────────
     async function loadScenarioResultCsv(scIdx) {
         if (scenarioResultsCache[scIdx]) return scenarioResultsCache[scIdx];
 
         const sc = (run?.scenariosList || [])[scIdx];
         if (!sc) throw new Error('Scenario not found');
 
-        // ✅ take resultCsv path directly from current scenario
         const s3Path = sc.resultCsv;
-
         if (!s3Path) {
             throw new Error('Result CSV path not found for this scenario');
         }
 
-        // ✅ backend now returns parsed rows directly
+        // backend returns parsed rows directly
         const rows = await api.runs.getScenarioResultCsv(s3Path);
 
         const parsed = {
-            headers: rows.length ? Object.keys(rows[0]) : [],
-            rows
+            headers: rows?.length ? Object.keys(rows[0]) : [],
+            rows: rows || []
         };
 
         scenarioResultsCache[scIdx] = parsed;
         return parsed;
     }
 
-    // ── Render result CSV table ───────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Render result CSV table
+    // ─────────────────────────────────────────────────────────────
     function resultCsvTable(headers, rows, scIdx) {
         if (!headers.length || !rows.length) {
             return `<div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">No result rows found</div>`;
         }
 
         return `
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          ${headers.map(h => `<th>${esc(h)}</th>`).join('')}
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows.map((row, i) => `
-        <tr class="tc-row" onclick="viewResultRow(${scIdx}, ${i})">
-          <td class="mono-sm">${i + 1}</td>
-          ${headers.map(h => `<td>${esc(row[h] || '')}</td>`).join('')}
-          <td><span class="badge badge-blue" style="font-size:10px">View →</span></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        ${headers.map(h => `<th>${esc(h)}</th>`).join('')}
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows.map((row, i) => `
+                        <tr class="tc-row" onclick="viewResultRow(${scIdx}, ${i})">
+                            <td class="mono-sm">${i + 1}</td>
+                            ${headers.map(h => `<td>${esc(row[h] ?? '')}</td>`).join('')}
+                            <td><span class="badge badge-blue" style="font-size:10px">View →</span></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
     }
 
-    // ── Render full page ───────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Render full page
+    // ─────────────────────────────────────────────────────────────
     function renderPage() {
         const isRunning = run.status === 'RUNNING';
-        const backUrl   = run.projectId && run.moduleId
+        const backUrl = run.projectId && run.moduleId
             ? `/runs.html?projectId=${run.projectId}&moduleId=${run.moduleId}`
             : '/projects.html';
 
         document.getElementById('page-content').innerHTML = `
-
-      <!-- Action bar -->
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
-        <a href="${backUrl}" class="btn btn-ghost btn-sm">← Back to Runs</a>
-        <a href="/run-editor.html?runId=${esc(runId)}" class="btn btn-ghost btn-sm">✏️ Edit</a>
-        <button class="btn btn-ghost btn-sm" onclick="cloneRun()">📋 Clone</button>
-        <button id="run-btn" class="btn btn-success btn-sm"
-          onclick="executeRun()" ${isRunning ? 'disabled' : ''}>
-          ${isRunning ? '⏳ Running…' : '▶ Run Now'}
-        </button>
-      </div>
-
-      <!-- Run info card -->
-      <div class="run-hero">
-        <div class="run-hero-top">
-          <div>
-            <div class="run-hero-name">${esc(run.runName)}</div>
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
-              ${statusBadge(run.status)}
-              ${(run.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+            <!-- Action bar -->
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
+                <a href="${backUrl}" class="btn btn-ghost btn-sm">← Back to Runs</a>
+                <a href="/run-editor.html?runId=${esc(runId)}" class="btn btn-ghost btn-sm">✏️ Edit</a>
+                <button class="btn btn-ghost btn-sm" onclick="cloneRun()">📋 Clone</button>
+                <button id="run-btn" class="btn btn-success btn-sm"
+                    onclick="executeRun()" ${isRunning ? 'disabled' : ''}>
+                    ${isRunning ? '⏳ Running…' : '▶ Run Now'}
+                </button>
             </div>
-          </div>
-        </div>
-        <div class="run-meta-grid">
-          <div>
-            <div class="rmi-label">Run Type</div>
-            <div class="rmi-val">${esc(run.runType || '—')}</div>
-          </div>
-          <div>
-            <div class="rmi-label">Scenarios</div>
-            <div class="rmi-val"><strong>${(run.scenariosList || []).length}</strong></div>
-          </div>
-          <div>
-            <div class="rmi-label">Last Updated</div>
-            <div class="rmi-val" style="font-size:12px">${timeAgo(run.updatedAt || run.createdAt)}</div>
-          </div>
-          ${run.resultStatement ? `
-          <div>
-            <div class="rmi-label">Assert Statement</div>
-            <div class="rmi-val" style="color:var(--gr)">${esc(run.resultStatement)}</div>
-          </div>` : ''}
-        </div>
-      </div>
 
-      <!-- Scenarios card -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-title">
-            Scenarios
-            <span class="badge badge-blue">${(run.scenariosList || []).length}</span>
-          </span>
-          <select class="inp inp-sm" style="width:160px" onchange="filterByType(this.value)">
-            <option value="">All types</option>
-            ${Object.entries(TYPES).map(([k, v]) =>
-            `<option value="${k}">${v.icon} ${v.label}</option>`).join('')}
-          </select>
-        </div>
-        <div class="card-body" style="padding:12px">
-          <div class="sc-list" id="sc-list">
-            ${renderScenarios(run.scenariosList || [])}
-          </div>
-        </div>
-      </div>`;
+            <!-- Run info card -->
+            <div class="run-hero">
+                <div class="run-hero-top">
+                    <div>
+                        <div class="run-hero-name">${esc(run.runName || '—')}</div>
+                        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
+                            ${statusBadge(run.status)}
+                            ${(run.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <div class="run-meta-grid">
+                    <div>
+                        <div class="rmi-label">Run Type</div>
+                        <div class="rmi-val">${esc(run.runType || '—')}</div>
+                    </div>
+                    <div>
+                        <div class="rmi-label">Scenarios</div>
+                        <div class="rmi-val"><strong>${(run.scenariosList || []).length}</strong></div>
+                    </div>
+                    <div>
+                        <div class="rmi-label">Last Updated</div>
+                        <div class="rmi-val" style="font-size:12px">${timeAgo(run.updatedAt || run.createdAt)}</div>
+                    </div>
+                    ${run.resultStatement ? `
+                        <div>
+                            <div class="rmi-label">Assert Statement</div>
+                            <div class="rmi-val" style="color:var(--gr)">${esc(run.resultStatement)}</div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+
+            <!-- Scenarios card -->
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        Scenarios
+                        <span class="badge badge-blue">${(run.scenariosList || []).length}</span>
+                    </span>
+
+                    <select class="inp inp-sm" style="width:160px" onchange="filterByType(this.value)">
+                        <option value="">All types</option>
+                        ${Object.entries(TYPES).map(([k, v]) =>
+            `<option value="${k}">${v.icon} ${v.label}</option>`
+        ).join('')}
+                    </select>
+                </div>
+
+                <div class="card-body" style="padding:12px">
+                    <div class="sc-list" id="sc-list">
+                        ${renderScenarios(run.scenariosList || [])}
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
-    // ── Render scenario accordion rows ────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Render scenario accordion rows
+    // ─────────────────────────────────────────────────────────────
     function renderScenarios(scenarios) {
         if (!scenarios.length) {
-            return `<div class="empty" style="padding:28px">
-        <div class="ei">🔬</div><h3>No scenarios</h3>
-        <p>Edit this run to add scenarios.</p>
-      </div>`;
+            return `
+                <div class="empty" style="padding:28px">
+                    <div class="ei">🔬</div>
+                    <h3>No scenarios</h3>
+                    <p>Edit this run to add scenarios.</p>
+                </div>
+            `;
         }
 
         return scenarios.map((sc, i) => {
-            const cfg    = TYPES[sc.type] || { label: sc.type, icon: '?', color: 'var(--tx2)', bg: 'var(--sur3)' };
-            const typeBg = `style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.color.replace(')', ',0.3)')}"`;
+            const cfg = TYPES[sc.type] || {
+                label: sc.type,
+                icon: '?',
+                color: 'var(--tx2)',
+                bg: 'var(--sur3)'
+            };
+
+            const typeBg = `style="background:${cfg.bg};color:${cfg.color};"`;
 
             return `
-      <div class="sc-row expandable" id="sc-row-${i}">
-        <div class="sc-head clickable" onclick="toggleRow(${i})">
-          <div class="sc-num">${i + 1}</div>
-          <span class="badge" ${typeBg}>${cfg.icon} ${cfg.label}</span>
-          <div class="sc-info">
-            ${sc.url       ? `<div class="sc-url-val">🔗 ${esc(sc.url)}</div>` : ''}
-            ${sc.cssOpener ? `<div class="sc-url-val">CSS: ${esc(sc.cssOpener)}</div>` : ''}
-            ${sc.value     ? `<div class="sc-url-val">Value: ${esc(sc.value)}</div>` : ''}
-          </div>
-          ${sc.status ? statusBadge(sc.status) : ''}
-          <span class="sc-chevron">▼</span>
-        </div>
+                <div class="sc-row expandable" id="sc-row-${i}">
+                    <div class="sc-head clickable" onclick="toggleRow(${i})">
+                        <div class="sc-num">${i + 1}</div>
+                        <span class="badge" ${typeBg}>${cfg.icon} ${cfg.label}</span>
 
-        <div class="sc-body" id="sc-body-${i}" style="display:none">
-          <div class="tc-filter-bar">
-            <input class="inp inp-sm" style="width:220px"
-              placeholder="🔍 Filter result rows…"
-              oninput="filterResultRows(${i}, this.value)">
-          </div>
+                        <div class="sc-info">
+                            ${sc.url ? `<div class="sc-url-val">🔗 ${esc(sc.url)}</div>` : ''}
+                            ${sc.cssOpener ? `<div class="sc-url-val">CSS: ${esc(sc.cssOpener)}</div>` : ''}
+                            ${sc.value ? `<div class="sc-url-val">Value: ${esc(sc.value)}</div>` : ''}
+                        </div>
 
-          <div class="tc-table" id="tc-table-${i}">
-            <div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">
-              Click to load result CSV…
-            </div>
-          </div>
-        </div>
-      </div>`;
+                        ${sc.status ? statusBadge(sc.status) : ''}
+                        <span class="sc-chevron">▼</span>
+                    </div>
+
+                    <div class="sc-body" id="sc-body-${i}" style="display:none">
+                        <div class="tc-filter-bar">
+                            <input class="inp inp-sm" style="width:220px"
+                                placeholder="🔍 Filter result rows…"
+                                oninput="filterResultRows(${i}, this.value)">
+                        </div>
+
+                        <div class="tc-table" id="tc-table-${i}">
+                            <div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">
+                                Click to load result CSV…
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
         }).join('');
     }
 
-    // ── Test case table ────────────────────────────────────────────────────
-    function tcTable(tcs, scIdx) {
-        // kept only for compatibility if referenced somewhere
-        if (!tcs || !tcs.length) {
-            return `<div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">No rows</div>`;
-        }
-        const headers = Object.keys(tcs[0]);
-        return resultCsvTable(headers, tcs, scIdx);
-    }
-
-    // ── Toggle scenario open/close ─────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Toggle scenario open/close
+    // ─────────────────────────────────────────────────────────────
     window.toggleRow = async function (i) {
         const body = document.getElementById(`sc-body-${i}`);
-        const row  = document.getElementById(`sc-row-${i}`);
+        const row = document.getElementById(`sc-row-${i}`);
         if (!body) return;
 
         const open = body.style.display !== 'none';
@@ -354,23 +361,28 @@
             const tableEl = document.getElementById(`tc-table-${i}`);
             if (!scenarioResultsCache[i]) {
                 tableEl.innerHTML = `
-              <div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">
-                Loading result CSV…
-              </div>`;
+                    <div style="padding:14px;text-align:center;color:var(--tx3);font-size:12.5px">
+                        Loading result CSV…
+                    </div>
+                `;
+
                 try {
                     const parsed = await loadScenarioResultCsv(i);
                     tableEl.innerHTML = resultCsvTable(parsed.headers, parsed.rows, i);
                 } catch (e) {
                     tableEl.innerHTML = `
-                  <div style="padding:14px;text-align:center;color:var(--rd);font-size:12.5px">
-                    Failed to load result CSV: ${esc(e.message)}
-                  </div>`;
+                        <div style="padding:14px;text-align:center;color:var(--rd);font-size:12.5px">
+                            Failed to load result CSV: ${esc(e.message || 'Unknown error')}
+                        </div>
+                    `;
                 }
             }
         }
     };
 
-    // ── Filter test cases inline ───────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Filter result rows inline
+    // ─────────────────────────────────────────────────────────────
     window.filterResultRows = function (scIdx, query) {
         const parsed = scenarioResultsCache[scIdx];
         if (!parsed) return;
@@ -379,14 +391,19 @@
 
         const rows = q
             ? parsed.rows.filter(row =>
-                Object.values(row).some(v => String(v).toLowerCase().includes(q)))
+                Object.values(row).some(v => String(v).toLowerCase().includes(q))
+            )
             : parsed.rows;
 
         const el = document.getElementById(`tc-table-${scIdx}`);
-        if (el) el.innerHTML = resultCsvTable(parsed.headers, rows, scIdx);
+        if (el) {
+            el.innerHTML = resultCsvTable(parsed.headers, rows, scIdx);
+        }
     };
 
-    // ── Filter scenarios by type ───────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // Filter scenarios by type
+    // ─────────────────────────────────────────────────────────────
     window.filterByType = function (type) {
         document.querySelectorAll('.sc-row').forEach((row, i) => {
             const sc = (run?.scenariosList || [])[i];
@@ -394,7 +411,9 @@
         });
     };
 
-    // ── View test case detail in modal ────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+    // View result row in modal
+    // ─────────────────────────────────────────────────────────────
     window.viewResultRow = function (scIdx, rowIdx) {
         const parsed = scenarioResultsCache[scIdx];
         if (!parsed) return;
@@ -402,101 +421,63 @@
         const row = parsed.rows[rowIdx];
         if (!row) return;
 
+        const testCaseId = getTestCaseIdFromRow(row);
         const fields = Object.entries(row);
 
         openModal(`
-      <div class="modal modal-lg">
-        <div class="modal-head">
-          <h2>Result Row #${rowIdx + 1}</h2>
-          <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
+            <div class="modal modal-lg">
+                <div class="modal-head">
+                    <h2>Result Row #${rowIdx + 1}</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
 
-        <div style="font-size:12px;color:var(--tx2);margin-bottom:12px">
-          Click any field value below to fetch screenshots for that column/value.
-        </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+                    <button class="btn btn-success btn-sm" onclick="fetchRowScreenshots(${scIdx}, ${rowIdx})">
+                        📸 View Screenshots
+                    </button>
+                </div>
 
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px">
-          ${fields.map(([k, v]) => `
-          <div style="border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sur2)">
-            <div class="lbl">${esc(k)}</div>
-            <button class="btn btn-ghost btn-sm" style="margin-top:6px;width:100%;justify-content:flex-start"
-              onclick="fetchRowScreenshots(${scIdx}, '${esc(k)}', '${esc(String(v || ''))}')">
-              ${esc(String(v || '—'))}
-            </button>
-          </div>`).join('')}
-        </div>
-      </div>`);
+                <div style="font-size:12px;color:var(--tx2);margin-bottom:12px">
+                    testCaseId: <b>${esc(testCaseId || '—')}</b>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;margin-bottom:20px">
+                    ${fields.map(([k, v]) => `
+                        <div style="border:1px solid var(--bd);border-radius:12px;padding:12px;background:var(--sur2)">
+                            <div class="lbl">${esc(k)}</div>
+                            <div style="margin-top:6px;word-break:break-word">${esc(String(v ?? '—'))}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `);
     };
 
-    window.openLightboxLocal = showLightbox;
-
-    // ── View all screenshots for a scenario ───────────────────────────────
-    window.viewScreenshots = function () {
-    toast('Screenshots are now fetched from result CSV row values.', 'info');
-    };
-    // ── Clone run ──────────────────────────────────────────────────────────
-    window.cloneRun = async function () {
-        try {
-            const c = await api.runs.clone(runId);
-            toast(`Cloned as "${c.runName}"`, 'success');
-            window.location.href = `/run-editor.html?runId=${c.id || c._id}`;
-        } catch (e) { toast('Clone failed: ' + e.message, 'error'); }
-    };
-
-    // ── Execute run ────────────────────────────────────────────────────────
-    window.executeRun = async function () {
-        const btn = document.getElementById('run-btn');
-        btn.disabled = true;
-        btn.innerHTML = '⏳ Running…';
-        try {
-            await api.runs.execute(runId);
-            toast('Run started!', 'success');
-            run.status = 'RUNNING';
-            startPolling();
-        } catch (e) {
-            toast('Execute failed: ' + e.message, 'error');
-            btn.disabled = false;
-            btn.innerHTML = '▶ Run Now';
-        }
-    };
-
-    // ── Poll for status updates ────────────────────────────────────────────
-    function startPolling() {
-        clearInterval(pollTimer);
-        pollTimer = setInterval(async () => {
-            try {
-                run = await api.runs.get(runId);
-                renderPage();
-                if (run.status !== 'RUNNING') clearInterval(pollTimer);
-            } catch { /* ignore poll errors */ }
-        }, 3000);
-    }
-
-    // ── Fetch screenshots for selected column + value ────────────────────────
-    window.fetchRowScreenshots = async function (scIdx, column, value) {
+    // ─────────────────────────────────────────────────────────────
+    // Fetch screenshots for selected row
+    // ─────────────────────────────────────────────────────────────
+    window.fetchRowScreenshots = async function (scIdx, rowIdx) {
         try {
             const sc = (run?.scenariosList || [])[scIdx];
-            if (!sc) return;
+            if (!sc) throw new Error('Scenario not found');
 
-            const sequenceNo = sc.sequenceNo || (scIdx + 1);
-            const cacheKey = `${scIdx}|${column}|${value}`;
+            const parsed = scenarioResultsCache[scIdx];
+            if (!parsed) throw new Error('Scenario rows not loaded');
 
-            let screenshots = screenshotCache[cacheKey];
+            const row = parsed.rows[rowIdx];
+            if (!row) throw new Error('Row not found');
+
+            const testCaseId = getTestCaseIdFromRow(row);
+            const prefix = buildScreenshotPrefix(sc, testCaseId);
+
+            let screenshots = screenshotCache[prefix];
 
             if (!screenshots) {
-                const resp = await api.runs.getScenarioScreenshots(runId, sequenceNo, column, value);
+                // backend should return:
+                // { screenshots: [ { fileName, url }, ... ] }
+                const resp = await api.runs.getScenarioScreenshots(prefix);
                 screenshots = resp?.screenshots || [];
-
-                // convert keys -> signed urls if needed
-                screenshots = await Promise.all(
-                    screenshots.map(async (item) => {
-                        if (/^https?:\/\//i.test(item)) return item;
-                        const signed = await api.files.presign(item);
-                        return signed.url;
-                    })
-                );
-
-                screenshotCache[cacheKey] = screenshots;
+                screenshotCache[prefix] = screenshots;
             }
 
             if (!screenshots.length) {
@@ -504,26 +485,235 @@
                 return;
             }
 
-            openModal(`
-          <div class="modal modal-lg">
-            <div class="modal-head">
-              <h2>📸 Screenshots</h2>
-              <button class="modal-close" onclick="closeModal()">✕</button>
-            </div>
-            <div class="ss-grid">
-              ${screenshots.map((src, i) => `
-              <div class="ss-thumb" onclick="openLightboxLocal('${esc(src)}')">
-                <img src="${esc(src)}" alt="Screenshot ${i + 1}"
-                  onerror="this.style.opacity=.3; this.nextElementSibling.textContent='Failed to load'">
-                <div class="ss-name">${esc(src.split('/').pop() || `Screenshot ${i + 1}`)}</div>
-              </div>`).join('')}
-            </div>
-          </div>`);
+            openScreenshotGallery({
+                title: `Screenshots — ${testCaseId}`,
+                screenshots,
+                prefix
+            });
         } catch (e) {
-            toast('Failed to fetch screenshots: ' + e.message, 'error');
+            toast('Failed to fetch screenshots: ' + (e.message || 'Unknown error'), 'error');
         }
     };
 
+    // ─────────────────────────────────────────────────────────────
+    // Screenshot gallery
+    // ─────────────────────────────────────────────────────────────
+    function openScreenshotGallery({ title, screenshots, prefix }) {
+        const extractTimestamp = (item) => {
+            const src = getScreenshotSrc(item);
+            const fileName = typeof item === 'string'
+                ? (src.split('/').pop() || '')
+                : (item.fileName || src.split('/').pop() || '');
+
+            // Matches filenames like:
+            // step_1742380954567.png
+            // screenshot_1742380954567.jpg
+            // abc_1742380954567.webp
+            const match = fileName.match(/_(\d{10,})(?:\.[^.]+)?$/);
+            return match ? Number(match[1]) : 0;
+        };
+
+        // Sort screenshots by timestamp
+        const sortedScreenshots = [...screenshots].sort((a, b) => extractTimestamp(a) - extractTimestamp(b));
+
+        // IMPORTANT: keep viewer in same sorted order
+        if (window.__screenshotSets && prefix) {
+            window.__screenshotSets[prefix] = sortedScreenshots;
+        }
+
+        const items = sortedScreenshots.map((item, i) => {
+            const src = getScreenshotSrc(item);
+            const displayName = `Step ${i + 1}`;
+
+            return `
+            <button class="ss-thumb" onclick="openScreenshotViewer('${esc(prefix)}', ${i})"
+                    style="border:none;background:none;padding:0;cursor:pointer">
+                <img src="${esc(src)}" alt="${esc(displayName)}" loading="lazy">
+                <div class="ss-name">${esc(displayName)}</div>
+            </button>
+        `;
+        }).join('');
+
+        openModal(`
+        <div class="modal modal-xl">
+            <div class="modal-head">
+                <h2>${esc(title)}</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+
+            <div class="ss-grid">
+                ${items}
+            </div>
+        </div>
+    `);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Screenshot viewer
+    // ─────────────────────────────────────────────────────────────
+    window.openScreenshotViewer = function (prefix, index) {
+        const screenshots = screenshotCache[prefix] || [];
+        if (!screenshots.length) {
+            toast('No screenshots loaded', 'info');
+            return;
+        }
+
+        viewerState = {
+            prefix,
+            screenshots,
+            index,
+            zoom: 1,
+            fullscreen: false
+        };
+
+        renderScreenshotViewer();
+    };
+
+    function renderScreenshotViewer() {
+        const item = viewerState.screenshots[viewerState.index];
+        if (!item) return;
+
+        const src = getScreenshotSrc(item);
+        const fileName = typeof item === 'string'
+            ? (src.split('/').pop() || `Screenshot ${viewerState.index + 1}`)
+            : (item.fileName || src.split('/').pop() || `Screenshot ${viewerState.index + 1}`);
+
+        const wrapClass = viewerState.fullscreen ? 'ss-viewer fullscreen' : 'ss-viewer';
+
+        openModal(`
+            <div class="${wrapClass}">
+                <div class="ss-viewer-top">
+                    <div>
+                        <div style="font-weight:700">${esc(fileName)}</div>
+                        <div style="font-size:12px;color:var(--tx2)">
+                            ${viewerState.index + 1} / ${viewerState.screenshots.length}
+                        </div>
+                    </div>
+
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <button class="btn btn-ghost btn-sm" onclick="viewerPrev()">← Prev</button>
+                        <button class="btn btn-ghost btn-sm" onclick="viewerNext()">Next →</button>
+                        <button class="btn btn-ghost btn-sm" onclick="viewerZoomOut()">−</button>
+                        <button class="btn btn-ghost btn-sm" onclick="viewerZoomIn()">+</button>
+                        <button class="btn btn-ghost btn-sm" onclick="viewerToggleFullscreen()">
+                            ${viewerState.fullscreen ? 'Minimize' : 'Maximize'}
+                        </button>
+                        <button class="btn btn-ghost btn-sm" onclick="closeModal()">✕</button>
+                    </div>
+                </div>
+
+                <div class="ss-viewer-body">
+                    <img
+                        src="${esc(src)}"
+                        alt="${esc(fileName)}"
+                        style="transform:scale(${viewerState.zoom});transform-origin:center center;max-width:100%;max-height:100%;object-fit:contain"
+                    />
+                </div>
+            </div>
+        `);
+    }
+
+    window.viewerPrev = function () {
+        viewerState.index = (viewerState.index - 1 + viewerState.screenshots.length) % viewerState.screenshots.length;
+        viewerState.zoom = 1;
+        renderScreenshotViewer();
+    };
+
+    window.viewerNext = function () {
+        viewerState.index = (viewerState.index + 1) % viewerState.screenshots.length;
+        viewerState.zoom = 1;
+        renderScreenshotViewer();
+    };
+
+    window.viewerZoomIn = function () {
+        viewerState.zoom = Math.min(viewerState.zoom + 0.25, 3);
+        renderScreenshotViewer();
+    };
+
+    window.viewerZoomOut = function () {
+        viewerState.zoom = Math.max(viewerState.zoom - 0.25, 0.5);
+        renderScreenshotViewer();
+    };
+
+    window.viewerToggleFullscreen = function () {
+        viewerState.fullscreen = !viewerState.fullscreen;
+        renderScreenshotViewer();
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Clone run
+    // ─────────────────────────────────────────────────────────────
+    window.cloneRun = async function () {
+        try {
+            const c = await api.runs.clone(runId);
+            toast(`Cloned as "${c.runName}"`, 'success');
+            window.location.href = `/run-editor.html?runId=${c.id || c._id}`;
+        } catch (e) {
+            toast('Clone failed: ' + (e.message || 'Unknown error'), 'error');
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Execute run
+    // ─────────────────────────────────────────────────────────────
+    window.executeRun = async function () {
+        const btn = document.getElementById('run-btn');
+        if (!btn) return;
+
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Running…';
+
+        try {
+            await api.runs.execute(runId);
+            toast('Run started!', 'success');
+            run.status = 'RUNNING';
+            startPolling();
+        } catch (e) {
+            toast('Execute failed: ' + (e.message || 'Unknown error'), 'error');
+            btn.disabled = false;
+            btn.innerHTML = '▶ Run Now';
+        }
+    };
+
+    // ─────────────────────────────────────────────────────────────
+    // Poll for status updates (NO full page rerender)
+    // ─────────────────────────────────────────────────────────────
+    function startPolling() {
+        clearInterval(pollTimer);
+
+        pollTimer = setInterval(async () => {
+            try {
+                const latest = await api.runs.get(runId);
+                run = latest;
+
+                const runBtn = document.getElementById('run-btn');
+                if (runBtn) {
+                    if (run.status === 'RUNNING') {
+                        runBtn.disabled = true;
+                        runBtn.innerHTML = '⏳ Running…';
+                    } else {
+                        runBtn.disabled = false;
+                        runBtn.innerHTML = '▶ Run Now';
+                    }
+                }
+
+                const crumbRun = document.getElementById('crumb-run');
+                if (crumbRun) {
+                    crumbRun.textContent = run.runName || 'Run Detail';
+                }
+
+                if (run.status !== 'RUNNING') {
+                    clearInterval(pollTimer);
+                }
+            } catch {
+                // ignore poll errors
+            }
+        }, 3000);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // Boot
+    // ─────────────────────────────────────────────────────────────
     load();
 </script>
 </body>

@@ -1,7 +1,9 @@
 package com.testingautomation.testautomation.globalException;
 
 
+import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.openqa.selenium.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -81,6 +83,50 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ErrorResponse.of(500, "Internal server error"));
     }
+    @ExceptionHandler(TestExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleTestExecution(TestExecutionException ex) {
+        log.error("Test execution failed: {}", ex.getMessage(), ex);
+
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ex.getMessage()
+        );
+
+        Map<String, String> details = new HashMap<>();
+        details.put("step", ex.getStep());
+        details.put("locator", ex.getLocator());
+        details.put("reason", ex.getReason());
+        body.setDetails(details);
+
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(body);
+    }
+
+    @ExceptionHandler(TimeoutException.class)
+    public ResponseEntity<ErrorResponse> handleSeleniumTimeout(TimeoutException ex) {
+        log.error("Selenium timeout: {}", ex.getMessage(), ex);
+
+        return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT)
+                .body(ErrorResponse.of(
+                        HttpStatus.REQUEST_TIMEOUT.value(),
+                        "Target web page is slow or element did not become visible within timeout"
+                ));
+    }
+
+    @ExceptionHandler({
+            NoSuchElementException.class,
+            ElementNotInteractableException.class,
+            ElementClickInterceptedException.class,
+            StaleElementReferenceException.class
+    })
+    public ResponseEntity<ErrorResponse> handleSeleniumInteraction(Exception ex) {
+        log.error("Selenium interaction failure: {}", ex.getMessage(), ex);
+
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(ErrorResponse.of(
+                        HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                        "Test step could not be executed on target web page: " + ex.getClass().getSimpleName()
+                ));
+    }
 
     // ── Error response shape ──────────────────────────────────────────
 
@@ -98,4 +144,11 @@ public class GlobalExceptionHandler {
             return r;
         }
     }
+    @Data
+    public static class TestExecutionException extends RuntimeException {
+        private final String step;
+        private final String locator;
+        private final String reason;
+    }
 }
+

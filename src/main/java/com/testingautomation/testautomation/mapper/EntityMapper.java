@@ -69,6 +69,7 @@ public interface EntityMapper {
     @Mapping(target = "actionPerformedAt",  ignore = true)
     @Mapping(target = "createdAt",          ignore = true)
     @Mapping(target = "updatedAt",          ignore = true)
+    @Mapping(target = "scenarioBasePath",   ignore = true)
     Scenario toScenario(ScenarioRequest request);
 
     ScenarioResponse toScenarioResponse(Scenario scenario);
