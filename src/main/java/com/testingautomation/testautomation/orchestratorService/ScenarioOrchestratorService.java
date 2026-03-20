@@ -4,6 +4,7 @@ package com.testingautomation.testautomation.orchestratorService;
 import com.testingautomation.testautomation.dto.*;
 import com.testingautomation.testautomation.executor.SeleniumExecutor;
 import com.testingautomation.testautomation.generator.StepGenerator;
+import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
 import com.testingautomation.testautomation.model.*;
 import com.testingautomation.testautomation.repo.RunRepository;
@@ -114,9 +115,10 @@ public class ScenarioOrchestratorService {
                 }
 
             } catch (Exception e) {
-                run.setStatus(RunStatus.ERROR);
-
-                logger.error("[{}] scenario failed but continuing: {}",scenarioPrefix,e.getMessage(), e);
+                throw new GlobalExceptionHandler.RunnerIntegrationException(
+                        "Scenario failed: " + e.getMessage(),
+                        e
+                );
             }
         }
 
@@ -483,6 +485,7 @@ public class ScenarioOrchestratorService {
         int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run);
         String scenarioPrefix =
                 baseS3Prefix + "/" + (currEle+1);
+
         Scenario currModal=scenarios.get(currEle);
         if(currModal.getType()==ScenarioType.ASSERT){
             return runAssertionGeneric(driver,currModal,baseS3Prefix,run);
@@ -756,7 +759,7 @@ public class ScenarioOrchestratorService {
         screenshotService.takeScreenshot(
                 driver,
                 "modal_form",
-                "step_" + stepCounter++,
+                "step_" + java.time.LocalDateTime.now(),
                 navigationScreenshotDir,
                 scenarioPrefix
         );

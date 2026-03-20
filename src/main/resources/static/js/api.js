@@ -107,10 +107,10 @@ export const runs = {
     // ✅ NEW: Get screenshots for a selected column + value from scenario result CSV
     // Example:
     // /api/runs/{runId}/scenarios/{sequenceNo}/screenshots?column=testcaseId&value=TC_001
-    getScenarioScreenshots: (runId, sequenceNo, column, value) =>
+    getScenarioScreenshots: (prefix) =>
         request(
             'GET',
-            `/api/runs/${runId}/scenarios/${sequenceNo}/screenshots?column=${encodeURIComponent(column)}&value=${encodeURIComponent(value)}`
+            `/scenario-screenshots?prefix=${encodeURIComponent(prefix)}`
         ),
 };
 

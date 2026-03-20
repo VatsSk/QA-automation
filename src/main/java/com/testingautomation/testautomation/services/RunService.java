@@ -168,34 +168,148 @@ public class RunService {
      * Run state is updated to RUNNING immediately, then updated again on completion.
      */
     public RunResponse executeRun(String id) {
+        log.info("RUN STARTED for runId={}", id);
+
         Run run = findRunOrThrow(id);
-        ChromeOptions options = new ChromeOptions();
-        options.addArguments("--disable-gpu");
-        options.addArguments("--window-size=1366,768");
-        WebDriver driver = new ChromeDriver(options);
 
-        Run updated = run;
-
-        if (run.getStatus()==RunStatus.RUNNING ) {
+        if (run.getStatus() == RunStatus.RUNNING) {
             throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
         }
+
         if (run.getScenariosList() == null || run.getScenariosList().isEmpty()) {
             throw new GlobalExceptionHandler.BadRequestException("Cannot execute a run with no scenarios");
         }
 
+        WebDriver driver = null;
+        Run updated = run;
+
         try {
-            updated= scenarioOrchestratorService.executeScenarios(run,driver,id);
+            // Mark run as RUNNING before execution starts
+            run.setStatus(RunStatus.RUNNING);
+            run.setUpdatedAt(java.time.Instant.now());
+            updated = runRepository.save(run);
 
-        }catch (Exception ex){
-//            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-//                    .body("Test execution failed");
-        }finally {
-            driver.quit();
+            ChromeOptions options = new ChromeOptions();
+            options.addArguments("--disable-gpu");
+            options.addArguments("--window-size=1366,768");
+
+            // IMPORTANT: create driver INSIDE try block
+            driver = new ChromeDriver(options);
+
+            // Execute all scenarios
+            updated = scenarioOrchestratorService.executeScenarios(updated, driver, id);
+
+            // If orchestrator didn't set final status, set COMPLETED here
+            if (updated.getStatus() == RunStatus.RUNNING) {
+                updated.setStatus(RunStatus.PASSED);
+                updated.setUpdatedAt(java.time.Instant.now());
+                updated = runRepository.save(updated);
+            }
+
+            log.info("Executing run {} completed successfully (resultStatement='{}')",
+                    id, updated.getResultStatement());
+
+            return mapper.toRunResponse(updated);
+
+        } catch (GlobalExceptionHandler.ResourceNotFoundException |
+                 GlobalExceptionHandler.BadRequestException ex) {
+
+            // Business exceptions: preserve exact message
+            markRunFailed(run, ex.getMessage());
+            throw ex;
+
+        } catch (org.openqa.selenium.TimeoutException ex) {
+
+            log.error("Run {} failed due to timeout: {}", id, ex.getMessage(), ex);
+            markRunFailed(run, "Target web page is slow or element did not become visible in time");
+
+            throw new GlobalExceptionHandler.RunnerIntegrationException(
+                    "Test execution failed: target web page is slow or element did not become visible in time",
+                    ex
+            );
+
+        } catch (org.openqa.selenium.NoSuchElementException ex) {
+
+            log.error("Run {} failed due to missing element: {}", id, ex.getMessage(), ex);
+            markRunFailed(run, "Required element not found on target web page");
+
+            throw new GlobalExceptionHandler.RunnerIntegrationException(
+                    "Test execution failed: required element not found on target web page",
+                    ex
+            );
+
+        } catch (org.openqa.selenium.ElementClickInterceptedException ex) {
+
+            log.error("Run {} failed due to click interception: {}", id, ex.getMessage(), ex);
+            markRunFailed(run, "Element click was intercepted by another UI element");
+
+            throw new GlobalExceptionHandler.RunnerIntegrationException(
+                    "Test execution failed: element click was intercepted by another UI element",
+                    ex
+            );
+
+        } catch (org.openqa.selenium.ElementNotInteractableException ex) {
+
+            log.error("Run {} failed due to non-interactable element: {}", id, ex.getMessage(), ex);
+            markRunFailed(run, "Element exists but is not interactable on target web page");
+
+            throw new GlobalExceptionHandler.RunnerIntegrationException(
+                    "Test execution failed: element exists but is not interactable on target web page",
+                    ex
+            );
+
+        } catch (org.openqa.selenium.StaleElementReferenceException ex) {
+
+            log.error("Run {} failed due to stale element: {}", id, ex.getMessage(), ex);
+            markRunFailed(run, "Page updated and element reference became stale");
+
+            throw new GlobalExceptionHandler.RunnerIntegrationException(
+                    "Test execution failed: page updated and element reference became stale",
+                    ex
+            );
+
+        } catch (org.openqa.selenium.WebDriverException ex) {
+
+            // Covers browser startup failure, session crash, driver crash, etc.
+            log.error("Run {} failed due to WebDriver error: {}", id, ex.getMessage(), ex);
+            markRunFailed(run, "Browser automation failed during test execution");
+
+            throw new GlobalExceptionHandler.RunnerIntegrationException(
+                    "Browser automation failed: " + ex.getMessage(),
+                    ex
+            );
+
+        } catch (Exception ex) {
+
+            log.error("Run {} failed due to unexpected error: {}", id, ex.getMessage(), ex);
+            markRunFailed(run, "Unexpected error during test execution");
+
+            throw new GlobalExceptionHandler.RunnerIntegrationException(
+                    "Unexpected execution failure: " + ex.getMessage(),
+                    ex
+            );
+
+        } finally {
+            if (driver != null) {
+                try {
+                    driver.quit();
+                    log.info("Browser closed for runId={}", id);
+                } catch (Exception quitEx) {
+                    log.warn("Failed to close browser for runId={}: {}", id, quitEx.getMessage(), quitEx);
+                }
+            }
         }
-
-        log.info("Executing run {} (resultStatement='{}')", id, run.getResultStatement());
-//        Run updated = runnerService.executeRun(run);
-        return mapper.toRunResponse(updated);
+    }
+    private void markRunFailed(Run run, String failureReason) {
+        try {
+            run.setStatus(RunStatus.FAILED);
+            run.setResultStatement(failureReason); // assuming this field exists
+            run.setUpdatedAt(java.time.Instant.now());
+            runRepository.save(run);
+        } catch (Exception dbEx) {
+            log.error("Failed to update run status to FAILED for runId={}: {}",
+                    run.getId(), dbEx.getMessage(), dbEx);
+        }
     }
 
     // ── Results ───────────────────────────────────────────────────────
@@ -411,4 +525,6 @@ public class RunService {
         }
         return value;
     }
+
+
 }

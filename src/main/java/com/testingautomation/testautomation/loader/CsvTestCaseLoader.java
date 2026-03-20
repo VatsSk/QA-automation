@@ -125,14 +125,12 @@ public class CsvTestCaseLoader {
                      new CSVReaderHeaderAware(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
 
             Map<String, String> row;
-            int counter = 0;
+//            int counter = 0;
 
             while ((row = reader.readMap()) != null) {
 
-                String id = row.getOrDefault("testCaseId", String.valueOf(counter));
-                logger.info("test case id : {}",id);
-                counter++;
-
+                String id = row.get("testCaseId");
+//                logger.info("ID TESTCASE IS "+id);
                 String expectedResult = row.get("expectedResult");
 
                 Map<String, String> values = new LinkedHashMap<>(row);
@@ -179,11 +177,11 @@ public class CsvTestCaseLoader {
             // header
             TestCaseDTO first = testCases.get(0);
 
-            List<String> headers = new ArrayList<>(first.getValues().keySet());
-
+            List<String> headers = new ArrayList<>();
+            headers.add("testCaseId");                     // first column
+            headers.addAll(first.getValues().keySet());    // dynamic input columns
             headers.add("expectedResult");
             headers.add("Result");
-            headers.add("testCaseId");
 
             writer.write(String.join(",", headers));
             writer.newLine();
@@ -192,13 +190,15 @@ public class CsvTestCaseLoader {
 
                 List<String> row = new ArrayList<>();
 
-                for (String key : tc.getValues().keySet()) {
+                row.add(TestResultWriter.safe(tc.getTestcaseId()));   // first value
+
+                // use header order, not tc.getValues().keySet()
+                for (String key : first.getValues().keySet()) {
                     row.add(TestResultWriter.safe(tc.getValue(key)));
                 }
 
                 row.add(TestResultWriter.safe(tc.getExpectedResult()));
                 row.add(TestResultWriter.safe(tc.getResult()));
-                row.add(tc.getTestcaseId());
 
                 writer.write(String.join(",", row));
                 writer.newLine();

@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.services;
 
+import com.testingautomation.testautomation.dto.responseDto.ScenarioScreenshotsResponse;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.OutputType;
@@ -92,5 +93,12 @@ public class ScreenshotService {
 
             return null;
         }
+    }
+
+    public ScenarioScreenshotsResponse getScenarioScreenshots(String prefix) {
+        logger.info("Screenshot prefix is "+prefix);
+        return new ScenarioScreenshotsResponse(
+                s3StorageService.listScreenshotUrls(prefix)
+        );
     }
 }
