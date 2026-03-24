@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.dto.responseDto;
 
+import com.testingautomation.testautomation.model.RunStatus;
 import com.testingautomation.testautomation.model.ScenarioStatus;
 import com.testingautomation.testautomation.model.ScenarioType;
 import lombok.AllArgsConstructor;
@@ -35,4 +36,5 @@ public class ScenarioResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private String scenarioBasePath;
+    private RunStatus scenarioStatus; 
 }

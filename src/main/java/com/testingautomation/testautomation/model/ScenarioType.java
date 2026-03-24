@@ -12,5 +12,6 @@ public enum ScenarioType {
     MODAL_NAV,
     SEARCH_NAV,
     FORM_MODAL,
-    ASSERT
+    ASSERT,
+    VERIFY_PAGE
 }

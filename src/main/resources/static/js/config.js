@@ -8,6 +8,7 @@
  *   URL_NAV    → url field only           (no test data)
  *   MODAL_NAV  → cssSelector only         (no test data)
  *   SEARCH_NAV → cssSelector + value      (no test data)
+ *   VERIFY_PAGE→ url + cssSelector        (no test data)
  */
 
 export const TYPES = {
@@ -58,6 +59,15 @@ export const TYPES = {
         hasData: false,
         hint:    'Navigate using a search field — enter selector and search term',
     },
+    VERIFY_PAGE: {
+        label:   'Verify Page',
+        icon:    '✓',
+        color:   'var(--gr)',
+        bg:      'var(--gr-d)',
+        fields:  ['url', 'cssSelector'],
+        hasData: false,
+        hint:    'Verify page content by URL and CSS selector',
+    },
 };
 
 // Minimum required fields per type (used for validation before save)
@@ -67,4 +77,5 @@ export const REQUIRED = {
     URL_NAV:    ['url'],
     MODAL_NAV:  ['cssSelector'],
     SEARCH_NAV: ['cssSelector', 'value'],
+    VERIFY_PAGE: ['url', 'cssSelector'],
 };

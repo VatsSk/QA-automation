@@ -26,6 +26,8 @@ public class Scenario {
 
     private String id;
 
+    private RunStatus scenarioStatus;
+
     /** Scenario type — never includes RESULT_STATEMENT */
     private ScenarioType type;
 

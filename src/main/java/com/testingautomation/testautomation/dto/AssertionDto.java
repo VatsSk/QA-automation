@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.dto;
 
-import com.testingautomation.testautomation.enums.AssertionType;
+
+import com.testingautomation.testautomation.model.AssertionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,14 +15,14 @@ public class AssertionDto {
 
     private AssertionType type;
 
-//     Locator strategy: css / xpath (optional for some assertions)
+    //     Locator strategy: css / xpath (optional for some assertions)
     private String locatorType;
 
-//     Locator value: #id / .class / xpath
+    //     Locator value: #id / .class / xpath
     //cssLocator
     private String locator;
 
-//      Expected value (depends on type)
+    //      Expected value (depends on type)
 //      Examples:
 //      "true", "desc", "Verified", "10"
     private String expected;
@@ -34,10 +35,17 @@ public class AssertionDto {
      */
     private String value;
 
-//    Optional: timeout for wait (in seconds)
-    private Integer timeout;
+    private String tableId;
 
+    private String rowsBtn;
 
-//     Optional: human-readable description
-    private String description;
+    private String rangeId;
+
+    //    Optional: timeout for wait (in seconds)
+//    private Integer timeout;
+//
+//
+//    //     Optional: human-readable description
+//    private String description;
 }
+

@@ -1,0 +1,125 @@
+private ScenarioTestDto runVerifyPageGenric(WebDriver driver, Scenario current, String baseS3Prefix) {
+        logger.info("Executing VERIFY_PAGE scenario - URL: {}, CSS Selector: {}", 
+                current.getUrl(), current.getCssOpener());
+        
+        String scenarioPrefix = baseS3Prefix + "/" + current.getSequenceNo();
+        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
+        
+        try {
+            Files.createDirectories(scenarioDir);
+        } catch (IOException e) {
+            logger.error("Failed to create scenario directory: {}", scenarioPrefix, e);
+            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed to create directory for VERIFY_PAGE scenario", e);
+        }
+        
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        
+        // Create a single test case result
+        List<TestCaseDTO> testCases = new ArrayList<>();
+        TestCaseDTO verifyResult = new TestCaseDTO("verify_page_1", new HashMap<>());
+        
+        try {
+            // Navigate to the URL
+            logger.info("Navigating to URL: {}", current.getUrl());
+            driver.get(current.getUrl());
+            
+            // Take screenshot after navigation
+            String navScreenshot = screenshotService.takeScreenshot(
+                    driver,
+                    "verifyPage",
+                    "step_1_navigation",
+                    scenarioDir,
+                    scenarioPrefix
+            );
+            logger.info("Navigation screenshot taken: {}", navScreenshot);
+            
+            // Check if CSS selector exists in DOM
+            logger.info("Checking if element exists with CSS selector: {}", current.getCssOpener());
+            
+            try {
+                WebElement verifyElement = wait.until(ExpectedConditions.presenceOfElementLocated(
+                        By.cssSelector(current.getCssOpener())
+                ));
+                
+                // Check if element is visible
+                boolean isVisible = verifyElement.isDisplayed();
+                logger.info("VERIFY_PAGE element found - tag: {}, visible: {}, text: '{}'", 
+                        verifyElement.getTagName(), isVisible, verifyElement.getText());
+                
+                // Take screenshot after verification
+                String verifyScreenshot = screenshotService.takeScreenshot(
+                        driver,
+                        "verifyPage", 
+                        "step_2_verified",
+                        scenarioDir,
+                        scenarioPrefix
+                );
+                logger.info("Verification screenshot taken: {}", verifyScreenshot);
+                
+                if (isVisible) {
+                    verifyResult.setResult("Passed");
+                    logger.info("VERIFY_PAGE scenario PASSED - element is visible");
+                } else {
+                    verifyResult.setResult("Failed - Element exists but not visible");
+                    logger.warn("VERIFY_PAGE scenario FAILED - element exists but not visible");
+                }
+                
+            } catch (TimeoutException e) {
+                logger.error("VERIFY_PAGE FAILED - element not found with selector: {}", current.getCssOpener());
+                verifyResult.setResult("Failed - Element not found: " + current.getCssOpener());
+                
+                // Take screenshot of failure
+                String failScreenshot = screenshotService.takeScreenshot(
+                        driver,
+                        "verifyPage",
+                        "step_failure",
+                        scenarioDir,
+                        scenarioPrefix
+                );
+                logger.info("Failure screenshot taken: {}", failScreenshot);
+            }
+            
+        } catch (Exception e) {
+            logger.error("VERIFY_PAGE scenario failed with unexpected error", e);
+            verifyResult.setResult("Failed - " + e.getMessage());
+        }
+        
+        testCases.add(verifyResult);
+        
+        // Create result CSV
+        Path scenarioCsv;
+        try {
+            scenarioCsv = csvLoader.writeScenarioCsv(testCases, scenarioDir);
+        } catch (Exception e) {
+            logger.error("Failed to write scenario CSV", e);
+            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed to create result CSV for VERIFY_PAGE scenario", e);
+        }
+        
+        // Upload to S3
+        String s3Key = scenarioPrefix + "/scenario-results.csv";
+        String finalCsvUrl;
+        try {
+            finalCsvUrl = s3StorageService.uploadFile(scenarioCsv, s3Key);
+        } catch (Exception e) {
+            logger.error("Failed to upload CSV to S3", e);
+            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed to upload result CSV for VERIFY_PAGE scenario", e);
+        }
+        
+        // Set scenario result
+        current.setResultCsv(finalCsvUrl);
+        current.setScenarioBasePath(scenarioPrefix);
+        
+        // Create and return scenario test DTO
+        ScenarioTestDto scenarioTestDto = new ScenarioTestDto(testCases, finalCsvUrl);
+        
+        // Set overall status based on the single test case result
+        if (verifyResult.getResult().equals("Passed")) {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PASSED);
+        } else {
+            scenarioTestDto.setOverAllScenarioStatus(RunStatus.FAILED);
+        }
+        
+        scenarioTestDto.setResultCsv(finalCsvUrl);
+        
+        return scenarioTestDto;
+    }

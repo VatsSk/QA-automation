@@ -1,5 +1,4 @@
-package com.testingautomation.testautomation.enums;
-
+package com.testingautomation.testautomation.model;
 
 public enum AssertionType {
 

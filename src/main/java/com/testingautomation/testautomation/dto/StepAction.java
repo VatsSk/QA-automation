@@ -1,7 +1,10 @@
 package com.testingautomation.testautomation.dto;
+
+import lombok.AllArgsConstructor;
 import lombok.Data;
 
 @Data
+@AllArgsConstructor
 public class StepAction {
     public enum ActionType { TYPE,
         CLICK,
@@ -36,10 +39,19 @@ public class StepAction {
     private String locator;     // actual locator value
     private String payload;     // text to type / text to select / expected text
     private String description;
+    private String tableId;
+    private String colName;
+    private String rowsBtn;
+    private String rangeId;
 
     // constructor + getters/setters
     public StepAction(ActionType type, String locatorType, String locator, String payload, String description) {
-        this.type = type; this.locatorType = locatorType; this.locator = locator; this.payload = payload; this.description = description;
+        this.type = type;
+        this.locatorType = locatorType;
+        this.locator = locator;
+        this.payload = payload;
+        this.description = description;
     }
+
 
 }

@@ -322,7 +322,10 @@
                             ${sc.value ? `<div class="sc-url-val">Value: ${esc(sc.value)}</div>` : ''}
                         </div>
 
-                        ${sc.status ? statusBadge(sc.status) : ''}
+                        <div style="display:flex;gap:6px;align-items:center">
+                            ${sc.scenarioStatus ? statusBadge(sc.scenarioStatus) : ''}
+                            ${sc.status ? statusBadge(sc.status) : ''}
+                        </div>
                         <span class="sc-chevron">▼</span>
                     </div>
 

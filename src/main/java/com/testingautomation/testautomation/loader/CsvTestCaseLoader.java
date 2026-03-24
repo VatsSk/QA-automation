@@ -166,6 +166,14 @@ public class CsvTestCaseLoader {
             throw new IllegalArgumentException("No testcases found");
         }
 
+        // If scenario directory already exists, delete it completely
+        if (Files.exists(scenarioDir)) {
+            deleteDirectoryRecursively(scenarioDir);
+        }
+
+        // Create fresh directory
+        Files.createDirectories(scenarioDir);
+
         Path file = scenarioDir.resolve("scenario-results.csv");
 
         try (BufferedWriter writer = Files.newBufferedWriter(
@@ -174,12 +182,11 @@ public class CsvTestCaseLoader {
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING)) {
 
-            // header
             TestCaseDTO first = testCases.get(0);
 
             List<String> headers = new ArrayList<>();
-            headers.add("testCaseId");                     // first column
-            headers.addAll(first.getValues().keySet());    // dynamic input columns
+            headers.add("testCaseId");
+            headers.addAll(first.getValues().keySet());
             headers.add("expectedResult");
             headers.add("Result");
 
@@ -187,12 +194,10 @@ public class CsvTestCaseLoader {
             writer.newLine();
 
             for (TestCaseDTO tc : testCases) {
-
                 List<String> row = new ArrayList<>();
 
-                row.add(TestResultWriter.safe(tc.getTestcaseId()));   // first value
+                row.add(TestResultWriter.safe(tc.getTestcaseId()));
 
-                // use header order, not tc.getValues().keySet()
                 for (String key : first.getValues().keySet()) {
                     row.add(TestResultWriter.safe(tc.getValue(key)));
                 }
@@ -206,5 +211,21 @@ public class CsvTestCaseLoader {
         }
 
         return file;
+    }
+
+    private void deleteDirectoryRecursively(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            return;
+        }
+
+        Files.walk(path)
+                .sorted(Comparator.reverseOrder()) // delete files first, then folders
+                .forEach(p -> {
+                    try {
+                        Files.deleteIfExists(p);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
     }
 }

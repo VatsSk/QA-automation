@@ -767,19 +767,22 @@ public class SeleniumExecutor {
         }
     }
 
-//    private void assertColumnPresent(WebDriver driver, StepAction step) {
-//
-//        List<WebElement> headers = driver.findElements(By.cssSelector("th"));
-//
-//        boolean found = headers.stream()
-//                .anyMatch(h -> h.getText().trim()
-//                        .equalsIgnoreCase(step.getPayload()));
-//
-//        if (!found) {
-//            throw new AssertionError("Column not found: " + step.getPayload());
-//        }
-//    }
+    private void assertColumnPresent(WebDriver driver, StepAction step) {
 
+        List<WebElement> headers = driver.findElements(By.cssSelector("th"));
+        logger.info("headers {}",headers);
+
+        boolean found = headers.stream()
+                .anyMatch(h -> h.getText().trim()
+                        .equalsIgnoreCase(step.getPayload()));
+
+
+        logger.info("found {}",found);
+
+        if (!found) {
+            throw new AssertionError("Column not found: " + step.getPayload());
+        }
+    }
     private void assertAllColumnsPresent(WebDriver driver, StepAction step) {
 
         // Expected columns → comma separated
@@ -792,12 +795,24 @@ public class SeleniumExecutor {
 
         logger.info("Parsed expected columns: {}", expectedColumns);
 
+        WebElement table = driver.findElement(By.cssSelector(step.getLocator()));
+
+        List<WebElement> headers = table.findElements(By.cssSelector("thead tr th"));
+
         // Get actual headers
-        List<WebElement> headers = driver.findElements(By.cssSelector("th"));
+//        List<WebElement> headers = driver.findElements(By.cssSelector("th"));
         logger.info("Total headers found on page: {}", headers.size());
 
         List<String> actualColumns = headers.stream()
-                .map(h -> h.getText().trim())
+                .map(h -> {
+                    h.getText().trim();
+                    String text = h.getText().trim();
+                    if(text.isEmpty()){
+                        text = h.getAttribute("aria-label");
+                    }
+                    return text != null ? text.trim() : "";
+                })
+                .filter(s -> !s.isEmpty())
                 .toList();
 
         logger.info("Actual columns from UI: {}", actualColumns);
@@ -828,36 +843,209 @@ public class SeleniumExecutor {
 
         logger.info("✅ All expected columns are present.");
     }
+
     private void assertCount(WebDriver driver, StepAction step) {
 
-        List<WebElement> elements = driver.findElements(getBy(step));
+        logger.info("🔍 Starting ASSERT_COUNT validation...");
 
+        String rowsQuery = step.getRowsBtn();
+        String tableId = step.getTableId();
+        String rangeId = step.getRangeId();
+
+        try {
+            int selectedPageSize = getSelectedPageSize(driver, rowsQuery);
+            int visibleRowCount = getVisibleRowCount(driver, tableId);
+
+//            logger.info("📊 Selected page size: {}", selectedPageSize);
+//            logger.info("📊 Visible row count: {}", visibleRowCount);
+
+            if (selectedPageSize == visibleRowCount) {
+                logger.info("✅ PASS: Page size matches visible rows");
+            } else if (selectedPageSize > visibleRowCount) {
+
+                int totalPages = getPaginationCount(driver);
+
+                logger.info("📄 Total pages detected: {}", totalPages);
+
+                if (totalPages == 1) {
+                    logger.info("✅ PASS: Single page with fewer rows than page size");
+                } else {
+                    logger.error("❌ FAIL: Multiple pages exist but rows < page size");
+                    throw new AssertionError("Pagination mismatch detected");
+                }
+
+            } else {
+                logger.error("❌ FAIL: Visible rows exceed selected page size");
+                throw new AssertionError("Row count exceeds page size");
+            }
+
+            // Final assertion based on payload
+            validateElementCount(driver, step);
+
+        } catch (Exception e) {
+            logger.error("❌ Exception in ASSERT_COUNT: {}", e.getMessage(), e);
+            throw new RuntimeException("ASSERT_COUNT failed", e);
+        }
+    }
+    private void validateElementCount(WebDriver driver, StepAction step) {
+
+        List<WebElement> elements = driver.findElements(getBy(step));
         int expected = Integer.parseInt(step.getPayload());
 
+        logger.info("🔢 Expected elements: {}, Found: {}", expected, elements.size());
+
         if (elements.size() != expected) {
-            throw new AssertionError("Expected count: " + expected + " but got: " + elements.size());
+            throw new AssertionError(
+                    "Expected count: " + expected + " but got: " + elements.size()
+            );
         }
+
+        logger.info("✅ Element count assertion passed");
+    }
+    private int getPaginationCount(WebDriver driver) {
+
+        WebElement ul = driver.findElement(By.cssSelector(".pagination"));
+
+        List<WebElement> pages = ul.findElements(
+                By.cssSelector("li.paginate_button:not(.previous):not(.next)")
+        );
+
+        int count = pages.size();
+
+        logger.debug("📄 Pagination buttons (excluding prev/next): {}", count);
+
+        return count;
+    }
+    private int getVisibleRowCount(WebDriver driver, String tableId) {
+
+        List<WebElement> rows = driver.findElements(
+                By.cssSelector(tableId + " tbody tr")
+        );
+
+        int count = rows.size();
+
+        logger.debug("📋 Visible rows in table: {}", count);
+
+        return count;
+    }
+    private int getSelectedPageSize(WebDriver driver, String rowsQuery) {
+
+        WebElement btn = driver.findElement(By.cssSelector(rowsQuery));
+        btn.click();
+
+        WebElement active = driver.findElement(
+                By.cssSelector(".dt-button-collection .button-page-length.active span")
+        );
+
+        int value = Integer.parseInt(active.getText().trim());
+
+        logger.debug("🔘 Active page size from dropdown: {}", value);
+
+        return value;
     }
 
     private void assertSorting(WebDriver driver, StepAction step) {
+//        member-list-table
 
-        List<WebElement> elements = driver.findElements(getBy(step));
+        String tableLocator = step.getTableId();
+        logger.info("---- tableLocator {}----",tableLocator);
+        String colName = step.getColName();
+        logger.info("---- colName {}----",colName);
+        String order = step.getPayload();
+        logger.info("---- Sorting Assertion Started ----");
+        WebElement table = driver.findElement(By.cssSelector(tableLocator));
 
-        List<String> actual = elements.stream()
-                .map(e -> e.getText().trim())
+        logger.info("---- table {} ----",table);
+        List<WebElement> headers = driver.findElements(By.cssSelector(".dataTables_scrollHead th"));
+        logger.info("---- found headers ---- {}",headers);
+        List<String> actualColumns = headers.stream()
+                .map(h -> {
+                    String text = "";
+                    try {
+                        text = h.findElement(By.cssSelector("div")).getText().trim();
+                    } catch (Exception e) {
+                        text = h.getText().trim();
+                    }
+                    if (text.isEmpty()) {
+                        text = h.getAttribute("aria-label");
+                    }
+                    // clean unwanted aria suffix
+                    if (text != null && text.contains(":")) {
+                        text = text.split(":")[0].trim();
+                    }
+                    return text != null ? text : "";
+                })
+                .filter(s -> !s.isEmpty())
                 .toList();
 
-        List<String> sorted = new ArrayList<>(actual);
+        logger.info("Actual columns from UI: {}", actualColumns);
+
+
+//        List<WebElement> elements = driver.findElements(getBy(step));
+//        logger.info("Total elements found: {}", elements.size());
+        int columnIndex=-1;
+        for (int i = 0; i < actualColumns.size(); i++) {
+            String text = actualColumns.get(i);
+
+            if (text.equalsIgnoreCase(colName)) {
+                columnIndex = i;
+                break;
+            }
+        }
+        logger.info("---- found column index ---- {}",columnIndex);
+        if (columnIndex == -1) {
+            throw new RuntimeException("Column not found: " + colName);
+        }
+        List<WebElement> rows = driver.findElements(
+                By.cssSelector(tableLocator+" tbody tr")
+        );
+
+        List<String> values = new ArrayList<>();
+
+        for (WebElement row : rows) {
+            List<WebElement> cols = row.findElements(By.tagName("td"));
+
+            if (cols.size() > columnIndex) {
+                values.add(cols.get(columnIndex).getText().trim());
+            }
+        }
+
+        System.out.println("Column Values: " + values);
+
+//        List<String> actual = elements.stream()
+//                .map(e -> e.getText().trim())
+//                .toList();
+
+        logger.info("Actual list: {}", values);
+
+        List<String> sorted = new ArrayList<>(values);
 
         if ("desc".equalsIgnoreCase(step.getPayload())) {
+            logger.info("Sorting order: DESCENDING");
             sorted.sort(Collections.reverseOrder());
         } else {
+            logger.info("Sorting order: ASCENDING");
             sorted.sort(String::compareTo);
         }
 
-        if (!actual.equals(sorted)) {
+        logger.info("Expected sorted list: {}", sorted);
+
+        if (!values.equals(sorted)) {
+            logger.info("❌ Sorting is incorrect");
+
+            // Optional: log mismatch details
+            for (int i = 0; i < values.size(); i++) {
+                if (!values.get(i).equals(sorted.get(i))) {
+                    logger.info("Mismatch at index {}: actual='{}', expected='{}'",
+                            i, values.get(i), sorted.get(i));
+                }
+            }
+
             throw new AssertionError("Sorting is incorrect");
         }
+
+        logger.info("✅ Sorting is correct");
+        logger.info("---- Sorting Assertion Completed ----");
     }
 
     private void assertAttribute(WebDriver driver, WebDriverWait wait, StepAction step) {
@@ -882,15 +1070,14 @@ public class SeleniumExecutor {
 
     private By getBy(StepAction step) {
 
-        if ("css".equalsIgnoreCase(step.getLocatorType())) {
+        logger.info("Resolving locator...");
+        logger.info("Locator type: {}", step.getLocatorType());
+        logger.info("Locator value: {}", step.getLocator());
+
+        if(step.getLocator()!=null){
             return By.cssSelector(step.getLocator());
         }
-        else if ("xpath".equalsIgnoreCase(step.getLocatorType())) {
-            return By.xpath(step.getLocator());
-        }
-
+        logger.info("❌ Invalid locator type: {}", step.getLocatorType());
         throw new IllegalArgumentException("Invalid locator type");
     }
-
-
 }

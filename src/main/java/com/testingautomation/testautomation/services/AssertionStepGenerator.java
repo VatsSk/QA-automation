@@ -2,7 +2,7 @@ package com.testingautomation.testautomation.services;
 
 import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.StepAction;
-import com.testingautomation.testautomation.enums.AssertionType;
+import com.testingautomation.testautomation.model.AssertionType;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -30,7 +30,11 @@ public class AssertionStepGenerator {
                     a.getLocatorType(),
                     a.getLocator(),
                     a.getExpected(),   // expected goes as value
-                    description
+                    description,
+                    a.getTableId(),
+                    a.getValue(),
+                    a.getRowsBtn(),
+                    a.getRangeId()
             );
 
             steps.add(step);
@@ -56,6 +60,7 @@ public class AssertionStepGenerator {
 //            case ASSERT_API_CALLED -> StepAction.ActionType.ASSERT_API_CALLED;
 //            case ASSERT_ATTRIBUTE -> StepAction.ActionType.ASSERT_ATTRIBUTE;
 //        };
+
 //    }
     private StepAction.ActionType mapToActionType(AssertionType type) {
 
