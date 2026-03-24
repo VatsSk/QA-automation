@@ -68,7 +68,91 @@ export const TYPES = {
         hasData: false,
         hint:    'Verify page content by URL and CSS selector',
     },
+    ASSERT: {
+        label:   'Assert',
+        icon:    '✓',
+        color:   'var(--or)',
+        bg:      'var(--or-d)',
+        fields:  ['assertType', 'tableSelector', 'cssSelector', 'expectedValue', 'columnName', 'order', 'btnSelector'],
+        hasData: false,
+        hint:    'Assert element value or text content',
+        dynamicFields: true,
+    },
 };
+
+// Assertion type definitions and their field requirements
+export const ASSERT_TYPES = {
+    // 🔹 Basic UI
+    ASSERT_VISIBLE: {
+        label: 'Element Visible',
+        fields: ['cssSelector'],
+        required: ['cssSelector']
+    },
+    ASSERT_NOT_VISIBLE: {
+        label: 'Element Not Visible',
+        fields: ['cssSelector'],
+        required: ['cssSelector']
+    },
+    ASSERT_ELEMENT_PRESENT: {
+        label: 'Element Present',
+        fields: ['cssSelector'],
+        required: ['cssSelector']
+    },
+
+    // 🔹 Text / Value
+    ASSERT_TEXT_EQUALS: {
+        label: 'Text Equals',
+        fields: ['cssSelector', 'expectedValue'],
+        required: ['cssSelector', 'expectedValue']
+    },
+    ASSERT_TEXT_CONTAINS: {
+        label: 'Text Contains',
+        fields: ['cssSelector', 'expectedValue'],
+        required: ['cssSelector', 'expectedValue']
+    },
+
+    // 🔹 Grid / Table
+    ASSERT_COLUMN_PRESENT: {
+        label: 'Column(s) Present',
+        fields: ['tableSelector', 'columnName'],
+        required: ['tableSelector', 'columnName']
+    },
+    ASSERT_COUNT: {
+        label: 'Count',
+        fields: ['tableSelector', 'btnSelector'],
+        required: ['tableSelector']
+    },
+
+    // 🔹 Behavior
+    ASSERT_SORT_ORDER: {
+        label: 'Sort Order',
+        fields: ['tableSelector', 'columnName', 'order'],
+        required: ['tableSelector', 'columnName', 'order']
+    },
+    ASSERT_PAGINATION: {
+        label: 'Pagination',
+        fields: ['tableSelector', 'btnSelector'],
+        required: ['tableSelector']
+    },
+
+    // 🔹 Advanced
+    ASSERT_API_CALLED: {
+        label: 'API Called',
+        fields: ['cssSelector'],
+        required: ['cssSelector']
+    },
+    ASSERT_ATTRIBUTE: {
+        label: 'Attribute',
+        fields: ['cssSelector', 'expectedValue'],
+        required: ['cssSelector', 'expectedValue']
+    }
+};
+
+// Sort order options
+export const SORT_ORDER_OPTIONS = [
+    { value: 'ascending', label: 'Ascending' },
+    { value: 'descending', label: 'Descending' }
+];
 
 // Minimum required fields per type (used for validation before save)
 export const REQUIRED = {
@@ -78,4 +162,5 @@ export const REQUIRED = {
     MODAL_NAV:  ['cssSelector'],
     SEARCH_NAV: ['cssSelector', 'value'],
     VERIFY_PAGE: ['url', 'cssSelector'],
+    ASSERT:     [],
 };

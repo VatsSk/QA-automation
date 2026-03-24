@@ -708,18 +708,6 @@ public class SeleniumExecutor {
             throw new AssertionError("Element not present in DOM: " + step.getLocator());
         }
     }
-    private WebElement find(WebDriver driver, StepAction step) {
-
-        if ("css".equalsIgnoreCase(step.getLocatorType())) {
-            return driver.findElement(By.cssSelector(step.getLocator()));
-        }
-        else if ("xpath".equalsIgnoreCase(step.getLocatorType())) {
-            return driver.findElement(By.xpath(step.getLocator()));
-        }
-        else {
-            throw new IllegalArgumentException("Invalid locator type");
-        }
-    }
     private void assertVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
 
         WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(
@@ -1071,7 +1059,6 @@ public class SeleniumExecutor {
     private By getBy(StepAction step) {
 
         logger.info("Resolving locator...");
-        logger.info("Locator type: {}", step.getLocatorType());
         logger.info("Locator value: {}", step.getLocator());
 
         if(step.getLocator()!=null){

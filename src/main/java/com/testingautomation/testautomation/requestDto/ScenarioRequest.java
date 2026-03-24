@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.requestDto;
 
+import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.model.ScenarioType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -30,4 +31,5 @@ public class ScenarioRequest {
     private String csv;
 
     private List<ManualTestCaseRequest> manualTestCases;
+    private List<AssertionDto> assertions;
 }

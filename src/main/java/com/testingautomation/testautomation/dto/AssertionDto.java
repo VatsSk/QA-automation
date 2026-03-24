@@ -34,18 +34,8 @@ public class AssertionDto {
      * API endpoint ("/members/list")
      */
     private String value;
-
     private String tableId;
-
     private String rowsBtn;
-
     private String rangeId;
-
-    //    Optional: timeout for wait (in seconds)
-//    private Integer timeout;
-//
-//
-//    //     Optional: human-readable description
-//    private String description;
 }
 

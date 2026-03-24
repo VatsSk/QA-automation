@@ -97,7 +97,8 @@
 
 <script type="module">
     import * as api      from './js/api.js';
-    import { TYPES, REQUIRED } from './js/config.js';
+    import * as assrtFunc      from './js/assertions_functions.js';
+    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS } from './js/config.js';
     import { esc, toast, openModal, closeModal,
         requireLogin, initTheme, toggleTheme } from './js/utils.js';
 
@@ -122,6 +123,14 @@
 
     // scTab[key] = 'manual' | 'csv' — tracks active test-data tab per scenario
     const scTab   = {};
+
+    // Helper function to initialize assertions for a scenario
+    function ensureAssertions(scenario) {
+        if (!scenario.assertions) {
+            scenario.assertions = [];
+        }
+        return scenario.assertions;
+    }
 
     // ── Breadcrumbs & back button ──────────────────────────────────────────
     const backUrl = projectId && moduleId
@@ -172,6 +181,8 @@
                     value:           s.value       || '',
                     csv:             s.csv         || '',
                     manualTestCases: s.manualTestCases || [],
+                    // 🔥 IMPORTANT
+                    assertions:      s.assertions || [],
                 }));
                 renderSidebar();
                 renderPanel();
@@ -197,6 +208,65 @@
       </div>`;
         }).join('');
     }
+    // ── Assertion actions ───────────────────────────────────────────────────
+    window.addAssertion = function (scIdx) {
+        const scenario = scenarios[scIdx];
+        const assertions = ensureAssertions(scenario);
+
+        assertions.push({
+            assertType: '',
+            cssSelector: '',
+            expectedValue: '',
+            tableSelector: '',
+            columnName: '',
+            order: '',
+            btnSelector: ''
+        });
+
+        renderPanel();
+    };
+    // function ensureAssertions(scenario) {
+    //     if (!scenario.assertions) {
+    //         scenario.assertions = [];
+    //     }
+    //     return scenario.assertions;
+    // }
+
+    window.removeAssertion = function (scIdx, assertionIdx) {
+        const scenario = scenarios[scIdx];
+        if (scenario.assertions && scenario.assertions[assertionIdx]) {
+            scenario.assertions.splice(assertionIdx, 1);
+            renderPanel();
+        }
+    };
+
+    window.updateAssertionType = function (scIdx, assertionIdx, assertType) {
+        const scenario = scenarios[scIdx];
+
+        if (scenario.assertions && scenario.assertions[assertionIdx]) {
+            scenario.assertions[assertionIdx].assertType = assertType;
+
+            // 🔥 smart cleanup (important)
+            const newConfig = ASSERT_TYPES[assertType] || { fields: [] };
+            const allFields = ['cssSelector', 'expectedValue', 'tableSelector', 'columnName', 'order', 'btnSelector'];
+
+            allFields.forEach(field => {
+                if (!newConfig.fields.includes(field)) {
+                    scenario.assertions[assertionIdx][field] = '';
+                }
+            });
+
+            renderPanel();
+        }
+    };
+
+    window.updateAssertionField = function (scIdx, assertionIdx, field, value) {
+        console.log("Updating:", scIdx, assertionIdx, field, value);
+        const scenario = scenarios[scIdx];
+        if (scenario.assertions && scenario.assertions[assertionIdx]) {
+            scenario.assertions[assertionIdx][field] = value;
+        }
+    };
 
     // ── Scenario config panel ──────────────────────────────────────────────
     function renderPanel() {
@@ -283,6 +353,9 @@
 
         <!-- ── Test data (only URL and MODAL have test data) ── -->
         ${cfg.hasData ? renderDataSection(scIdx, s, tab) : ''}
+
+        <!-- ── Assertions (only for ASSERT type) ── -->
+        ${s.type === 'ASSERT' ? assrtFunc.renderAssertionsSection(scIdx, s) : 'abx'}
 
       </div>
     </div>`;
@@ -497,8 +570,24 @@
       </div>`);
     };
 
+    // window.addScenario = function (type) {
+    //     scenarios.push({
+    //         _key:            ++scKey,
+    //         id:              undefined,
+    //         type,
+    //         url:             '',
+    //         cssSelector:     '',
+    //         value:           '',
+    //         csv:             '',
+    //         manualTestCases: [],
+    //     });
+    //     scIdx = scenarios.length - 1;
+    //     closeModal();
+    //     renderSidebar();
+    //     renderPanel();
+    // };
     window.addScenario = function (type) {
-        scenarios.push({
+        const newScenario = {
             _key:            ++scKey,
             id:              undefined,
             type,
@@ -507,7 +596,16 @@
             value:           '',
             csv:             '',
             manualTestCases: [],
-        });
+        };
+
+        // 🔥 ONLY ADD THIS (no breaking change)
+        if (type === 'ASSERT') {
+            newScenario.assertions = [];
+        }
+
+        console.log(type+"choosen!")
+
+        scenarios.push(newScenario);
         scIdx = scenarios.length - 1;
         closeModal();
         renderSidebar();
@@ -521,9 +619,13 @@
         if (!scenarios.length) { toast('Add at least one scenario', 'warning'); return false; }
         for (let i = 0; i < scenarios.length; i++) {
             const s   = scenarios[i];
+            console.log("s.type : "+s.type)
             const req = REQUIRED[s.type] || [];
+            console.log("req : "+ req);
             for (const f of req) {
                 const val = f === 'cssSelector' ? s.cssSelector : s[f];
+                console.log("val : "+ val);
+                console.log(!val?.trim())
                 if (!val?.trim()) {
                     toast(`Scenario #${i + 1} (${s.type}): "${f}" is required`, 'warning');
                     selectScenario(i);
@@ -543,22 +645,30 @@
                 .split(',').map(t => t.trim()).filter(Boolean),
             resultStatement: document.getElementById('f-resultStatement').value.trim(),
             createdBy:       user.id || user._id || '',
-            scenariosList:   scenarios.map((s, i) => ({
+
+            scenariosList: scenarios.map((s, i) => ({
                 id:              s.id    || undefined,
                 type:            s.type,
                 sequenceNo:      i + 1,
                 url:             s.url         || null,
-                cssOpener:       s.cssSelector || null,   // backend expects "cssOpener"
+                cssOpener:       s.cssSelector || null,
                 value:           s.value       || null,
                 csv:             s.csv         || null,
-                scenarioBasePath:s.scenarioBasePath||null,
+                scenarioBasePath:s.scenarioBasePath || null,
+
+                // 🔥 ADD THIS
+                assertions: s.type === 'ASSERT' ? (s.assertions || []) : undefined,
             })),
         };
     }
 
     // ── Save to DB ─────────────────────────────────────────────────────────
     async function saveRun() {
+        // 🔥 ADD HERE
+        console.log("SCENARIOS BEFORE SAVE:", JSON.stringify(scenarios, null, 2));
         const data = buildPayload();
+        // optional (very useful)
+        console.log("PAYLOAD:", JSON.stringify(data, null, 2));
         if (runId) {
             return api.runs.update(runId, data);
         }
