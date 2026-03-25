@@ -73,7 +73,7 @@ export const TYPES = {
         icon:    '✓',
         color:   'var(--or)',
         bg:      'var(--or-d)',
-        fields:  ['assertType', 'tableSelector', 'cssSelector', 'expectedValue', 'columnName', 'order', 'btnSelector'],
+        fields:  ['type', 'tableId', 'locator', 'expected', 'columnName', 'rangeId', 'rowsBtn'],
         hasData: false,
         hint:    'Assert element value or text content',
         dynamicFields: true,
@@ -114,8 +114,8 @@ export const ASSERT_TYPES = {
     // 🔹 Grid / Table
     ASSERT_COLUMN_PRESENT: {
         label: 'Column(s) Present',
-        fields: ['locator', 'columnName'],
-        required: ['locator', 'columnName']
+        fields: ['tableId', 'columnName'],
+        required: ['tableId', 'columnName']
     },
     ASSERT_COUNT: {
         label: 'Count',

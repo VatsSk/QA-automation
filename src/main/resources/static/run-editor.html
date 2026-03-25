@@ -182,7 +182,15 @@
                     csv:             s.csv         || '',
                     manualTestCases: s.manualTestCases || [],
                     // 🔥 IMPORTANT
-                    assertions:      s.assertions || [],
+                    assertions:      (s.assertions || []).map(a => ({
+                        type: a.type || '',
+                        locator: a.locator || '',
+                        expected: a.expected || '',
+                        tableId: a.tableId || '',
+                        columnName: a.columnName || '',
+                        rangeId: a.rangeId || '',
+                        rowsBtn: a.rowsBtn || ''
+                    })),
                 }));
                 renderSidebar();
                 renderPanel();
@@ -240,15 +248,15 @@
         }
     };
 
-    window.updateAssertionType = function (scIdx, assertionIdx, assertType) {
+    window.updateAssertionType = function (scIdx, assertionIdx, type) {
         const scenario = scenarios[scIdx];
 
         if (scenario.assertions && scenario.assertions[assertionIdx]) {
-            scenario.assertions[assertionIdx].assertType = assertType;
+            scenario.assertions[assertionIdx].type = type;
 
             // 🔥 smart cleanup (important)
-            const newConfig = ASSERT_TYPES[assertType] || { fields: [] };
-            const allFields = ['cssSelector','locator', 'expected', 'tableId', 'columnName', 'rowsBtn'];
+            const newConfig = ASSERT_TYPES[type] || { fields: [] };
+            const allFields = ['locator', 'expected', 'tableId', 'columnName', 'order', 'rowsBtn'];
 
             allFields.forEach(field => {
                 if (!newConfig.fields.includes(field)) {
@@ -570,22 +578,6 @@
       </div>`);
     };
 
-    // window.addScenario = function (type) {
-    //     scenarios.push({
-    //         _key:            ++scKey,
-    //         id:              undefined,
-    //         type,
-    //         url:             '',
-    //         cssSelector:     '',
-    //         value:           '',
-    //         csv:             '',
-    //         manualTestCases: [],
-    //     });
-    //     scIdx = scenarios.length - 1;
-    //     closeModal();
-    //     renderSidebar();
-    //     renderPanel();
-    // };
     window.addScenario = function (type) {
         const newScenario = {
             _key:            ++scKey,
@@ -638,6 +630,12 @@
 
     // ── Build payload ──────────────────────────────────────────────────────
     function buildPayload() {
+        console.log("All scenarios before payload:", JSON.stringify(scenarios, null, 2));
+
+        // Debug ASSERT scenarios specifically
+        const assertScenarios = scenarios.filter(s => s.type === 'ASSERT');
+        console.log("ASSERT scenarios:", JSON.stringify(assertScenarios, null, 2));
+
         return {
             runName:         document.getElementById('f-runName').value.trim(),
             runType:         document.getElementById('f-runType').value.trim(),
@@ -657,7 +655,15 @@
                 scenarioBasePath:s.scenarioBasePath || null,
 
                 // 🔥 ADD THIS
-                assertions: s.type === 'ASSERT' ? (s.assertions || []) : undefined,
+                assertions: s.type === 'ASSERT' ? (s.assertions || []).map(a => ({
+                    type: a.type || null,
+                    locator: a.locator || null,
+                    expected: a.expected || null,
+                    tableId: a.tableId || null,
+                    columnName: a.columnName || null,
+                    order: a.order || null,
+                    rowsBtn: a.rowsBtn || null
+                })) : undefined,
             })),
         };
     }

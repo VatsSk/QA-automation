@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.dto.responseDto;
 
+import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.model.RunStatus;
 import com.testingautomation.testautomation.model.ScenarioStatus;
 import com.testingautomation.testautomation.model.ScenarioType;
@@ -28,6 +29,7 @@ public class ScenarioResponse {
     private String value;
     private String statement;
     private String csv;
+    private List<AssertionDto> assertions;
     private List<ManualTestCaseResponse> manualTestCases;
     private String resultCsv;
     private List<String> screenshots;

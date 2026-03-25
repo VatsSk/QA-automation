@@ -23,8 +23,8 @@ export function renderAssertionsSection(idx, s) {
 }
 
 function renderAssertion(scIdx, assertionIdx, assertion) {
-    const assertType = assertion.assertType || '';
-    const assertConfig = ASSERT_TYPES[assertType] || { fields: [], required: [] };
+    const type = assertion.type || '';
+    const assertConfig = ASSERT_TYPES[type] || { fields: [], required: [] };
     
     return `
     <div class="assertion-card" id="assertion-${scIdx}-${assertionIdx}" style="border:1px solid var(--bd);border-radius:var(--rs);padding:12px;margin-bottom:12px;background:var(--sur2)">
@@ -34,14 +34,14 @@ function renderAssertion(scIdx, assertionIdx, assertion) {
                 <select class="inp" style="width:180px" onchange="updateAssertionType(${scIdx}, ${assertionIdx}, this.value)">
                     <option value="">Select type...</option>
                     ${Object.entries(ASSERT_TYPES).map(([key, config]) => 
-                        `<option value="${key}" ${assertType === key ? 'selected' : ''}>${config.label}</option>`
+                        `<option value="${key}" ${type === key ? 'selected' : ''}>${config.label}</option>`
                     ).join('')}
                 </select>
             </div>
             <button class="btn btn-danger btn-xs" onclick="removeAssertion(${scIdx}, ${assertionIdx})" style="padding:4px 8px;font-size:11px">Remove</button>
         </div>
         
-        ${assertType ? renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) : ''}
+        ${type ? renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) : ''}
     </div>`;
 }
 
@@ -53,7 +53,7 @@ function renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) {
         let value = assertion[field] || '';
         
         switch(field) {
-            case 'cssSelector':
+            case 'locator':
                 fieldHtml = `
                 <div class="field" style="margin:8px 0">
                     <label class="lbl">CSS Selector ${assertConfig.required.includes(field) ? '*' : ''}</label>
@@ -64,7 +64,7 @@ function renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) {
                 </div>`;
                 break;
                 
-            case 'expectedValue':
+            case 'expected':
                 fieldHtml = `
                 <div class="field" style="margin:8px 0">
                     <label class="lbl">Expected Value ${assertConfig.required.includes(field) ? '*' : ''}</label>
@@ -75,7 +75,7 @@ function renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) {
                 </div>`;
                 break;
                 
-            case 'tableSelector':
+            case 'tableId':
                 fieldHtml = `
                 <div class="field" style="margin:8px 0">
                     <label class="lbl">Table Selector ${assertConfig.required.includes(field) ? '*' : ''}</label>
@@ -111,7 +111,7 @@ function renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) {
                 </div>`;
                 break;
                 
-            case 'btnSelector':
+            case 'rowsBtn':
                 fieldHtml = `
                 <div class="field" style="margin:8px 0">
                     <label class="lbl">Button Selector ${assertConfig.required.includes(field) ? '*' : ''}</label>

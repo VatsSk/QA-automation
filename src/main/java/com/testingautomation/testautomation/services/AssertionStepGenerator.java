@@ -34,7 +34,7 @@ public class AssertionStepGenerator {
                     a.getTableId(),
                     a.getColumnName(),
                     a.getRowsBtn(),
-                    a.getRangeId()
+                    a.getOrder()
             );
 
             steps.add(step);

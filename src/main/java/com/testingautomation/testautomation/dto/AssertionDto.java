@@ -27,6 +27,6 @@ public class AssertionDto {
 
     private String tableId;
     private String rowsBtn;
-    private String rangeId;
+    private String order;
 }
 
