@@ -53,13 +53,15 @@ public class Run {
     /** Count mirrors scenariosList.size() — kept for fast queries */
     private int scenarioCount;
 
+    private String resultStatement;
+
     /**
      * THE FINAL ASSERT MESSAGE for the run.
      * - Stored here on the Run document.
      * - NOT stored inside any Scenario.
      * - Passed as query param ?resultStatement=... when calling POST /runner/run-auth.
      */
-    private String resultStatement;
+    private String reason;
 
     /**
      * Embedded scenarios. ScenarioType never includes RESULT_STATEMENT.

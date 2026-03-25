@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
+
 @Service
 @RequiredArgsConstructor
 public class ScenarioOrchestratorService {
@@ -115,10 +117,16 @@ public class ScenarioOrchestratorService {
                 }
 
             } catch (Exception e) {
-                throw new GlobalExceptionHandler.RunnerIntegrationException(
-                        "Scenario failed: " + e.getMessage(),
-                        e
-                );
+                current.setScenarioStatus(RunStatus.FAILED);
+
+                // Create user-friendly error message
+                String userMessage = getUserFriendlyErrorMessage(e, current, i);
+
+                // Log detailed error for debugging
+                logger.error("Scenario #{} ({}) failed: {}", i + 1, current.getType(), e.getMessage(), e);
+
+                // Stop execution by throwing user-friendly exception
+                throw new GlobalExceptionHandler.RunnerIntegrationException(userMessage, e);
             }
         }
 

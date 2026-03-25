@@ -33,6 +33,8 @@ public class RunResponse {
      */
     private String resultStatement;
 
+    private String reason;
+
     private List<ScenarioResponse> scenariosList;
     private Map<String, Object> metadata;
     private List<String> tags;

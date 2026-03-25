@@ -715,7 +715,7 @@
         this.disabled = true;
         this.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></div> Saving…';
         try {
-            const saved   = await saveRun();
+            const saved = await saveRun();
             const savedId = saved.id || saved._id;
             toast('Saved — starting run…', 'info', 2000);
             this.innerHTML = '⏳ Running…';
@@ -723,9 +723,16 @@
             toast('Run started!', 'success');
             window.location.href = `/run-detail.html?runId=${savedId}`;
         } catch (e) {
-            toast('Error: ' + e.message, 'error');
+            // Extract user-friendly message from error response
+            let errorMessage = 'Error occurred while starting run';
+            if (e.response && e.response.data && e.response.data.message) {
+                errorMessage = e.response.data.message;
+            } else if (e.message) {
+                errorMessage = e.message;
+            }
+            toast(errorMessage, 'error', 5000); // Show for 5 seconds
             this.disabled = false;
-            this.innerHTML = '▶ Save &amp; Run';
+            this.innerHTML = '▶ Save & Run';
         }
     };
 </script>
