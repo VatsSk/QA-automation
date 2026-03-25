@@ -73,7 +73,7 @@ export const TYPES = {
         icon:    '✓',
         color:   'var(--or)',
         bg:      'var(--or-d)',
-        fields:  ['assertType', 'tableSelector', 'cssSelector', 'expectedValue', 'columnName', 'order', 'btnSelector'],
+        fields:  ['cssSelector', 'type', 'tableId', 'locator', 'expected', 'columnName', 'rangeId', 'rowsBtn'],
         hasData: false,
         hint:    'Assert element value or text content',
         dynamicFields: true,
@@ -85,66 +85,66 @@ export const ASSERT_TYPES = {
     // 🔹 Basic UI
     ASSERT_VISIBLE: {
         label: 'Element Visible',
-        fields: ['cssSelector'],
-        required: ['cssSelector']
+        fields: ['locator'],
+        required: ['locator']
     },
     ASSERT_NOT_VISIBLE: {
         label: 'Element Not Visible',
-        fields: ['cssSelector'],
-        required: ['cssSelector']
+        fields: ['locator'],
+        required: ['locator']
     },
     ASSERT_ELEMENT_PRESENT: {
         label: 'Element Present',
-        fields: ['cssSelector'],
-        required: ['cssSelector']
+        fields: ['locator'],
+        required: ['locator']
     },
 
     // 🔹 Text / Value
     ASSERT_TEXT_EQUALS: {
         label: 'Text Equals',
-        fields: ['cssSelector', 'expectedValue'],
-        required: ['cssSelector', 'expectedValue']
+        fields: ['locator', 'expected'],
+        required: ['locator', 'expected']
     },
     ASSERT_TEXT_CONTAINS: {
         label: 'Text Contains',
-        fields: ['cssSelector', 'expectedValue'],
-        required: ['cssSelector', 'expectedValue']
+        fields: ['locator', 'expected'],
+        required: ['locator', 'expected']
     },
 
     // 🔹 Grid / Table
     ASSERT_COLUMN_PRESENT: {
         label: 'Column(s) Present',
-        fields: ['tableSelector', 'columnName'],
-        required: ['tableSelector', 'columnName']
+        fields: ['tableId', 'columnName'],
+        required: ['tableId', 'columnName']
     },
     ASSERT_COUNT: {
         label: 'Count',
-        fields: ['tableSelector', 'btnSelector'],
-        required: ['tableSelector']
+        fields: ['tableId', 'rowsBtn'],
+        required: ['tableId']
     },
 
     // 🔹 Behavior
     ASSERT_SORT_ORDER: {
         label: 'Sort Order',
-        fields: ['tableSelector', 'columnName', 'order'],
-        required: ['tableSelector', 'columnName', 'order']
+        fields: ['tableId', 'columnName', 'order'],
+        required: ['tableId', 'columnName', 'order']
     },
     ASSERT_PAGINATION: {
         label: 'Pagination',
-        fields: ['tableSelector', 'btnSelector'],
-        required: ['tableSelector']
+        fields: ['tableId', 'rowsBtn'],
+        required: ['tableId']
     },
 
     // 🔹 Advanced
     ASSERT_API_CALLED: {
         label: 'API Called',
-        fields: ['cssSelector'],
-        required: ['cssSelector']
+        fields: ['locator'],
+        required: ['locator']
     },
     ASSERT_ATTRIBUTE: {
         label: 'Attribute',
-        fields: ['cssSelector', 'expectedValue'],
-        required: ['cssSelector', 'expectedValue']
+        fields: ['locator', 'expected'],
+        required: ['locator', 'expected']
     }
 };
 

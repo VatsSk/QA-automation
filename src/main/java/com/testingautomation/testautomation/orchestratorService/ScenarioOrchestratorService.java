@@ -374,6 +374,9 @@ public class ScenarioOrchestratorService {
             if (currScenario.getType() == ScenarioType.MODAL) {
                 logger.info("Reached MODAL scenario at index {}, stopping navigation phase", currIdx);
                 return currIdx;
+            }else if (currScenario.getType() == ScenarioType.ASSERT) {
+                logger.info("Reached Assert scenario at index {}, stopping navigation phase", currIdx);
+                return currIdx;
             }
 
             try {
@@ -642,7 +645,12 @@ public class ScenarioOrchestratorService {
                 baseS3Prefix + "/" + (currEle+1);
 
         Scenario currModal=scenarios.get(currEle);
+        logger.info("Processing scenario at adjusted index {}: type={}, url={}", 
+            currEle, currModal.getType(), currModal.getUrl());
+        
         if(currModal.getType()==ScenarioType.ASSERT){
+            logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
+            currEle, currModal.getType());
             runAssertionGeneric(driver,currModal,baseS3Prefix);
             return null;
         }
