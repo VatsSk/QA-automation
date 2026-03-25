@@ -46,16 +46,19 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
+    public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", ex.getMessage());
+        body.put("status", "FAILED");
+        return ResponseEntity.badRequest().body(body);
     }
 
     @ExceptionHandler(RunnerIntegrationException.class)
-    public ResponseEntity<ErrorResponse> handleRunnerError(RunnerIntegrationException ex) {
-        log.error("Runner integration error: {}", ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
-                .body(ErrorResponse.of(HttpStatus.BAD_GATEWAY.value(), "Runner error: " + ex.getMessage()));
+    public ResponseEntity<Map<String, Object>> handleRunnerIntegration(RunnerIntegrationException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", ex.getMessage());
+        body.put("status", "FAILED");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
     }
 
     @ExceptionHandler(StorageException.class)

@@ -129,11 +129,11 @@ export const ASSERT_TYPES = {
         fields: ['tableId', 'columnName', 'order'],
         required: ['tableId', 'columnName', 'order']
     },
-    ASSERT_PAGINATION: {
-        label: 'Pagination',
-        fields: ['tableId', 'rowsBtn'],
-        required: ['tableId','rowsBtn']
-    },
+    // ASSERT_PAGINATION: {
+    //     label: 'Pagination',
+    //     fields: ['tableId', 'rowsBtn'],
+    //     required: ['tableId']
+    // },
 
     // 🔹 Advanced
     ASSERT_API_CALLED: {

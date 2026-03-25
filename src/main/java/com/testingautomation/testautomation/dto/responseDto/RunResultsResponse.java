@@ -24,4 +24,6 @@ public class RunResultsResponse {
     private List<String> allResultCsvs;
     /** resultStatement from the Run document */
     private String resultStatement;
+    /** reason from the Run document - system-generated execution result/failure reason */
+    private String reason;
 }

@@ -41,6 +41,8 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
+
 @Service
 @RequiredArgsConstructor
 public class ScenarioOrchestratorService {
@@ -115,10 +117,16 @@ public class ScenarioOrchestratorService {
                 }
 
             } catch (Exception e) {
-                throw new GlobalExceptionHandler.RunnerIntegrationException(
-                        "Scenario failed: " + e.getMessage(),
-                        e
-                );
+                current.setScenarioStatus(RunStatus.FAILED);
+
+                // Create user-friendly error message
+                String userMessage = getUserFriendlyErrorMessage(e, current, i);
+
+                // Log detailed error for debugging
+                logger.error("Scenario #{} ({}) failed: {}", i + 1, current.getType(), e.getMessage(), e);
+
+                // Stop execution by throwing user-friendly exception
+                throw new GlobalExceptionHandler.RunnerIntegrationException(userMessage, e);
             }
         }
 
@@ -375,10 +383,6 @@ public class ScenarioOrchestratorService {
                 logger.info("Reached MODAL scenario at index {}, stopping navigation phase", currIdx);
                 return currIdx;
             }else if (currScenario.getType() == ScenarioType.ASSERT) {
-                logger.info("Reached Assert scenario at index {}, stopping navigation phase", currIdx);
-                return currIdx;
-            }
-            else if (currScenario.getType() == ScenarioType.ASSERT) {
                 logger.info("Reached Assert scenario at index {}, stopping navigation phase", currIdx);
                 return currIdx;
             }
@@ -649,9 +653,9 @@ public class ScenarioOrchestratorService {
                 baseS3Prefix + "/" + (currEle+1);
 
         Scenario currModal=scenarios.get(currEle);
-        logger.info("Processing scenario at adjusted index {}: type={}, url={}", 
+        logger.info("Processing scenario at adjusted index {}: type={}, url={}",
             currEle, currModal.getType(), currModal.getUrl());
-        
+
         if(currModal.getType()==ScenarioType.ASSERT){
             logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
             currEle, currModal.getType());

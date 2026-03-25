@@ -252,12 +252,21 @@
                         <div class="rmi-label">Last Updated</div>
                         <div class="rmi-val" style="font-size:12px">${timeAgo(run.updatedAt || run.createdAt)}</div>
                     </div>
-                    ${run.resultStatement ? `
-                        <div>
-                            <div class="rmi-label">Assert Statement</div>
-                            <div class="rmi-val" style="color:var(--gr)">${esc(run.resultStatement)}</div>
-                        </div>
-                    ` : ''}
+                   ${run.resultStatement ? `
+                            <div>
+                                <div class="rmi-label">Assert Statement</div>
+                                <div class="rmi-val" style="color:var(--gr)">${esc(run.resultStatement)}</div>
+                            </div>
+                        ` : ''}
+
+                        ${run.reason ? `
+                            <div>
+                                <div class="rmi-label">Reason</div>
+                                <div class="rmi-val" style="color:#d97706;font-size:12px;line-height:1.5;">
+                                    ${esc(run.reason)}
+                                </div>
+                            </div>
+                        ` : ''}
                 </div>
             </div>
 

@@ -3,7 +3,6 @@ package com.testingautomation.testautomation.services;
 
 import com.testingautomation.testautomation.config.StorageProperties;
 import com.testingautomation.testautomation.dto.AssertionDto;
-import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.dto.responseDto.PagedResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResultsResponse;
@@ -153,8 +152,7 @@ public class RunService {
                     .map(this::cloneScenario)
                     .collect(Collectors.toList());
             clone.setScenariosList(clonedScenarios);
-            clone.setScenarioCount(clonedScenarios.size()
-            );
+            clone.setScenarioCount(clonedScenarios.size());
         }
 
         Run saved = runRepository.save(clone);
@@ -186,24 +184,21 @@ public class RunService {
         Run updated = run;
 
         try {
-            // Mark run as RUNNING before execution starts
-            run.setStatus(RunStatus.RUNNING);
-            run.setUpdatedAt(java.time.Instant.now());
-            updated = runRepository.save(run);
+            updated.setStatus(RunStatus.RUNNING);
+            updated.setUpdatedAt(java.time.Instant.now());
+            updated = runRepository.save(updated);
 
             ChromeOptions options = new ChromeOptions();
             options.addArguments("--disable-gpu");
             options.addArguments("--window-size=1366,768");
 
-            // IMPORTANT: create driver INSIDE try block
             driver = new ChromeDriver(options);
 
-            // Execute all scenarios
             updated = scenarioOrchestratorService.executeScenarios(updated, driver, id);
 
-            // If orchestrator didn't set final status, set COMPLETED here
             if (updated.getStatus() == RunStatus.RUNNING) {
                 updated.setStatus(RunStatus.PASSED);
+                updated.setReason("All scenarios executed successfully");
                 updated.setUpdatedAt(java.time.Instant.now());
                 updated = runRepository.save(updated);
             }
@@ -216,80 +211,55 @@ public class RunService {
         } catch (GlobalExceptionHandler.ResourceNotFoundException |
                  GlobalExceptionHandler.BadRequestException ex) {
 
-            // Business exceptions: preserve exact message
-            markRunFailed(run, ex.getMessage());
+            markRunFailed(updated, ex.getMessage());
+            throw ex;
+
+        } catch (GlobalExceptionHandler.RunnerIntegrationException ex) {
+
+            markRunFailed(updated, ex.getMessage());
             throw ex;
 
         } catch (org.openqa.selenium.TimeoutException ex) {
 
-            log.error("Run {} failed due to timeout: {}", id, ex.getMessage(), ex);
-            markRunFailed(run, "Target web page is slow or element did not become visible in time");
-
-            throw new GlobalExceptionHandler.RunnerIntegrationException(
-                    "Test execution failed: target web page is slow or element did not become visible in time",
-                    ex
-            );
+            String message = "Test execution failed: target web page is slow or element did not become visible in time";
+            markRunFailed(updated, message);
+            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
         } catch (org.openqa.selenium.NoSuchElementException ex) {
 
-            log.error("Run {} failed due to missing element: {}", id, ex.getMessage(), ex);
-            markRunFailed(run, "Required element not found on target web page");
-
-            throw new GlobalExceptionHandler.RunnerIntegrationException(
-                    "Test execution failed: required element not found on target web page",
-                    ex
-            );
+            String message = "Test execution failed: required element not found on target web page";
+            markRunFailed(updated, message);
+            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
         } catch (org.openqa.selenium.ElementClickInterceptedException ex) {
 
-            log.error("Run {} failed due to click interception: {}", id, ex.getMessage(), ex);
-            markRunFailed(run, "Element click was intercepted by another UI element");
-
-            throw new GlobalExceptionHandler.RunnerIntegrationException(
-                    "Test execution failed: element click was intercepted by another UI element",
-                    ex
-            );
+            String message = "Test execution failed: element click was intercepted by another UI element";
+            markRunFailed(updated, message);
+            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
         } catch (org.openqa.selenium.ElementNotInteractableException ex) {
 
-            log.error("Run {} failed due to non-interactable element: {}", id, ex.getMessage(), ex);
-            markRunFailed(run, "Element exists but is not interactable on target web page");
-
-            throw new GlobalExceptionHandler.RunnerIntegrationException(
-                    "Test execution failed: element exists but is not interactable on target web page",
-                    ex
-            );
+            String message = "Test execution failed: element exists but is not interactable on target web page";
+            markRunFailed(updated, message);
+            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
         } catch (org.openqa.selenium.StaleElementReferenceException ex) {
 
-            log.error("Run {} failed due to stale element: {}", id, ex.getMessage(), ex);
-            markRunFailed(run, "Page updated and element reference became stale");
-
-            throw new GlobalExceptionHandler.RunnerIntegrationException(
-                    "Test execution failed: page updated and element reference became stale",
-                    ex
-            );
+            String message = "Test execution failed: page updated and element reference became stale";
+            markRunFailed(updated, message);
+            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
         } catch (org.openqa.selenium.WebDriverException ex) {
 
-            // Covers browser startup failure, session crash, driver crash, etc.
-            log.error("Run {} failed due to WebDriver error: {}", id, ex.getMessage(), ex);
-            markRunFailed(run, "Browser automation failed during test execution");
-
-            throw new GlobalExceptionHandler.RunnerIntegrationException(
-                    "Browser automation failed: " + ex.getMessage(),
-                    ex
-            );
+            String message = "Browser automation failed during test execution: " + ex.getMessage();
+            markRunFailed(updated, message);
+            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
         } catch (Exception ex) {
 
-            log.error("Run {} failed due to unexpected error: {}", id, ex.getMessage(), ex);
-            markRunFailed(run, "Unexpected error during test execution");
-
-            throw new GlobalExceptionHandler.RunnerIntegrationException(
-                    "Unexpected execution failure: " + ex.getMessage(),
-                    ex
-            );
+            String message = "Unexpected execution failure: " + ex.getMessage();
+            markRunFailed(updated, message);
+            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
         } finally {
             if (driver != null) {
@@ -305,7 +275,7 @@ public class RunService {
     private void markRunFailed(Run run, String failureReason) {
         try {
             run.setStatus(RunStatus.FAILED);
-            run.setResultStatement(failureReason); // assuming this field exists
+            run.setReason(failureReason); // Store failure reason in reason field, not resultStatement
             run.setUpdatedAt(java.time.Instant.now());
             runRepository.save(run);
         } catch (Exception dbEx) {
@@ -342,6 +312,7 @@ public class RunService {
                 .allScreenshots(allScreenshots)
                 .allResultCsvs(allResultCsvs)
                 .resultStatement(run.getResultStatement())   // from Run top-level field
+                .reason(run.getReason())
                 .build();
     }
 

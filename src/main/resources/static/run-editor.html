@@ -707,9 +707,16 @@
             toast('Run started!', 'success');
             window.location.href = `/run-detail.html?runId=${savedId}`;
         } catch (e) {
-            toast('Error: ' + e.message, 'error');
+            // Extract user-friendly message from error response
+            let errorMessage = 'Error occurred while starting run';
+            if (e.response && e.response.data && e.response.data.message) {
+                errorMessage = e.response.data.message;
+            } else if (e.message) {
+                errorMessage = e.message;
+            }
+            toast(errorMessage, 'error', 5000); // Show for 5 seconds
             this.disabled = false;
-            this.innerHTML = '▶ Save &amp; Run';
+            this.innerHTML = '▶ Save & Run';
         }
     };
 </script>

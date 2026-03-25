@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.services;
 
 import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.StepAction;
+import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.model.AssertionType;
 import org.springframework.stereotype.Service;
 
@@ -106,7 +107,9 @@ public class AssertionStepGenerator {
                 return StepAction.ActionType.ASSERT_ATTRIBUTE;
 
             default:
-                throw new IllegalArgumentException("Unknown assertion type: " + type);
+                throw new GlobalExceptionHandler.BadRequestException(
+                        "Invalid configuration - Unknown assertion type: " + type
+                );
         }
     }
 
