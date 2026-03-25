@@ -24,6 +24,16 @@ public class AssertionStepGenerator {
             StepAction.ActionType actionType = mapToActionType(a.getType());
 
             String description = buildDescription(a);
+//            private StepAction.ActionType type;
+//            private String locatorType; // css / xpath / id
+//            private String locator;     // actual locator value
+//            private String payload;     // text to type / text to select / expected text
+//            private String description;
+//            private String tableId;
+//            private String colName;
+//            private String rowsBtn;
+//            private String rangeId;
+//            private String order;
 
             StepAction step = new StepAction(
                     actionType,

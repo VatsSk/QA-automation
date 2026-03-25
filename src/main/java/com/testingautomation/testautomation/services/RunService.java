@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.services;
 
 
 import com.testingautomation.testautomation.config.StorageProperties;
+import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.dto.responseDto.PagedResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
@@ -152,7 +153,8 @@ public class RunService {
                     .map(this::cloneScenario)
                     .collect(Collectors.toList());
             clone.setScenariosList(clonedScenarios);
-            clone.setScenarioCount(clonedScenarios.size());
+            clone.setScenarioCount(clonedScenarios.size()
+            );
         }
 
         Run saved = runRepository.save(clone);
@@ -382,6 +384,24 @@ public class RunService {
                 .status(ScenarioStatus.PENDING)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
+                .assertions(
+                        original.getAssertions() != null
+                                ? original.getAssertions().stream()
+                                .map(this::cloneAssertion)
+                                .collect(Collectors.toList())
+                                : null
+                )
+                .build();
+    }
+    private AssertionDto cloneAssertion(AssertionDto a) {
+        return AssertionDto.builder()
+                .type(a.getType())
+                .locator(a.getLocator())
+                .expected(a.getExpected())
+                .columnName(a.getColumnName())
+                .tableId(a.getTableId())
+                .rowsBtn(a.getRowsBtn())
+                .order(a.getOrder())   // ⚠️ THIS is your missing stability
                 .build();
     }
 

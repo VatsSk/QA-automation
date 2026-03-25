@@ -774,16 +774,16 @@ public class SeleniumExecutor {
     private void assertAllColumnsPresent(WebDriver driver, StepAction step) {
 
         // Expected columns → comma separated
-        String payload = step.getPayload();
-        logger.info("Received column payload: {}", payload);
+        String columnNames = step.getColName();
+        logger.info("Received column payload: {}", columnNames);
 
-        List<String> expectedColumns = Arrays.stream(payload.split(","))
+        List<String> expectedColumns = Arrays.stream(columnNames.split(","))
                 .map(String::trim)
                 .toList();
 
         logger.info("Parsed expected columns: {}", expectedColumns);
 
-        WebElement table = driver.findElement(By.cssSelector(step.getLocator()));
+        WebElement table = driver.findElement(By.cssSelector(step.getTableId()));
 
         List<WebElement> headers = table.findElements(By.cssSelector("thead tr th"));
 
@@ -793,12 +793,20 @@ public class SeleniumExecutor {
 
         List<String> actualColumns = headers.stream()
                 .map(h -> {
-                    h.getText().trim();
-                    String text = h.getText().trim();
-                    if(text.isEmpty()){
+                    String text = "";
+                    try {
+                        text = h.findElement(By.cssSelector("div")).getText().trim();
+                    } catch (Exception e) {
+                        text = h.getText().trim();
+                    }
+                    if (text.isEmpty()) {
                         text = h.getAttribute("aria-label");
                     }
-                    return text != null ? text.trim() : "";
+                    // clean unwanted aria suffix
+                    if (text != null && text.contains(":")) {
+                        text = text.split(":")[0].trim();
+                    }
+                    return text != null ? text : "";
                 })
                 .filter(s -> !s.isEmpty())
                 .toList();
@@ -838,7 +846,7 @@ public class SeleniumExecutor {
 
         String rowsQuery = step.getRowsBtn();
         String tableId = step.getTableId();
-        String rangeId = step.getRangeId();
+//        String rangeId = step.getRangeId();
 
         try {
             int selectedPageSize = getSelectedPageSize(driver, rowsQuery);
@@ -866,9 +874,6 @@ public class SeleniumExecutor {
                 logger.error("❌ FAIL: Visible rows exceed selected page size");
                 throw new AssertionError("Row count exceeds page size");
             }
-
-            // Final assertion based on payload
-            validateElementCount(driver, step);
 
         } catch (Exception e) {
             logger.error("❌ Exception in ASSERT_COUNT: {}", e.getMessage(), e);
@@ -939,7 +944,8 @@ public class SeleniumExecutor {
         logger.info("---- tableLocator {}----",tableLocator);
         String colName = step.getColName();
         logger.info("---- colName {}----",colName);
-        String order = step.getPayload();
+        String order = step.getOrder();
+        logger.info("---- order {}----",order);
         logger.info("---- Sorting Assertion Started ----");
         WebElement table = driver.findElement(By.cssSelector(tableLocator));
 
@@ -1008,7 +1014,7 @@ public class SeleniumExecutor {
 
         List<String> sorted = new ArrayList<>(values);
 
-        if ("desc".equalsIgnoreCase(step.getPayload())) {
+        if ("descending".equalsIgnoreCase(order)) {
             logger.info("Sorting order: DESCENDING");
             sorted.sort(Collections.reverseOrder());
         } else {

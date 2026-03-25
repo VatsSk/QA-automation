@@ -25,16 +25,6 @@ public class StepAction {
     private ActionType type;
     private String locatorType; // css / xpath / id
 
-    @Override
-    public String toString() {
-        return "StepAction{" +
-                "type=" + type +
-                ", locatorType='" + locatorType + '\'' +
-                ", locator='" + locator + '\'' +
-                ", payload='" + payload + '\'' +
-                ", description='" + description + '\'' +
-                '}';
-    }
 
     private String locator;     // actual locator value
     private String payload;     // text to type / text to select / expected text
@@ -42,7 +32,8 @@ public class StepAction {
     private String tableId;
     private String colName;
     private String rowsBtn;
-    private String rangeId;
+//    private String rangeId;
+    private String order;
 
     // constructor + getters/setters
     public StepAction(ActionType type, String locatorType, String locator, String payload, String description) {
@@ -53,5 +44,18 @@ public class StepAction {
         this.description = description;
     }
 
-
+    @Override
+    public String toString() {
+        return "StepAction{" +
+                "type=" + type +
+                ", locatorType='" + locatorType + '\'' +
+                ", locator='" + locator + '\'' +
+                ", payload='" + payload + '\'' +
+                ", description='" + description + '\'' +
+                ", tableId='" + tableId + '\'' +
+                ", colName='" + colName + '\'' +
+                ", rowsBtn='" + rowsBtn + '\'' +
+                ", order='" + order + '\'' +
+                '}';
+    }
 }

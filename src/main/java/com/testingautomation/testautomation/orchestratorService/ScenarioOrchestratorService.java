@@ -727,11 +727,11 @@ public class ScenarioOrchestratorService {
             String baseS3Prefix
     ) throws Exception {
 
-//        int scenarioId = scenario.getSequenceNo();
-//        String scenarioPrefix = baseS3Prefix + "/" + scenarioId;
+        int scenarioId = scenario.getSequenceNo();
+        String scenarioPrefix = baseS3Prefix + "/" + scenarioId;
 
-//        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
-//        Files.createDirectories(scenarioDir);
+        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
+        Files.createDirectories(scenarioDir);
 
         List<StepAction> steps =
                 assertionStepGenerator.generateAssertionSteps(
@@ -757,17 +757,17 @@ public class ScenarioOrchestratorService {
             totalPass = steps.size() - 1;
         }
 
-        // Build minimal result (can enhance later)
+        //         Build minimal result (can enhance later)
 //        List<TestCaseDTO> results = new ArrayList<>();
-
+//
 //        TestCaseDTO tc = new TestCaseDTO("1", new HashMap<>());
-
+//
 //        if (totalFail == 0) {
 //            tc.setResult("Passed");
 //        } else {
 //            tc.setResult("Failed");
 //        }
-
+//
 //        results.add(tc);
 
         // Save CSV

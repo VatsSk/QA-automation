@@ -188,7 +188,7 @@
                         expected: a.expected || '',
                         tableId: a.tableId || '',
                         columnName: a.columnName || '',
-                        rangeId: a.rangeId || '',
+                        order: a.order || '',
                         rowsBtn: a.rowsBtn || ''
                     })),
                 }));
@@ -363,7 +363,7 @@
         ${cfg.hasData ? renderDataSection(scIdx, s, tab) : ''}
 
         <!-- ── Assertions (only for ASSERT type) ── -->
-        ${s.type === 'ASSERT' ? assrtFunc.renderAssertionsSection(scIdx, s) : 'abx'}
+        ${s.type === 'ASSERT' ? assrtFunc.renderAssertionsSection(scIdx, s) : ''}
 
       </div>
     </div>`;
