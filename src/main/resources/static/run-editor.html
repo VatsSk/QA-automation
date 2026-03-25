@@ -214,13 +214,13 @@
         const assertions = ensureAssertions(scenario);
 
         assertions.push({
-            assertType: '',
-            cssSelector: '',
-            expectedValue: '',
-            tableSelector: '',
+            type: '',
+            locator: '',
+            expected: '',
+            tableId: '',
             columnName: '',
             order: '',
-            btnSelector: ''
+            rowsBtn: ''
         });
 
         renderPanel();
@@ -248,7 +248,7 @@
 
             // 🔥 smart cleanup (important)
             const newConfig = ASSERT_TYPES[assertType] || { fields: [] };
-            const allFields = ['cssSelector', 'expectedValue', 'tableSelector', 'columnName', 'order', 'btnSelector'];
+            const allFields = ['cssSelector','locator', 'expected', 'tableId', 'columnName', 'rowsBtn'];
 
             allFields.forEach(field => {
                 if (!newConfig.fields.includes(field)) {

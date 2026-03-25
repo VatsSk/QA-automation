@@ -27,12 +27,12 @@ public class AssertionStepGenerator {
 
             StepAction step = new StepAction(
                     actionType,
-                    a.getLocatorType(),
+                    null,
                     a.getLocator(),
                     a.getExpected(),   // expected goes as value
                     description,
                     a.getTableId(),
-                    a.getValue(),
+                    a.getColumnName(),
                     a.getRowsBtn(),
                     a.getRangeId()
             );
@@ -123,7 +123,7 @@ public class AssertionStepGenerator {
                 return "Assert text contains: " + a.getExpected();
 
             case ASSERT_COLUMN_PRESENT:
-                return "Assert column present: " + a.getValue();
+                return "Assert column present: " + a.getColumnName();
 
             case ASSERT_SORT_ORDER:
                 return "Assert sorting: " + a.getExpected();
@@ -132,7 +132,7 @@ public class AssertionStepGenerator {
                 return "Assert count = " + a.getExpected();
 
             case ASSERT_API_CALLED:
-                return "Assert API called: " + a.getValue();
+                return "Assert API called: " + a.getColumnName();
 
             case ASSERT_ATTRIBUTE:
                 return "Assert attribute";

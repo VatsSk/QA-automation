@@ -375,6 +375,10 @@ public class ScenarioOrchestratorService {
                 logger.info("Reached MODAL scenario at index {}, stopping navigation phase", currIdx);
                 return currIdx;
             }
+            else if (currScenario.getType() == ScenarioType.ASSERT) {
+                logger.info("Reached Assert scenario at index {}, stopping navigation phase", currIdx);
+                return currIdx;
+            }
 
             try {
 
