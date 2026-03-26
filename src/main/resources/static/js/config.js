@@ -68,6 +68,15 @@ export const TYPES = {
         hasData: false,
         hint:    'Verify page content by URL and CSS selector',
     },
+    FORM_MODAL: {
+        label:   'Form Modal',
+        icon:    '📝',
+        color:   'var(--purple)',
+        bg:      'var(--purple-d)',
+        fields:  ['cssSelector', 'value', 'clickCss'],
+        hasData: true,
+        hint:    'Fill form field and optionally click after filling',
+    },
     ASSERT: {
         label:   'Assert',
         icon:    '✓',
@@ -162,5 +171,6 @@ export const REQUIRED = {
     MODAL_NAV:  ['cssSelector'],
     SEARCH_NAV: ['cssSelector', 'value'],
     VERIFY_PAGE: ['url', 'cssSelector'],
+    FORM_MODAL:  ['cssSelector'],
     ASSERT:     [],
 };

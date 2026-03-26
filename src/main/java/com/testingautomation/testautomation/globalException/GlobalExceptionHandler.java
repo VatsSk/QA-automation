@@ -10,6 +10,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -38,6 +39,23 @@ public class GlobalExceptionHandler {
     }
 
     // ── Handlers ──────────────────────────────────────────────────────
+
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Void> handleNoResource(NoResourceFoundException ex) {
+
+        String path = ex.getResourcePath();
+
+        // Ignore browser noise
+        if (path.contains("favicon.ico") || path.contains(".well-known")) {
+            log.debug("Ignored static resource request: {}", path);
+            return ResponseEntity.notFound().build();
+        }
+
+        // For other missing resources (if any real case)
+        log.warn("Static resource not found: {}", path);
+
+        return ResponseEntity.notFound().build();
+    }
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {

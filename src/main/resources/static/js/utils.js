@@ -134,7 +134,7 @@ export async function buildSidebar(activePage, api) {
     // Load projects for sidebar tree
     let projectList = [];
     try {
-        projectList = await api.projects.list(user.id || user._id);
+        projectList = await api.projects.list(user.username);
     } catch { /* sidebar tree stays empty */ }
 
     // Build tree rows

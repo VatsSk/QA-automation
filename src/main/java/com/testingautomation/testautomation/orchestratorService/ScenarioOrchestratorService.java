@@ -134,6 +134,8 @@ public class ScenarioOrchestratorService {
         logger.info("execution completed");
 
 
+
+
 //        run.setStatus(RunStatus.COMPLETED);
         runRepository.save(run);
         return run;
@@ -720,7 +722,6 @@ public class ScenarioOrchestratorService {
         logger.info("currEl {} Scenario must be last : {}",currEle,scenario);
         scenario.setResultCsv(finalCsvUrl);
         scenario.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
-        run.getScenariosList().set(currEle,scenario);
 
         return scenarioTestDto;
     }

@@ -56,7 +56,7 @@ export const auth = {
 
 // ── Projects ───────────────────────────────────────────────────────────────
 export const projects = {
-    list:   (userId) => request('GET',    `/api/projects${userId ? `?userId=${userId}` : ''}`),
+    list:   (username) => request('GET',    `/api/projects${username ? `?createdBy=${username}` : ''}`),
     get:    (id)     => request('GET',    `/api/projects/${id}`),
     create: (data)   => request('POST',   '/api/projects', data),
     update: (id, d)  => request('PUT',    `/api/projects/${id}`, d),

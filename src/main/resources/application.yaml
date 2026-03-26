@@ -2,10 +2,17 @@ spring:
   application:
     name: Testing Automation
 
+  #EC2 Mongo
+
   data:
     mongodb:
-      uri: ${MONGO_URI:mongodb://localhost:27017/qadb}
-      database: ${MONGO_DB:qadb}
+      uri: mongodb://3.7.136.248:27017/qadb
+      database: qadb
+
+#  data:
+#    mongodb:
+#      uri: ${MONGO_URI:mongodb://localhost:27017/qadb}
+#      database: ${MONGO_DB:qadb}
       # Atlas: mongodb+srv://<user>:<pass>@cluster.mongodb.net/testforge?retryWrites=true&w=majority
 
   jackson:
@@ -30,7 +37,6 @@ server:
     timeout-seconds: ${RUNNER_TIMEOUT:120}
 
   # MinIO / S3 configuration
-
 
 
 logging:

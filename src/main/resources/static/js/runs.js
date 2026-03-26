@@ -60,10 +60,22 @@ const breadcrumb= document.getElementById('breadcrumb');
 // ── Projects / modules selectors ───────────────────────────────────────────
 async function loadProjects() {
     try {
-        const list = await api.projects.list();
-        projSel.innerHTML = '<option value="">Select project…</option>' +
+        const list = await api.projects.list(user.username);
+
+        // ✅ handle null / undefined / non-array
+        if (!Array.isArray(list) || list.length === 0) {
+            projSel.innerHTML = '<option value="">No projects available</option>';
+            return;
+        }
+
+        projSel.innerHTML =
+            '<option value="">Select project…</option>' +
             list.map(p => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
-    } catch (e) { showToast('Failed to load projects: ' + e.message, 'error'); }
+
+    } catch (e) {
+        showToast('Failed to load projects: ' + e.message, 'error');
+        projSel.innerHTML = '<option value="">Error loading projects</option>';
+    }
 }
 
 projSel.addEventListener('change', onProjectChange);

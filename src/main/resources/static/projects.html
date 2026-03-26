@@ -61,6 +61,7 @@
 
     const user = requireLogin();
     if (!user) throw new Error('not logged in');
+    console.log("USER:", user);
 
     initTheme();
     buildSidebar('projects', api);
@@ -70,7 +71,7 @@
     // ── Load ──────────────────────────────────────────────────────────────
     async function load() {
         try {
-            projects = await api.projects.list(user.id || user._id);
+            projects = await api.projects.list(user.username);
             render();
         } catch (e) {
             document.getElementById('proj-grid').innerHTML =
@@ -151,7 +152,7 @@
         const baseUrl = document.getElementById('np-url').value.trim();
         if (!name) { toast('Project name is required', 'warning'); return; }
         try {
-            const p = await api.projects.create({ name, description: desc, baseUrl, userId: user.id || user._id });
+            const p = await api.projects.create({ name, description: desc, baseUrl, createdBy: user.username});
             projects.unshift(p);
             closeModal();
             render();

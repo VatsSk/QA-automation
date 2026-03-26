@@ -30,10 +30,10 @@ public class ProjectService {
     private final RunRepository runRepository;
     private final EntityMapper mapper;
 
-    public List<ProjectResponse> getProjects(String userId) {
-        List<Project> projects = StringUtils.hasText(userId)
-                ? projectRepository.findByCreatedByOrderByCreatedAtDesc(userId)
-                : projectRepository.findAllByOrderByCreatedAtDesc();
+    public List<ProjectResponse> getProjects(String createdBy) {
+        List<Project> projects = StringUtils.hasText(createdBy)
+                ? projectRepository.findByCreatedByOrderByCreatedAtDesc(createdBy)
+                : null;
         return mapper.toProjectResponseList(projects);
     }
 

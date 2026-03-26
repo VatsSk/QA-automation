@@ -101,6 +101,7 @@
     import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS } from './js/config.js';
     import { esc, toast, openModal, closeModal,
         requireLogin, initTheme, toggleTheme } from './js/utils.js';
+    // import { updateFormModalPayload } from './js/form-modal-payload.js';
 
     window.toggleTheme = toggleTheme;
     window.closeModal  = closeModal;
@@ -179,6 +180,8 @@
                     url:             s.url         || '',
                     cssSelector:     s.cssOpener   || '',   // backend field = cssOpener
                     value:           s.value       || '',
+                    clickEnabled:   !!s.clickCss,
+                    clickCss:        s.clickCss    || '',   // Add clickCss field
                     csv:             s.csv         || '',
                     manualTestCases: s.manualTestCases || [],
                     // 🔥 IMPORTANT
@@ -339,7 +342,7 @@
             oninput="updateField(${scIdx}, 'url', this.value)">
         </div>` : ''}
 
-        <!-- ── CSS Selector (shown for MODAL, MODAL_NAV, SEARCH_NAV) ── -->
+        <!-- ── CSS Selector (shown for MODAL, MODAL_NAV, SEARCH_NAV, FORM_MODAL) ── -->
         ${cfg.fields.includes('cssSelector') ? `
         <div class="field">
           <label class="lbl">CSS Selector *</label>
@@ -349,17 +352,47 @@
             oninput="updateField(${scIdx}, 'cssSelector', this.value)">
         </div>` : ''}
 
-        <!-- ── Value (only for SEARCH_NAV) ── -->
+        <!-- ── Value (for SEARCH_NAV and FORM_MODAL) ── -->
         ${cfg.fields.includes('value') ? `
         <div class="field">
-          <label class="lbl">Search Value *</label>
+          <label class="lbl">${s.type === 'FORM_MODAL' ? 'Form Value *' : 'Search Value *'}</label>
           <input class="inp" id="sc-value"
             value="${esc(s.value)}"
-            placeholder="Search term or input text"
+            placeholder="${s.type === 'FORM_MODAL' ? 'Value to type in form field' : 'Search term or input text'}"
             oninput="updateField(${scIdx}, 'value', this.value)">
         </div>` : ''}
 
-        <!-- ── Test data (only URL and MODAL have test data) ── -->
+        <!-- ── Click Option (only for FORM_MODAL) ── -->
+        ${s.type === 'FORM_MODAL' ? `
+        <div class="field">
+          <label class="lbl">Click After Filling?</label>
+          <div style="display:flex;gap:16px;margin-top:8px">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="radio" name="click-option-${scIdx}" value="yes"
+                    ${s.clickEnabled ? 'checked' : ''}
+                onchange="handleClickOption(${scIdx}, 'yes')">
+              <span>Yes</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input type="radio" name="click-option-${scIdx}" value="no" 
+                ${!s.clickEnabled ? 'checked' : ''}
+                onchange="handleClickOption(${scIdx}, 'no')">
+              <span>No</span>
+            </label>
+          </div>
+        </div>` : ''}
+
+        <!-- ── Click CSS (only for FORM_MODAL when click option is yes) ── -->
+        ${s.type === 'FORM_MODAL' && s.clickEnabled ? `
+        <div class="field">
+          <label class="lbl">Click CSS Selector *</label>
+          <input class="inp inp-mono" id="sc-clickCss"
+            value="${esc(s.clickCss)}"
+            placeholder=".submit-btn, #confirm-button"
+            oninput="updateField(${scIdx}, 'clickCss', this.value)">
+        </div>` : ''}
+
+        <!-- ── Test data (only URL, MODAL, and FORM_MODAL have test data) ── -->
         ${cfg.hasData ? renderDataSection(scIdx, s, tab) : ''}
 
         <!-- ── Assertions (only for ASSERT type) ── -->
@@ -456,6 +489,22 @@
       </td>
     </tr>`;
     }
+
+    // Initialize FORM_MODAL support after renderPanel is defined
+    // updateFormModalPayload();
+
+    // Handle click option radio button changes for FORM_MODAL
+    window.handleClickOption = function (scIdx, option) {
+        const scenario = scenarios[scIdx];
+
+        scenario.clickEnabled = (option === 'yes');
+
+        if (!scenario.clickEnabled) {
+            scenario.clickCss = '';
+        }
+
+        renderPanel();
+    };
 
     // ── Scenario actions ───────────────────────────────────────────────────
     window.selectScenario = function (i) {
@@ -586,6 +635,8 @@
             url:             '',
             cssSelector:     '',
             value:           '',
+            clickEnabled:    false,
+            clickCss:        '', // Add clickCss field
             csv:             '',
             manualTestCases: [],
         };
@@ -651,6 +702,7 @@
                 url:             s.url         || null,
                 cssOpener:       s.cssSelector || null,
                 value:           s.value       || null,
+                clickCss:        s.clickCss    || null,   // Add clickCss field
                 csv:             s.csv         || null,
                 scenarioBasePath:s.scenarioBasePath || null,
 
