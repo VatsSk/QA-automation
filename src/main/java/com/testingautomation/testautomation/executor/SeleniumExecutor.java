@@ -1,7 +1,10 @@
 package com.testingautomation.testautomation.executor;
 
+import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.ResultRun;
 import com.testingautomation.testautomation.dto.StepAction;
+import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
+import com.testingautomation.testautomation.model.Scenario;
 import com.testingautomation.testautomation.services.ScreenshotService;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
@@ -637,9 +640,11 @@ public class SeleniumExecutor {
         }
     }
 
-    public void runAssertionSteps(WebDriver driver, List<StepAction> steps) {
+    public void runAssertionSteps(WebDriver driver, List<StepAction> steps ,Path scenarioDir, String scenarioPrefix) {
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        int tcIdx = 1;
 
         for (StepAction step : steps) {
 
@@ -650,42 +655,52 @@ public class SeleniumExecutor {
 
                     case ASSERT_VISIBLE:
                         assertVisible(driver, wait, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_NOT_VISIBLE:
                         assertNotVisible(driver, wait, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_ELEMENT_PRESENT:
                         assertElementPresent(driver, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_TEXT_EQUALS:
                         assertTextEquals(driver, wait, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_TEXT_CONTAINS:
                         assertTextContains(driver, wait, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_COLUMN_PRESENT:
                         assertAllColumnsPresent(driver, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_COUNT:
                         assertCount(driver, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_SORT_ORDER:
                         assertSorting(driver, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_API_CALLED:
                         assertApiCalled(step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     case ASSERT_ATTRIBUTE:
                         assertAttribute(driver, wait, step);
+                        step.getAssertion().setAssertResult("Passed");
                         break;
 
                     default:
@@ -693,11 +708,16 @@ public class SeleniumExecutor {
                 }
 
             } catch (Exception e) {
-                throw new RuntimeException(
-                        "Assertion failed: " + step.getDescription(),
-                        e
-                );
+                step.getAssertion().setAssertResult("FAILED");
+                step.getAssertion().setErrorMessage(e.getMessage());
+
+                System.out.println("❌ Assertion failed: " + step.getDescription()
+                        + " | Reason: " + e.getMessage());
             }
+
+            // 📸 Take screenshot for BOTH pass & fail
+            String screenshotPath = screenshotService.takeScreenshot(driver, String.valueOf(tcIdx),"assert",scenarioDir,scenarioPrefix);
+            tcIdx++;
         }
     }
     private void assertElementPresent(WebDriver driver, StepAction step) {
@@ -705,7 +725,7 @@ public class SeleniumExecutor {
         List<WebElement> elements = driver.findElements(getBy(step));
 
         if (elements == null || elements.isEmpty()) {
-            throw new AssertionError("Element not present in DOM: " + step.getLocator());
+            throw new GlobalExceptionHandler.BadRequestException("Element not present in DOM: " + step.getLocator());
         }
     }
     private void assertVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
@@ -715,7 +735,7 @@ public class SeleniumExecutor {
         ));
 
         if (!el.isDisplayed()) {
-            throw new AssertionError("Element not visible: " + step.getLocator());
+            throw new GlobalExceptionHandler.BadRequestException("Element not visible: " + step.getLocator());
         }
     }
     private void assertNotVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
@@ -725,7 +745,7 @@ public class SeleniumExecutor {
         );
 
         if (!invisible) {
-            throw new AssertionError("Element is visible but should not be");
+            throw new GlobalExceptionHandler.BadRequestException("Element is visible but should not be");
         }
     }
 
@@ -738,7 +758,7 @@ public class SeleniumExecutor {
         String actual = el.getText().trim();
 
         if (!actual.equals(step.getPayload())) {
-            throw new AssertionError("Expected: " + step.getPayload() + " but got: " + actual);
+            throw new GlobalExceptionHandler.BadRequestException("Expected: " + step.getPayload() + " but got: " + actual);
         }
     }
 
@@ -751,7 +771,7 @@ public class SeleniumExecutor {
         String actual = el.getText();
 
         if (!actual.contains(step.getPayload())) {
-            throw new AssertionError("Text does not contain: " + step.getPayload());
+            throw new GlobalExceptionHandler.BadRequestException("Text does not contain: " + step.getPayload());
         }
     }
 
@@ -768,7 +788,7 @@ public class SeleniumExecutor {
         logger.info("found {}",found);
 
         if (!found) {
-            throw new AssertionError("Column not found: " + step.getPayload());
+            throw new GlobalExceptionHandler.BadRequestException("Column not found: " + step.getPayload());
         }
     }
     private void assertAllColumnsPresent(WebDriver driver, StepAction step) {
@@ -833,14 +853,14 @@ public class SeleniumExecutor {
             logger.error("Assertion failed. Missing columns: {} | Actual columns: {}",
                     missingColumns, actualColumns);
 
-            throw new AssertionError("Missing columns: " + missingColumns +
+            throw new GlobalExceptionHandler.BadRequestException("Missing columns: " + missingColumns +
                     " | Actual: " + actualColumns);
         }
 
         logger.info("✅ All expected columns are present.");
     }
 
-    private void assertCount(WebDriver driver, StepAction step) {
+    private String assertCount(WebDriver driver, StepAction step) {
 
         logger.info("🔍 Starting ASSERT_COUNT validation...");
 
@@ -867,18 +887,21 @@ public class SeleniumExecutor {
                     logger.info("✅ PASS: Single page with fewer rows than page size");
                 } else {
                     logger.error("❌ FAIL: Multiple pages exist but rows < page size");
-                    throw new AssertionError("Pagination mismatch detected");
+                    throw new GlobalExceptionHandler.BadRequestException("Pagination mismatch detected");
                 }
 
             } else {
                 logger.error("❌ FAIL: Visible rows exceed selected page size");
-                throw new AssertionError("Row count exceeds page size");
+                throw new GlobalExceptionHandler.BadRequestException("Row count exceeds page size");
             }
+            return "passed";
 
         } catch (Exception e) {
             logger.error("❌ Exception in ASSERT_COUNT: {}", e.getMessage(), e);
-            throw new RuntimeException("ASSERT_COUNT failed", e);
+            throw new GlobalExceptionHandler.BadRequestException("ASSERT_COUNT failed"+e);
         }
+
+
     }
     private void validateElementCount(WebDriver driver, StepAction step) {
 
@@ -888,7 +911,7 @@ public class SeleniumExecutor {
         logger.info("🔢 Expected elements: {}, Found: {}", expected, elements.size());
 
         if (elements.size() != expected) {
-            throw new AssertionError(
+            throw new GlobalExceptionHandler.BadRequestException(
                     "Expected count: " + expected + " but got: " + elements.size()
             );
         }
@@ -939,7 +962,6 @@ public class SeleniumExecutor {
 
     private void assertSorting(WebDriver driver, StepAction step) {
 //        member-list-table
-
         String tableLocator = step.getTableId();
         logger.info("---- tableLocator {}----",tableLocator);
         String colName = step.getColName();
@@ -1035,7 +1057,7 @@ public class SeleniumExecutor {
                 }
             }
 
-            throw new AssertionError("Sorting is incorrect");
+            throw  new GlobalExceptionHandler.BadRequestException("Sorting is incorrect");
         }
 
         logger.info("✅ Sorting is correct");
@@ -1052,7 +1074,7 @@ public class SeleniumExecutor {
         String actual = el.getAttribute(step.getPayload());
 
         if (!actual.equals(step.getPayload())) {
-            throw new AssertionError("Attribute mismatch");
+            throw new GlobalExceptionHandler.BadRequestException("Attribute mismatch");
         }
     }
 

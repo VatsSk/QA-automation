@@ -28,5 +28,7 @@ public class AssertionDto {
     private String tableId;
     private String rowsBtn;
     private String order;
+    private String assertResult;
+    private String errorMessage;
 }
 
