@@ -1,11 +1,4 @@
-add-task-description,add-task-priority,select-executive,add-country-code,add-task-phone,add-otp-check-box,schedule-date-check-box,dateWithTimeRadio,dateWithOutTimeRadio,add-task-start-date,add-task-end-date,addTaskImg-file,add-custom-0,add-custom-12,save-task-btn,NULL
-Task 2,High,pinku,India +91 ,1234567890,,,,,,,,1,ff,click,NULL
-Task 3,,pinku,,ddddddddd,,,,,,,,,,click,NULL
-task 4,Normal,pinku,India +91 ,8.43453E+12,click,click ,click,,13/03/2026 13:00,13/03/2026 14:00,Max 4,ff,ff,click,NULL
-"Lorem ipsum dolor sit amet, consectetuer adipiscing elit. Aenean commodo ligula eget dolor. Aenean massa. Cum sociis natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Donec quam felis, ultricies nec, pellentesque eu, pretium quis, sem. Nulla consequat massa quis enim. Donec pede justo, fringilla vel, aliquet nec, vulputate eget, arcu. In enim justo, rhoncus ut, imperdiet a, venenatis vitae, justo.",Normal,pinku,India +91 ,8.43453E+12,click,click,click,,13/03/2026 14:00,13/03/2026 15:00,,,,click,NULL
-Task customer,,,,,,,,click,13/03/2026,13/03/2026,,,,click,NULL
-Task customer 1 ,,,,,,,,click,13/03/2026,13/03/2026,,,,click,NULL
-Task customer 2,Normal,pinku,,,,,,click,13/03/2026,13/03/2026,,,,click,NULL
-Task Location,Normal,pinku,,,,,,click,13/03/2026,13/03/2026,,,,click,NULL
-Task Location,Normal,,India +91 ,8765432456,,,,click,13/03/2026,13/03/2026,,,,click,NULL
-Task 1,,,,,,,,,,,,,,,click
+add-task-description,add-task-priority,select-executive,add-country-code,add-task-phone,add-otp-check-box,schedule-date-check-box,dateWithTimeRadio,dateWithOutTimeRadio,add-task-start-date,add-task-end-date,addTaskImg-file,add-custom-0,add-custom-12,save-task-btn,expectedResult
+Task 2,High,pinku,India +91 ,1234567890,,,,,,,,1,ff,click,Passed
+Task 3,,pinku,,ddddddddd,,,,,,,,,,click,failed
+task 4,Normal,pinku,India +91 ,8.43453E+12,click,click ,click,,13/03/2026 13:00,13/03/2026 14:00,Max 4,ff,ff,click,failed

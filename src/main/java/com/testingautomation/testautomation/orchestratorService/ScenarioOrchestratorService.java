@@ -35,9 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -72,46 +70,43 @@ public class ScenarioOrchestratorService {
         List<Scenario> scenarios = run.getScenariosList();
 
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
+        Map<String, List<TestCaseDTO>> scenarioResultsMap = new LinkedHashMap<>();
         for (int i = 0; i < scenarios.size(); i++) {
             Scenario current = scenarios.get(i);
             String scenarioId = (i+1)+"";
             String scenarioPrefix =
                     baseS3Prefix + "/" + scenarioId;
             try {
-                ScenarioTestDto scenarioTestDto=null;
                 if (current.getType() == ScenarioType.URL) {
                     // check next scenario
-                    scenarioTestDto=runUrlGeneric(
-                            driver,
-                            current.getUrl(),
-                            current.getCsv(),
-                            run.getResultStatement(),
-                            scenarioPrefix,
-                            i,
-                            scenarios.size()
-                    );
-                    current.setResultCsv(scenarioTestDto.getResultCsv());
-                    current.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
-                    current.setScenarioBasePath(scenarioPrefix);
-                }else if(current.getType() == ScenarioType.VERIFY_PAGE){
-                    scenarioTestDto=runVerifyPageGenric(
+                    runUrlGeneric(
                             driver,
                             current,
-                            baseS3Prefix
+                            run.getResultStatement(),
+                            scenarioPrefix,
+                            scenarioResultsMap
                     );
-                    current.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
+                    current.setScenarioBasePath(scenarioPrefix);
+                }else if(current.getType() == ScenarioType.VERIFY_PAGE){
+                    runVerifyPageGenric(
+                            driver,
+                            current,
+                            baseS3Prefix,
+                            scenarioResultsMap
+                    );
                 }
                 else{
-                    String scenarioParentDir=baseS3Prefix+"/";
-                    scenarioTestDto=runModalGeneric(
+                    runModalGeneric(
                             driver,
                             scenarios,
                             run.getResultStatement(),
                             i,
                             baseS3Prefix,
-                            run
+                            run,
+                            scenarioResultsMap
 
                     );
+                    System.out.println(scenarioResultsMap);
 //                    current.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
                     break;
                 }
@@ -128,20 +123,16 @@ public class ScenarioOrchestratorService {
                 // Stop execution by throwing user-friendly exception
                 throw new GlobalExceptionHandler.RunnerIntegrationException(userMessage, e);
             }
+
         }
 
-
         logger.info("execution completed");
-
-
-
-
-//        run.setStatus(RunStatus.COMPLETED);
+        s3StorageService.writeAndUploadScenarioCsvs(scenarioResultsMap,run);
         runRepository.save(run);
         return run;
     }
 
-    private ScenarioTestDto runVerifyPageGenric(WebDriver driver, Scenario current, String baseS3Prefix) {
+    private void runVerifyPageGenric(WebDriver driver, Scenario current, String baseS3Prefix,Map<String, List<TestCaseDTO>> scenarioResultsMap) {
         logger.info("Executing VERIFY_PAGE scenario - URL: {}, CSS Selector: {}",
                 current.getUrl(), current.getCssOpener());
 
@@ -156,11 +147,8 @@ public class ScenarioOrchestratorService {
         }
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-
-        // Create a single test case result
         List<TestCaseDTO> testCases = new ArrayList<>();
         TestCaseDTO verifyResult = new TestCaseDTO("1", new HashMap<>());
-
         try {
             // Navigate to the URL
             logger.info("Navigating to URL: {}", current.getUrl());
@@ -226,45 +214,16 @@ public class ScenarioOrchestratorService {
             logger.error("VERIFY_PAGE scenario failed with unexpected error", e);
             verifyResult.setResult("Failed - " + e.getMessage());
         }
-
         testCases.add(verifyResult);
-
-        // Create result CSV
-        Path scenarioCsv;
-        try {
-            scenarioCsv = csvLoader.writeScenarioCsv(testCases, scenarioDir);
-        } catch (Exception e) {
-            logger.error("Failed to write scenario CSV", e);
-            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed to create result CSV for VERIFY_PAGE scenario", e);
-        }
-
-        // Upload to S3
-        String s3Key = scenarioPrefix + "/scenario-results.csv";
-        String finalCsvUrl;
-        try {
-            finalCsvUrl = s3StorageService.uploadFile(scenarioCsv, s3Key);
-        } catch (Exception e) {
-            logger.error("Failed to upload CSV to S3", e);
-            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed to upload result CSV for VERIFY_PAGE scenario", e);
-        }
-
-        // Set scenario result
-        current.setResultCsv(finalCsvUrl);
+        scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
+        logger.info("[{}] Stored VERIFY_PAGE testcase(s) in scenarioResultsMap. Count={}",
+                scenarioPrefix, testCases.size());
         current.setScenarioBasePath(scenarioPrefix);
-
-        // Create and return scenario test DTO
-        ScenarioTestDto scenarioTestDto = new ScenarioTestDto(testCases, finalCsvUrl);
-
-        // Set overall status based on the single test case result
         if (verifyResult.getResult().equals("Passed")) {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PASSED);
+            current.setScenarioStatus(RunStatus.PASSED);
         } else {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.FAILED);
+            current.setScenarioStatus(RunStatus.FAILED);
         }
-
-        scenarioTestDto.setResultCsv(finalCsvUrl);
-
-        return scenarioTestDto;
     }
 
 
@@ -274,16 +233,11 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
-    public ScenarioTestDto runUrlGeneric(WebDriver driver, String url, String csvUrl,String successMsg,String scenarioPrefix,int currIdx,int sizeOfScenarios) throws Exception {
-//        logger.info("[{}] runUrlGeneric start for URL: {}", runIdPrefix, url);
-        List<TestCaseDTO> testCases=null;
-        // 1) scan page (fields)
-        List<FieldDescriptor> fields = scannerService.scanPage(url, driver);
-//        logger.info("[{}] scanned {} fields", runIdPrefix, fields.size());
-        // 2) load testcases for this scenario
-        logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvUrl);
-        testCases = csvLoader.loadFromS3(csvUrl);
-//        logger.info("[{}] loaded {} testcases", runIdPrefix, testCases.size());
+    public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
+                                        , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
+        List<FieldDescriptor> fields = scannerService.scanPage(current.getUrl(), driver);
+        logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
+        List<TestCaseDTO>  testCases = csvLoader.loadFromS3(current.getCsv());
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
         Files.createDirectories(scenarioDir);
 
@@ -301,9 +255,7 @@ public class ScenarioOrchestratorService {
                 logger.info("generated steps are : {}",steps);
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
                 String expected = tc.getExpectedResult();
-                ResultRun runResult =executor.run(driver, url, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,currIdx,sizeOfScenarios,expected);
-
-
+                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
                 if (expected != null) {
                     if(expected.equalsIgnoreCase(runResult.getStatus()) ){
                         tc.setResult("Passed");
@@ -313,41 +265,32 @@ public class ScenarioOrchestratorService {
                         totalFails++;
                     }
                 }
-
-
                 tc.setUrls(runResult.getScreenshots());
                 logger.info("[{}] Completed testcase {}", tcRunId, tc);
             } catch (Exception e) {
                 logger.error("[{}] testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
             }
         }
-        Path scenarioCsv = csvLoader.writeScenarioCsv(testCases, scenarioDir);
-        String s3Key = scenarioPrefix + "/scenario-results.csv";
+        scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
 
-        String finalCsvUrl=s3StorageService.uploadFile(scenarioCsv, s3Key);
-
-
-        ScenarioTestDto scenarioTestDto=new ScenarioTestDto(testCases,finalCsvUrl);
+        logger.info("[{}] Stored {} URL testcases in scenarioResultsMap",
+                scenarioPrefix, testCases.size());
         if (totalPasses == testCases.size()) {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PASSED);
+            current.setScenarioStatus(RunStatus.PASSED);
         }
         else if (totalFails == testCases.size()) {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.FAILED);
+            current.setScenarioStatus(RunStatus.FAILED);
         }
         else {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PARTIAL);
+           current.setScenarioStatus(RunStatus.PARTIAL);
 
         }
-
-        scenarioTestDto.setResultCsv(finalCsvUrl);
-
-
-        return scenarioTestDto;
     }
 
 
 
-    public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx, int modalFormTcIdx, String baseS3Prefix, Run run) {
+    public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx, int modalFormTcIdx, String baseS3Prefix, Run run,
+                                Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
 
         logger.info("Starting navigation handling from index {}", currIdx);
 
@@ -372,10 +315,11 @@ public class ScenarioOrchestratorService {
             run.getScenariosList().set(currIdx,scenario);
 
             // single generic testcase for this navigation scenario
-            List<TestCaseDTO> resultTestCases = new ArrayList<>();
-            TestCaseDTO resultTestCase = new TestCaseDTO("1", new HashMap<>());
+//            List<TestCaseDTO> resultTestCases = new ArrayList<>();
+            TestCaseDTO resultTestCase = new TestCaseDTO(modalFormTcIdx+"", new HashMap<>());
+
             resultTestCase.setExpectedResult("Passed");
-            resultTestCases.add(resultTestCase);
+//            resultTestCases.add(resultTestCase);
 
             Scenario currScenario = scenarios.get(currIdx);
 
@@ -599,8 +543,8 @@ public class ScenarioOrchestratorService {
                     String csvFile = currScenario.getCsv();
                     logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvFile);
                     List<TestCaseDTO> testCases = csvLoader.loadFromS3(csvFile);
-                    TestCaseDTO tc= testCases.get(modalFormTcIdx);
-                    handleModalScenario(driver, currScenario, tc,scenarioPrefix,navigationScreenshotDir);
+                    resultTestCase= testCases.get(modalFormTcIdx);
+                    handleModalScenario(driver, currScenario, resultTestCase,scenarioPrefix,navigationScreenshotDir);
 
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
@@ -609,9 +553,9 @@ public class ScenarioOrchestratorService {
                 Thread.sleep(1000);
 
             }
-            catch (Exception e) {
+            catch (GlobalExceptionHandler.InvalidCountException e) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
-                resultTestCase.setResult("Failed - " + e.getMessage());
+                resultTestCase.setResult("Failed - Test case index out of bounds");
 
                 logger.error("Navigation step failed at index {} type {} selector {}",
                         currIdx,
@@ -619,23 +563,30 @@ public class ScenarioOrchestratorService {
                         currScenario.getCssOpener(),
                         e);
             }
+            catch (Exception e) {
+                scenario.setScenarioStatus(RunStatus.ERROR);
+                resultTestCase.setResult("Error - " + e.getMessage());
+
+                logger.error("Unexpected error while executing scenario at index {} type {}",
+                        currIdx,
+                        currScenario.getType(),
+                        e);
+                throw e;
+            }
 
             // save testcase csv path in S3 using scenarioPrefix/<testcaseKey>.csv
             try {
-                String testcaseKey = resultTestCase.getTestcaseId(); // use your actual getter if different
-//                logger.info("testcase key: {}", testcaseKey);
-                String scnarioPrefixWithTestcaseId=scenarioPrefix+"/"+testcaseKey;
-//                logger.info("scenario with testcase id: {}", scnarioPrefixWithTestcaseId );
-                Path csvPath = csvLoader.writeScenarioCsv(resultTestCases, Paths.get(scnarioPrefixWithTestcaseId));
-//                logger.info("CSV path: {}", csvPath);
-                String s3Key = scenarioPrefix + "/" + testcaseKey + ".csv";
-                String csvUrl = s3StorageService.uploadFile(csvPath, s3Key);
-                resultTestCase.setResult("PASSED"); // use your actual string field setter if different
-                scenario.setResultCsv(csvUrl);
+                scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                        .add(resultTestCase);
+
+                logger.info("Stored testcase {} in scenarioResultsMap for scenarioPrefix {}. Current count={}",
+                        resultTestCase.getTestcaseId(),
+                        scenarioPrefix,
+                        scenarioResultsMap.get(scenarioPrefix).size());
+                logger.info("Current status of map: {}",scenarioResultsMap.get(scenarioPrefix));
 
             } catch (Exception e) {
-                logger.error("Failed to write/upload CSV for navigation scenario at index {}", currIdx, e);
-                resultTestCase.setResult("FAILED");
+                logger.error("Failed to store testcase result in scenarioResultsMap for scenario at index {}", currIdx, e);
             }
 
             run.getScenariosList().set(currIdx, scenario);
@@ -647,10 +598,11 @@ public class ScenarioOrchestratorService {
 
         return currIdx;
     }
-    public ScenarioTestDto runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run) throws Exception {
+    public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
+                                            , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
         List<TestCaseDTO> testCases=null;
 
-        int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run);
+        int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run,scenarioResultsMap);
         String scenarioPrefix =
                 baseS3Prefix + "/" + (currEle+1);
 
@@ -662,7 +614,7 @@ public class ScenarioOrchestratorService {
             logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
             currEle, currModal.getType());
             runAssertionGeneric(driver,currModal,baseS3Prefix);
-            return null;
+            return;
         }
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
         Files.createDirectories(scenarioDir);
@@ -694,7 +646,7 @@ public class ScenarioOrchestratorService {
                     }
                     tc.setUrls(resultRun.getScreenshots());
                     if(counterIdx<testCases.size())
-                        handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run);
+                        handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run,scenarioResultsMap);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
                 } catch (Exception e) {
                     logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -704,26 +656,35 @@ public class ScenarioOrchestratorService {
         } catch (Exception e) {
             logger.error("[{}] failed to open modal or execute tests: {}",scenarioPrefix, e.getMessage(), e);
         }
-        Path scenarioCsv = csvLoader.writeScenarioCsv(testCases, scenarioDir);
-        String s3Key = scenarioPrefix +"/scenario-results.csv";
+        // store modal scenario testcases in memory grouped by scenarioPrefix
+        scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                .addAll(testCases);
 
-        String finalCsvUrl=s3StorageService.uploadFile(scenarioCsv, s3Key);
-        ScenarioTestDto scenarioTestDto=new ScenarioTestDto(testCases,finalCsvUrl);
+        logger.info("[{}] Stored {} modal testcases in scenarioResultsMap",
+                scenarioPrefix, testCases.size());
+
+//        ScenarioTestDto scenarioTestDto = new ScenarioTestDto(testCases, null);
+
         if (totalPasses == testCases.size()) {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PASSED);
+            currModal.setScenarioStatus(RunStatus.PASSED);
         }
         else if (totalFails == testCases.size()) {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.FAILED);
+            currModal.setScenarioStatus(RunStatus.FAILED);
         }
         else {
-            scenarioTestDto.setOverAllScenarioStatus(RunStatus.PARTIAL);
+            currModal.setScenarioStatus(RunStatus.PARTIAL);
         }
-        Scenario scenario= run.getScenariosList().get(currEle);
-        logger.info("currEl {} Scenario must be last : {}",currEle,scenario);
-        scenario.setResultCsv(finalCsvUrl);
-        scenario.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
-
-        return scenarioTestDto;
+//        Scenario scenario= run.getScenariosList().get(currEle);
+//        logger.info("currEl {} Scenario must be last : {}",currEle,scenario);
+//        scenario.setResultCsv(finalCsvUrl);
+//        scenario.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
+        //        Scenario scenario= run.getScenariosList().get(currEle);
+//        logger.info("currEl {} Scenario must be last : {}",currEle,currModal);
+        logger.info("Total testcase "+testCases.size()+" passes "+totalPasses+" fails "+totalFails);
+//        logger.info("STATUS  For sceneraio "+scenarioTestDto.getOverAllScenarioStatus());
+////        currModal.setResultCsv(finalCsvUrl);
+//        currModal.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
+//
     }
 
     public void runAssertionGeneric(
@@ -936,7 +897,7 @@ public class ScenarioOrchestratorService {
         screenshotService.takeScreenshot(
                 driver,
                 "modal_form",
-                "step_" + java.time.LocalDateTime.now(),
+                "step_" +TimestampUtil.generateTimestamp(),
                 navigationScreenshotDir,
                 scenarioPrefix
         );

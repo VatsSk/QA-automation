@@ -47,7 +47,7 @@ public class SeleniumExecutor {
      * containing results.csv and screenshots/.
      */
     public ResultRun run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,
-                         String successMsg, Path scenarioDir, String scenarioPrefix, int currIdx , int sizeOfScenarios, String expectedResult) {
+                         String successMsg, Path scenarioDir, String scenarioPrefix,String expectedResult) {
         List<String> screenshotUrls = new ArrayList<>();
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));

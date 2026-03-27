@@ -1,0 +1,4 @@
+testCaseId,schedule-date-check-box,dateWithOutTimeRadio,addTaskImg-file,select-executive,add-otp-check-box,add-custom-12,add-task-start-date,add-country-code,add-task-phone,add-task-description,dateWithTimeRadio,add-task-priority,save-task-btn,add-task-end-date,add-custom-0,expectedResult,Result
+1,,,,pinku,,ff,,India +91 ,1234567890,Task 2,,High,click,,1,Passed,Passed
+2,,,,pinku,,,,,ddddddddd,Task 3,,,click,,,failed,Passed
+3,click ,,Max 4,pinku,click,ff,13/03/2026 13:00,India +91 ,8.43453E+12,task 4,click,Normal,click,13/03/2026 14:00,ff,failed,Passed

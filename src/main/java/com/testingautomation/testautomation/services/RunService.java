@@ -197,8 +197,20 @@ public class RunService {
             updated = scenarioOrchestratorService.executeScenarios(updated, driver, id);
 
             if (updated.getStatus() == RunStatus.RUNNING) {
-                updated.setStatus(RunStatus.PASSED);
-                updated.setReason("All scenarios executed successfully");
+                Set<RunStatus> runStatuses = updated.getScenariosList().stream()
+                        .map(scenario -> scenario.getScenarioStatus() == null ? RunStatus.PARTIAL : scenario.getScenarioStatus())
+                        .collect(Collectors.toSet());
+
+                if (runStatuses.contains(RunStatus.ERROR)) {
+                    updated.setStatus(RunStatus.ERROR);
+                } else if (runStatuses.contains(RunStatus.FAILED)) {
+                    updated.setStatus(RunStatus.FAILED);
+                } else if (runStatuses.contains(RunStatus.PARTIAL)) {
+                    updated.setStatus(RunStatus.PARTIAL);
+                } else if (runStatuses.size() >= 1 && runStatuses.contains(RunStatus.PASSED)) {
+                    updated.setStatus(RunStatus.PASSED);
+                }
+                updated.setReason("All scenarios executed");
                 updated.setUpdatedAt(java.time.Instant.now());
                 updated = runRepository.save(updated);
             }

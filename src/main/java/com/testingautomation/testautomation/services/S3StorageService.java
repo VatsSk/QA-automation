@@ -2,7 +2,13 @@ package com.testingautomation.testautomation.services;
 
 
 import com.testingautomation.testautomation.config.StorageProperties;
+import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.dto.responseDto.ScreenshotItemResponse;
+import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
+import com.testingautomation.testautomation.model.Run;
+import com.testingautomation.testautomation.model.Scenario;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,14 +22,18 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class S3StorageService {
+    Logger logger = LoggerFactory.getLogger(S3StorageService.class);
 
     @Autowired
     private S3Client s3Client;
@@ -36,6 +46,12 @@ public class S3StorageService {
 
     @Value("${storage.s3.bucket-name}")
     private String bucket;
+
+    @Value("${storage.s3.base-prefix}")
+    private String resultsBaseDir;
+
+    @Autowired
+    private CsvTestCaseLoader csvLoader;
 
     private static final Duration PRESIGNED_GET_TTL = Duration.ofMinutes(15);
 
@@ -144,5 +160,46 @@ public class S3StorageService {
         return (idx >= 0 && idx < key.length() - 1)
                 ? key.substring(idx + 1)
                 : key;
+    }
+
+    public void writeAndUploadScenarioCsvs(
+            Map<String, List<TestCaseDTO>> scenarioResultsMap,
+            Run run
+    ) {
+        List<Scenario> scenarios = run.getScenariosList();
+
+        for (Map.Entry<String, List<TestCaseDTO>> entry : scenarioResultsMap.entrySet()) {
+            String scenarioS3Prefix = entry.getKey();
+            List<TestCaseDTO> scenarioTestCases = entry.getValue();
+
+            if (scenarioTestCases == null || scenarioTestCases.isEmpty()) {
+                logger.warn("No testcase data found for scenarioPrefix {}", scenarioS3Prefix);
+                continue;
+            }
+
+            try {
+                // local directory = resultsBaseDir + scenario prefix path
+                Path scenarioDir = Paths.get(resultsBaseDir, scenarioS3Prefix);
+                Files.createDirectories(scenarioDir);
+
+                Path scenarioCsv = csvLoader.writeScenarioCsv(scenarioTestCases, scenarioDir);
+
+                // S3 key = same scenario prefix + file name
+                String s3Key = scenarioS3Prefix + "/scenario-results.csv";
+                String csvUrl = uploadFile(scenarioCsv, s3Key);
+
+                logger.info("Uploaded CSV for scenarioPrefix {} -> {}", scenarioS3Prefix, csvUrl);
+
+                for (Scenario sc : scenarios) {
+                    if (scenarioS3Prefix.equals(sc.getScenarioBasePath())) {
+                        sc.setResultCsv(csvUrl);
+                        break;
+                    }
+                }
+
+            } catch (Exception e) {
+                logger.error("Failed writing/uploading CSV for scenarioPrefix {}", scenarioS3Prefix, e);
+            }
+        }
     }
 }

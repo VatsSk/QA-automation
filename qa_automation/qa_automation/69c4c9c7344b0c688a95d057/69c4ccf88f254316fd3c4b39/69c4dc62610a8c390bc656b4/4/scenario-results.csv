@@ -1,0 +1,3 @@
+testCaseId,add-poi-btn,my-input-autocomplete,expectedResult,Result
+1,click,new delhi,,Passed
+2,click,samastipur,,Passed

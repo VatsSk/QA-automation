@@ -34,6 +34,10 @@ public class GlobalExceptionHandler {
         public RunnerIntegrationException(String msg, Throwable cause) { super(msg, cause); }
     }
 
+    public static class InvalidCountException extends IndexOutOfBoundsException{
+        public InvalidCountException(String msg) { super(msg); }
+    }
+
     public static class StorageException extends RuntimeException {
         public StorageException(String msg, Throwable cause) { super(msg, cause); }
     }
@@ -61,6 +65,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(InvalidCountException.class)
+    public ResponseEntity<ErrorResponse> handleInvalidCount(InvalidCountException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ErrorResponse.of(HttpStatus.BAD_REQUEST.value(), ex.getMessage()));
     }
 
     @ExceptionHandler(BadRequestException.class)
