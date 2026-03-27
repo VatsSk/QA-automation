@@ -35,9 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -718,6 +716,8 @@ public class ScenarioOrchestratorService {
         else {
             scenarioTestDto.setOverAllScenarioStatus(RunStatus.PARTIAL);
         }
+
+        logger.info("inside modal generic : testCases size is : {} and totalPass {} total fail {} and scenario result {}",testCases.size(),totalPasses,totalFails,scenarioTestDto.getOverAllScenarioStatus());
         Scenario scenario= run.getScenariosList().get(currEle);
         logger.info("currEl {} Scenario must be last : {}",currEle,scenario);
         scenario.setResultCsv(finalCsvUrl);
@@ -744,127 +744,59 @@ public class ScenarioOrchestratorService {
                 );
 
         logger.info("steps of Assert scenario : {}",steps);
-
-        int totalPass = 0;
-        int totalFail = 0;
-
         try {
+            executor.runAssertionSteps(driver, steps,scenarioDir,scenarioPrefix);
+            List<AssertionDto> assertionDtos=scenario.getAssertions();
+            List<TestCaseDTO> testDtos = new ArrayList<>();
+            int tcIdx = 1;
+            int passedCount = 0;
+            int failedCount = 0;
 
-            // 🔥 SINGLE CALL (correct)
-            executor.runAssertionSteps(driver, steps);
+            for (AssertionDto assertDto : assertionDtos) {
+                Map<String, String> valuesMap = new LinkedHashMap<>();
 
-            totalPass = steps.size();
+                // Put all AssertionDto fields into map
+                valuesMap.put("type", assertDto.getType() != null ? assertDto.getType().name() : "");
+                valuesMap.put("locator", assertDto.getLocator());
+                valuesMap.put("expected", assertDto.getExpected());
+                valuesMap.put("columnName", assertDto.getColumnName());
+                valuesMap.put("tableId", assertDto.getTableId());
+                valuesMap.put("rowsBtn", assertDto.getRowsBtn());
+                valuesMap.put("order", assertDto.getOrder());
+                valuesMap.put("errorMessage", assertDto.getErrorMessage());
+
+                // Create TestCaseDTO
+                TestCaseDTO tc = new TestCaseDTO(String.valueOf(tcIdx), valuesMap);
+                tcIdx++;
+                if ("PASSED".equalsIgnoreCase(assertDto.getAssertResult())) {
+                    passedCount++;
+                } else if ("FAILED".equalsIgnoreCase(assertDto.getAssertResult())) {
+                    failedCount++;
+                }
+                // Keep result separate
+                tc.setResult(assertDto.getAssertResult());
+                testDtos.add(tc);
+            }
+            int total = assertionDtos.size();
+
+            if (failedCount == total) {
+                scenario.setScenarioStatus(RunStatus.FAILED);
+            } else if (passedCount == total) {
+                scenario.setScenarioStatus(RunStatus.PASSED);
+            } else {
+                scenario.setScenarioStatus(RunStatus.PARTIAL);
+            }
+            Path csvPath = csvLoader.writeScenarioCsv(testDtos,scenarioDir);
+            String s3Key = scenarioPrefix;
+            String finalCsvUrl = s3StorageService.uploadFile(csvPath, s3Key);
+            scenario.setResultCsv(finalCsvUrl);
+
 
         } catch (Exception e) {
-
-            // if any step fails → mark fail
-            totalFail = 1;
-            totalPass = steps.size() - 1;
+            System.out.println("exception encountered "+ e.getMessage());
         }
-
-        //         Build minimal result (can enhance later)
-//        List<TestCaseDTO> results = new ArrayList<>();
-//
-//        TestCaseDTO tc = new TestCaseDTO("1", new HashMap<>());
-//
-//        if (totalFail == 0) {
-//            tc.setResult("Passed");
-//        } else {
-//            tc.setResult("Failed");
-//        }
-//
-//        results.add(tc);
-
-        // Save CSV
-//        Path scenarioCsv = csvLoader.writeScenarioCsv(results, scenarioDir);
-//        String s3Key = scenarioPrefix + "/scenario-results.csv";
-
-//        String finalCsvUrl = s3StorageService.uploadFile(scenarioCsv, s3Key);
-
-//        ScenarioTestDto dto = new ScenarioTestDto(results, null);
-
-//        if (totalFail == 0) {
-//            dto.setOverAllScenarioStatus(RunStatus.PASSED);
-//        } else {
-//            dto.setOverAllScenarioStatus(RunStatus.FAILED);
-//        }
-
-//        scenario.setResultCsv(null);
-
-//        return ;
     }
 
-    public List<ScenarioDescriptor> scenarioDescriptorMapper(TestConfigPayload payload,
-                                                             MultipartHttpServletRequest request){
-        List<ScenarioDescriptor> scenarios = new ArrayList<>();
-
-        for (TestConfigRequest req : payload.getTests()) {
-
-            // 1. Grab the exact file using the fileKey (e.g., "file_0")
-            MultipartFile csvFile = request.getFile(req.getFileKey());
-
-            // 2. Safely parse the Enum type
-            ScenarioDescriptor.Type scenarioType;
-            try {
-                scenarioType = ScenarioDescriptor.Type.valueOf(req.getType().toUpperCase());
-            } catch (IllegalArgumentException e) {
-                return null;
-            }
-
-            // 3. Construct YOUR actual ScenarioDescriptor
-            ScenarioDescriptor descriptor = new ScenarioDescriptor(
-                    scenarioType,
-                    req.getId()==null?req.getOpenerCss(): req.getId(),
-                    req.getUrl(),
-                    req.getOpenerCss(),
-                    csvFile,
-                    req.getIsClick(),
-                    req.getClickCss(),
-                    req.getValue()
-            );
-
-            // 4. Add it to our list
-            scenarios.add(descriptor);
-
-        }
-        return  scenarios;
-    }
-
-
-    public File zipTestResults(String runId) throws IOException {
-        Path baseDir = Paths.get("test-results");
-        String zipFileName = "screenshots_" + runId + ".zip";
-        Path zipPath = baseDir.resolve(zipFileName);
-        try (ZipOutputStream zs =
-                     new ZipOutputStream(new BufferedOutputStream(Files.newOutputStream(zipPath)))) {
-
-            Files.list(baseDir)
-                    .filter(p -> p.getFileName().toString().startsWith(runId))
-                    .forEach(folder -> {
-                        try {
-                            Files.walk(folder)
-                                    .filter(p -> !Files.isDirectory(p))
-                                    .forEach(file -> {
-                                        try {
-                                            ZipEntry zipEntry =
-                                                    new ZipEntry(baseDir.relativize(file).toString());
-
-                                            zs.putNextEntry(zipEntry);
-                                            Files.copy(file, zs);
-                                            zs.closeEntry();
-
-                                        } catch (IOException e) {
-                                            throw new RuntimeException(e);
-                                        }
-                                    });
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-        }
-
-        return zipPath.toFile();
-    }
 
     private void handleModalScenario(
             WebDriver driver,

@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.dto;
 
+import com.testingautomation.testautomation.model.Scenario;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
@@ -34,6 +35,8 @@ public class StepAction {
     private String rowsBtn;
 //    private String rangeId;
     private String order;
+
+    private AssertionDto assertion;
 
     // constructor + getters/setters
     public StepAction(ActionType type, String locatorType, String locator, String payload, String description) {

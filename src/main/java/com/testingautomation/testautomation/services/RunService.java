@@ -190,7 +190,7 @@ public class RunService {
 
             ChromeOptions options = new ChromeOptions();
             options.addArguments("--disable-gpu");
-            options.addArguments("--window-size=1366,768");
+            options.addArguments("--window-size=1534,664");
 
             driver = new ChromeDriver(options);
 
@@ -261,7 +261,8 @@ public class RunService {
             markRunFailed(updated, message);
             throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
 
-        } finally {
+        }
+        finally {
             if (driver != null) {
                 try {
                     driver.quit();
