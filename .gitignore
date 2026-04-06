@@ -41,3 +41,5 @@ test-results/
 results.csv
 finalResult.csv
 .env
+qa_automation/
+logs/

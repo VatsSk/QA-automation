@@ -8,9 +8,7 @@ import com.testingautomation.testautomation.globalException.GlobalExceptionHandl
 import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
 import com.testingautomation.testautomation.model.*;
 import com.testingautomation.testautomation.repo.RunRepository;
-import com.testingautomation.testautomation.requestDto.TestConfigPayload;
-import com.testingautomation.testautomation.requestDto.TestConfigRequest;
-import com.testingautomation.testautomation.scan.UiScannerService;
+import com.testingautomation.testautomation.services.UiScannerService;
 import com.testingautomation.testautomation.services.AssertionStepGenerator;
 import com.testingautomation.testautomation.services.S3StorageService;
 import com.testingautomation.testautomation.services.ScreenshotService;
@@ -25,19 +23,13 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.multipart.MultipartHttpServletRequest;
 
-import java.io.BufferedOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
 
@@ -315,8 +307,7 @@ public class ScenarioOrchestratorService {
             run.getScenariosList().set(currIdx,scenario);
 
             // single generic testcase for this navigation scenario
-//            List<TestCaseDTO> resultTestCases = new ArrayList<>();
-            TestCaseDTO resultTestCase = new TestCaseDTO(modalFormTcIdx+"", new HashMap<>());
+            TestCaseDTO resultTestCase = new TestCaseDTO((modalFormTcIdx+1)+"", new HashMap<>());
 
             resultTestCase.setExpectedResult("Passed");
 //            resultTestCases.add(resultTestCase);
@@ -341,7 +332,7 @@ public class ScenarioOrchestratorService {
                     driver.get(currScenario.getUrl());
                     String url = screenshotService.takeScreenshot(
                             driver,
-                            "1",
+                            (modalFormTcIdx +1)+"",
                             "step passed" ,
                             navigationScreenshotDir,
                             scenarioPrefix
@@ -361,7 +352,7 @@ public class ScenarioOrchestratorService {
                     opener.click();
                     String url = screenshotService.takeScreenshot(
                             driver,
-                            "1",
+                            (modalFormTcIdx +1)+"",
                             "step passed",
                             navigationScreenshotDir,
                             scenarioPrefix
@@ -407,7 +398,7 @@ public class ScenarioOrchestratorService {
                         // 📸 Step 1 → after typing
                         screenshotService.takeScreenshot(
                                 driver,
-                                "1",
+                                (modalFormTcIdx +1)+"",
                                 "step passed",
                                 navigationScreenshotDir,
                                 scenarioPrefix
@@ -428,7 +419,7 @@ public class ScenarioOrchestratorService {
                         // 📸 Step 2 → after selecting option
                         screenshotService.takeScreenshot(
                                 driver,
-                                "1",
+                                (modalFormTcIdx +1)+"",
                                 "step passed",
                                 navigationScreenshotDir,
                                 scenarioPrefix
@@ -442,7 +433,7 @@ public class ScenarioOrchestratorService {
                         // 📸 Step 3 → after closing dropdown
                         screenshotService.takeScreenshot(
                                 driver,
-                                "1",
+                                (modalFormTcIdx +1)+"",
                                 "step passed",
                                 navigationScreenshotDir,
                                 scenarioPrefix
@@ -470,7 +461,7 @@ public class ScenarioOrchestratorService {
                             logger.info("Clicked checkbox for option: {}", value);
                             screenshotService.takeScreenshot(
                                     driver,
-                                    "1",
+                                    (modalFormTcIdx +1)+"",
                                     "step passed",
                                     navigationScreenshotDir,
                                     scenarioPrefix
@@ -492,7 +483,7 @@ public class ScenarioOrchestratorService {
                                 logger.info("Option selected using exact text");
                                 screenshotService.takeScreenshot(
                                         driver,
-                                        "1",
+                                        (modalFormTcIdx +1)+"",
                                         "step passed",
                                         navigationScreenshotDir,
                                         scenarioPrefix
@@ -512,7 +503,7 @@ public class ScenarioOrchestratorService {
                                 logger.info("Option selected using partial text");
                                 screenshotService.takeScreenshot(
                                         driver,
-                                        "1",
+                                        (modalFormTcIdx +1)+"",
                                         "step passed",
                                         navigationScreenshotDir,
                                         scenarioPrefix
@@ -527,7 +518,7 @@ public class ScenarioOrchestratorService {
                         logger.info("Closed dropdown using body click fallback");
                         screenshotService.takeScreenshot(
                                 driver,
-                                "1",
+                                (modalFormTcIdx +1)+"",
                                 "step err" + TimestampUtil.generateTimestamp(),
                                 navigationScreenshotDir,
                                 scenarioPrefix
@@ -543,6 +534,9 @@ public class ScenarioOrchestratorService {
                     String csvFile = currScenario.getCsv();
                     logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvFile);
                     List<TestCaseDTO> testCases = csvLoader.loadFromS3(csvFile);
+                    if(modalFormTcIdx>=testCases.size()){
+                        throw new GlobalExceptionHandler.InvalidCountException("Invalid test case index: " + modalFormTcIdx);
+                    }
                     resultTestCase= testCases.get(modalFormTcIdx);
                     handleModalScenario(driver, currScenario, resultTestCase,scenarioPrefix,navigationScreenshotDir);
 
@@ -562,6 +556,8 @@ public class ScenarioOrchestratorService {
                         currScenario.getType(),
                         currScenario.getCssOpener(),
                         e);
+                String urlSs= screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
+                throw e;
             }
             catch (Exception e) {
                 scenario.setScenarioStatus(RunStatus.ERROR);
@@ -602,13 +598,25 @@ public class ScenarioOrchestratorService {
                                             , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
         List<TestCaseDTO> testCases=null;
 
-        int currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run,scenarioResultsMap);
+        int currEle=-1;
+
+        try{
+            currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run,scenarioResultsMap);
+        }catch (GlobalExceptionHandler.InvalidCountException ex){
+            throw ex;
+        }
         String scenarioPrefix =
                 baseS3Prefix + "/" + (currEle+1);
+
+        if(currEle>=scenarios.size()){
+            return;
+        }
 
         Scenario currModal=scenarios.get(currEle);
         logger.info("Processing scenario at adjusted index {}: type={}, url={}",
             currEle, currModal.getType(), currModal.getUrl());
+
+
 
         if(currModal.getType()==ScenarioType.ASSERT){
             logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
@@ -622,7 +630,6 @@ public class ScenarioOrchestratorService {
         int totalPasses = 0;
         int totalFails = 0;
         try {
-
             // load modal testcases
             testCases = csvLoader.loadFromS3(currModal.getCsv());
             logger.info("[{}] loaded {} modal testcases from", scenarioPrefix, testCases.size());
@@ -648,13 +655,18 @@ public class ScenarioOrchestratorService {
                     if(counterIdx<testCases.size())
                         handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run,scenarioResultsMap);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
-                } catch (Exception e) {
-                    logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
+                }
+                catch(GlobalExceptionHandler.InvalidCountException ex){
+                    throw ex;
+                }
+                catch (Exception e) {
+                    logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage());
                 }
             }
 
-        } catch (Exception e) {
-            logger.error("[{}] failed to open modal or execute tests: {}",scenarioPrefix, e.getMessage(), e);
+        }
+        catch (Exception e) {
+            logger.error("[{}] failed to open modal or execute tests: {}",scenarioPrefix, e.getMessage());
         }
         // store modal scenario testcases in memory grouped by scenarioPrefix
         scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
@@ -674,17 +686,7 @@ public class ScenarioOrchestratorService {
         else {
             currModal.setScenarioStatus(RunStatus.PARTIAL);
         }
-//        Scenario scenario= run.getScenariosList().get(currEle);
-//        logger.info("currEl {} Scenario must be last : {}",currEle,scenario);
-//        scenario.setResultCsv(finalCsvUrl);
-//        scenario.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
-        //        Scenario scenario= run.getScenariosList().get(currEle);
-//        logger.info("currEl {} Scenario must be last : {}",currEle,currModal);
         logger.info("Total testcase "+testCases.size()+" passes "+totalPasses+" fails "+totalFails);
-//        logger.info("STATUS  For sceneraio "+scenarioTestDto.getOverAllScenarioStatus());
-////        currModal.setResultCsv(finalCsvUrl);
-//        currModal.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
-//
     }
 
     public void runAssertionGeneric(

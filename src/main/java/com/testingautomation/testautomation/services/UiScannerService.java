@@ -1,4 +1,4 @@
-package com.testingautomation.testautomation.scan;
+package com.testingautomation.testautomation.services;
 import com.testingautomation.testautomation.dto.FieldDescriptor;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.*;

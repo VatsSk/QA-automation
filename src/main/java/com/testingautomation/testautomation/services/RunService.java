@@ -220,13 +220,14 @@ public class RunService {
 
             return mapper.toRunResponse(updated);
 
-        } catch (GlobalExceptionHandler.ResourceNotFoundException |
-                 GlobalExceptionHandler.BadRequestException ex) {
-
+        }
+        catch(GlobalExceptionHandler.InvalidCountException | GlobalExceptionHandler.ResourceNotFoundException |
+              GlobalExceptionHandler.BadRequestException ex){
+            System.out.println("catched inside execute run method");
             markRunFailed(updated, ex.getMessage());
             throw ex;
-
-        } catch (GlobalExceptionHandler.RunnerIntegrationException ex) {
+        }
+        catch (GlobalExceptionHandler.RunnerIntegrationException ex) {
 
             markRunFailed(updated, ex.getMessage());
             throw ex;
