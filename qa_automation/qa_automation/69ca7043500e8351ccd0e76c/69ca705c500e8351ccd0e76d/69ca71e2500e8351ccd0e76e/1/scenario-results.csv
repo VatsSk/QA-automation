@@ -1,0 +1,2 @@
+testCaseId,password,companyIdentifier,app-login-btn,username,expectedResult,Result
+1,breakingbad,wildcraft,click,portugal_rm,Passed,FAILED
