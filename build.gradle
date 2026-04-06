@@ -48,6 +48,8 @@ dependencies {
     // AWS S3 SDK (v2)
     implementation 'software.amazon.awssdk:s3:2.25.20'
 
+    //For Rest calls
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
     //S3
 //    implementation(platform("software.amazon.awssdk:bom:2.25.40"))
 //    implementation("software.amazon.awssdk:s3")
