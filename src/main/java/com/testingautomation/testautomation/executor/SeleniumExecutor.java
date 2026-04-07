@@ -1,16 +1,13 @@
 package com.testingautomation.testautomation.executor;
 
-import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.ResultRun;
 import com.testingautomation.testautomation.dto.StepAction;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.llmconfig.AIService;
 import com.testingautomation.testautomation.llmconfig.AIValidationResult;
 import com.testingautomation.testautomation.llmconfig.PromptBuilder;
-import com.testingautomation.testautomation.model.Scenario;
-import com.testingautomation.testautomation.services.LLMServices;
+import com.testingautomation.testautomation.llmconfig.LLMServices;
 import com.testingautomation.testautomation.services.ScreenshotService;
-import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -18,21 +15,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.io.BufferedWriter;
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureScrollablePageScreenshots;
 

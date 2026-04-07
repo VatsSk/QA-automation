@@ -24,7 +24,7 @@ public class AIService {
 //    }
 
 
-
+//
 //    public AIValidationResult analyzeScreenshots(String prompt, List<File> screenshots) {
 //
 //        try {

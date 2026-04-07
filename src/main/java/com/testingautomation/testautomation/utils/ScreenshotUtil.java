@@ -17,7 +17,7 @@ import java.util.List;
 
 @Slf4j
 public class ScreenshotUtil {
-//    Logger logger = Logger.getLogger(ScreenshotUtil.class.getName());
+    //    Logger logger = Logger.getLogger(ScreenshotUtil.class.getName());
     public static File saveScreenshot(File source, String fileName) throws IOException {
         Path dir = Paths.get(System.getProperty("java.io.tmpdir"), "ai-assert-screenshots");
         Files.createDirectories(dir);
@@ -29,47 +29,104 @@ public class ScreenshotUtil {
     }
 
 
-    public static List<File> captureScrollablePageScreenshots(WebDriver driver) throws IOException, InterruptedException {
-        List<File> screenshots = new ArrayList<>();
+    public static List<File> captureScrollablePageScreenshots(WebDriver driver)
+            throws IOException, InterruptedException {
 
+        List<File> screenshots = new ArrayList<>();
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
-        Long totalHeight = ((Number) js.executeScript("return document.body.scrollHeight")).longValue();
-        Long viewportHeight = ((Number) js.executeScript("return window.innerHeight")).longValue();
+        // Get full page dimensions
+        long totalWidth = ((Number) js.executeScript(
+                "return Math.max(document.body.scrollWidth, document.documentElement.scrollWidth);"
+        )).longValue();
 
-        if (totalHeight == null || viewportHeight == null || viewportHeight <= 0) {
+        long totalHeight = ((Number) js.executeScript(
+                "return Math.max(document.body.scrollHeight, document.documentElement.scrollHeight);"
+        )).longValue();
+
+        // Get viewport dimensions
+        long viewportWidth = ((Number) js.executeScript("return window.innerWidth;")).longValue();
+        long viewportHeight = ((Number) js.executeScript("return window.innerHeight;")).longValue();
+
+        if (totalWidth <= 0 || totalHeight <= 0 || viewportWidth <= 0 || viewportHeight <= 0) {
             throw new RuntimeException("Unable to determine page dimensions for screenshot capture.");
         }
 
-        log.info("Capturing scroll screenshots: totalHeight={}, viewportHeight={}", totalHeight, viewportHeight);
+        // Scroll by 80% of viewport to keep overlap (prevents content being cut)
+        long verticalStep = Math.max(1, Math.round(viewportHeight * 0.80));
+        long horizontalStep = Math.max(1, Math.round(viewportWidth * 0.80));
 
-        long currentScroll = 0;
+        log.info("Page dimensions => totalWidth={}, totalHeight={}, viewportWidth={}, viewportHeight={}",
+                totalWidth, totalHeight, viewportWidth, viewportHeight);
+        log.info("Scroll steps => horizontalStep={}, verticalStep={}", horizontalStep, verticalStep);
+
+        // Build Y positions
+        List<Long> yPositions = buildScrollPositions(totalHeight, viewportHeight, verticalStep);
+
+        // Build X positions
+        List<Long> xPositions = buildScrollPositions(totalWidth, viewportWidth, horizontalStep);
+
         int index = 1;
 
-        while (currentScroll < totalHeight) {
-            js.executeScript("window.scrollTo(0, arguments[0]);", currentScroll);
-            Thread.sleep(1200); // allow lazy-loaded UI to render
+        for (Long y : yPositions) {
+            for (Long x : xPositions) {
+                js.executeScript("window.scrollTo(arguments[0], arguments[1]);", x, y);
 
-            File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            File saved = saveScreenshot(shot, "ai_assert_" + index + ".png");
-            screenshots.add(saved);
+                // wait for rendering/lazy-load/sticky elements to settle
+                Thread.sleep(1200);
 
-            log.info("Captured screenshot {} at scrollY={}", index, currentScroll);
+                File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+                File saved = saveScreenshot(
+                        shot,
+                        String.format("ai_assert_%03d_x%d_y%d.png", index, x, y)
+                );
 
-            currentScroll += viewportHeight;
+                screenshots.add(saved);
 
-            // Prevent infinite loops on weird pages
-            if (index > 20) {
-                log.warn("Stopping screenshot capture after 20 screens for safety.");
-                break;
+                log.info("Captured screenshot {} at x={}, y={}", index, x, y);
+                index++;
             }
-
-            index++;
         }
 
-        // Scroll back to top after capture
+        // Reset to top-left
         js.executeScript("window.scrollTo(0, 0);");
         Thread.sleep(500);
 
         return screenshots;
-    }}
+    }
+
+    private static List<Long> buildScrollPositions(long totalSize, long viewportSize, long step) {
+        List<Long> positions = new ArrayList<>();
+
+        if (totalSize <= viewportSize) {
+            positions.add(0L);
+            return positions;
+        }
+
+        long maxScroll = totalSize - viewportSize;
+        long current = 0;
+
+        while (current < maxScroll) {
+            positions.add(current);
+            current += step;
+        }
+
+        // Ensure the final tail is always captured
+        if (positions.isEmpty() || positions.get(positions.size() - 1) != maxScroll) {
+            positions.add(maxScroll);
+        }
+
+        // Remove accidental duplicates while preserving order
+        List<Long> unique = new ArrayList<>();
+        Long prev = null;
+        for (Long pos : positions) {
+            if (!pos.equals(prev)) {
+                unique.add(pos);
+            }
+            prev = pos;
+        }
+
+        return unique;
+    }
+
+}

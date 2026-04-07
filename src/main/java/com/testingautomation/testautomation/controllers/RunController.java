@@ -1,11 +1,6 @@
 package com.testingautomation.testautomation.controllers;
 
-import com.testingautomation.testautomation.executor.SeleniumExecutor;
-import com.testingautomation.testautomation.generator.StepGenerator;
-import com.testingautomation.testautomation.loader.CsvTestCaseLoader;
-import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
-import com.testingautomation.testautomation.services.LLMServices;
-import com.testingautomation.testautomation.services.UiScannerService;
+import com.testingautomation.testautomation.llmconfig.LLMServices;
 import com.testingautomation.testautomation.services.RunService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
