@@ -8,7 +8,7 @@ import com.testingautomation.testautomation.llmconfig.AIValidationResult;
 import com.testingautomation.testautomation.llmconfig.PromptBuilder;
 import com.testingautomation.testautomation.llmconfig.LLMServices;
 import com.testingautomation.testautomation.services.ScreenshotService;
-import com.testingautomation.testautomation.utils.ScreenshotUtil;
+import com.testingautomation.testautomation.services.AIScreenshotService;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -26,9 +26,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureFullPage;
-import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureHeaderAcrossAllColumns;
-
 
 @Component
 public class SeleniumExecutor {
@@ -38,12 +35,14 @@ public class SeleniumExecutor {
     private final boolean screenshotOnStep;
     private final ScreenshotService screenshotService;
     private final LLMServices lLMServices;
+    private final AIScreenshotService aiScreenshotService;
 
-    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, AIService aiService, LLMServices lLMServices) {
+    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, AIService aiService, LLMServices lLMServices, AIScreenshotService aiScreenshotService) {
         this.resultsBaseDir = env.getProperty("autotest.results.base-dir", "./test-results");
         this.screenshotOnStep = Boolean.parseBoolean(env.getProperty("autotest.screenshot-on-step", "false"));
         this.screenshotService = screenshotService;
         this.lLMServices = lLMServices;
+        this.aiScreenshotService = aiScreenshotService;
     }
 
     /**
@@ -706,8 +705,8 @@ public class SeleniumExecutor {
                         break;
 
                     case ASSERT_AI:
-                        assertAI(driver,wait,step);
-                        step.getAssertion().setAssertResult("Passed");
+                        assertAI(driver,wait,step,scenarioPrefix);
+//                        step.getAssertion().setAssertResult("Passed");
                         break;
 
 
@@ -729,9 +728,11 @@ public class SeleniumExecutor {
             tcIdx++;
         }
     }
-    private void assertAI(WebDriver driver, WebDriverWait wait, StepAction step) {
+    private void assertAI(WebDriver driver, WebDriverWait wait, StepAction step,String scenarioPrefix) {
         try {
             logger.info("Running AI assertion for step: {}", step.getType());
+            Path screenshotDir = Paths.get(resultsBaseDir, scenarioPrefix, "ai");
+
 
             // Wait for page to stabilize
             waitForPageStable(driver);
@@ -741,7 +742,7 @@ public class SeleniumExecutor {
             // =========================================================
             // 1) Capture WHOLE PAGE first (main window scrolling)
             // =========================================================
-            screenshots.addAll(ScreenshotUtil.captureFullPage(driver));
+            screenshots.addAll(aiScreenshotService.captureFullPage(driver,scenarioPrefix,screenshotDir));
 
             // Reset page to top before container capture
             ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
@@ -758,19 +759,19 @@ public class SeleniumExecutor {
                 // 2a) Capture scrollable section HEADER first
                 //     (all horizontal columns, sorting visibility)
                 // -----------------------------------------------------
-                screenshots.addAll(ScreenshotUtil.captureHeaderAcrossAllColumns(driver, scrollableContainer));
+                screenshots.addAll(aiScreenshotService.captureHeaderAcrossAllColumns(driver, scrollableContainer,scenarioPrefix,screenshotDir));
 
                 // -----------------------------------------------------
                 // 2b) Capture scrollable section BODY next
                 //     (all rows + all columns)
                 // -----------------------------------------------------
-                screenshots.addAll(ScreenshotUtil.captureScrollableElementScreenshots(driver, scrollableContainer));
+                screenshots.addAll(aiScreenshotService.captureScrollableElementScreenshots(driver, scrollableContainer,scenarioPrefix,screenshotDir));
             } else {
                 logger.warn("No scrollable container found. Proceeding with full-page screenshots only.");
             }
 
             if (screenshots.isEmpty()) {
-                throw new RuntimeException("AI assertion failed: No screenshots captured.");
+                throw new GlobalExceptionHandler.BadRequestException("AI assertion failed: No screenshots captured.");
             }
             logger.info("Length of screenshot list: {}", screenshots.size());
             // =========================================================
@@ -784,10 +785,12 @@ public class SeleniumExecutor {
             AIValidationResult result = lLMServices.analyzeScreenshots(prompt, screenshots);
 
             logger.info("AI assertion response: {}", result);
+//            step.setDescription(result.getReason());
 
-            if (!result.isPassed()) {
-                throw new AssertionError("AI assertion failed: " + result.getReason());
+            if (result.getStatus()== AIValidationResult.AssertStatus.FAILED) {
+                throw new GlobalExceptionHandler.BadRequestException("AI assertion failed: " + result.getReason());
             }
+            step.getAssertion().setAssertResult(result.getStatus().toString());
 
             logger.info("AI assertion passed for step: {}", step.getType());
 

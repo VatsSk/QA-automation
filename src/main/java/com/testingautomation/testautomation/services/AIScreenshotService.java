@@ -1,12 +1,10 @@
-package com.testingautomation.testautomation.utils;
+package com.testingautomation.testautomation.services;
 
+import com.testingautomation.testautomation.utils.TimestampUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
-import org.openqa.selenium.devtools.DevTools;
-import org.openqa.selenium.devtools.HasDevTools;
-import org.openqa.selenium.devtools.v119.page.Page;
-import org.slf4j.Logger;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,14 +13,15 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
-import java.util.Optional;
 
 @Slf4j
-public class ScreenshotUtil {
+@Service
+public class AIScreenshotService {
+    @Autowired
+    private ScreenshotService screenshotService;
     //    Logger logger = Logger.getLogger(ScreenshotUtil.class.getName());
-    public static File saveScreenshot(File source, String fileName) throws IOException {
+    private File saveScreenshot(File source, String fileName) throws IOException {
         Path dir = Paths.get(System.getProperty("java.io.tmpdir"), "ai-assert-screenshots");
         Files.createDirectories(dir);
 
@@ -32,7 +31,7 @@ public class ScreenshotUtil {
         return target.toFile();
     }
 
-    public static List<File> captureFullPage(WebDriver driver) throws IOException, InterruptedException {
+    public List<File> captureFullPage(WebDriver driver,String scenarioPrefix,Path screenshotDir) throws IOException, InterruptedException {
         List<File> screenshots = new ArrayList<>();
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
@@ -91,6 +90,14 @@ public class ScreenshotUtil {
                 long actualX = ((Number) js.executeScript("return window.pageXOffset;")).longValue();
                 long actualY = ((Number) js.executeScript("return window.pageYOffset;")).longValue();
 
+                screenshotService.takeScreenshot(
+                        driver,
+                        "1",
+                        "step "+TimestampUtil.generateTimestamp(),
+                        screenshotDir,
+                        scenarioPrefix
+                );
+
                 File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
                 File saved = saveScreenshot(
                         shot,
@@ -113,7 +120,7 @@ public class ScreenshotUtil {
 
         return screenshots;
     }
-    private static void waitForWindowScrollSettle(WebDriver driver) throws InterruptedException {
+    private void waitForWindowScrollSettle(WebDriver driver) throws InterruptedException {
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
         long lastX = -1;
@@ -136,7 +143,7 @@ public class ScreenshotUtil {
         Thread.sleep(600);
     }
 
-    public static List<File> captureScrollableElementScreenshots(WebDriver driver, WebElement container)
+    public List<File> captureScrollableElementScreenshots(WebDriver driver, WebElement container,String scenarioPrefix,Path screenshotDir)
             throws IOException, InterruptedException {
 
         List<File> screenshots = new ArrayList<>();
@@ -193,13 +200,20 @@ public class ScreenshotUtil {
                 long actualX = ((Number) js.executeScript("return arguments[0].scrollLeft;", container)).longValue();
                 long actualY = ((Number) js.executeScript("return arguments[0].scrollTop;", container)).longValue();
 
+                screenshotService.takeScreenshot(
+                        driver,
+                        "1",
+                        "step "+TimestampUtil.generateTimestamp(),
+                        screenshotDir,
+                        scenarioPrefix
+                );
+
                 File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
                 File saved = saveScreenshot(
                         shot,
                         String.format("ai_assert_%03d_reqX%d_reqY%d_actX%d_actY%d.png",
                                 index, x, y, actualX, actualY)
                 );
-
                 screenshots.add(saved);
 
                 log.info("Captured screenshot {} => requested(x={}, y={}), actual(x={}, y={})",
@@ -216,7 +230,7 @@ public class ScreenshotUtil {
         return screenshots;
     }
 
-    private static List<Long> buildFullCoveragePositions(long totalSize, long viewportSize, long step) {
+    private List<Long> buildFullCoveragePositions(long totalSize, long viewportSize, long step) {
         List<Long> positions = new ArrayList<>();
 
         if (totalSize <= viewportSize) {
@@ -269,7 +283,7 @@ public class ScreenshotUtil {
 
         Thread.sleep(700);
     }
-    public static List<File> captureHeaderAcrossAllColumns(WebDriver driver, WebElement container)
+    public List<File> captureHeaderAcrossAllColumns(WebDriver driver, WebElement container,String scenarioPrefix, Path screenshotDir)
             throws IOException, InterruptedException {
 
         List<File> screenshots = new ArrayList<>();
@@ -291,9 +305,16 @@ public class ScreenshotUtil {
             js.executeScript("arguments[0].scrollTop = 0; arguments[0].scrollLeft = arguments[1];", container, x);
             waitForContainerRender(driver, container);
 
+            screenshotService.takeScreenshot(
+                    driver,
+                    "1",
+                    "step "+TimestampUtil.generateTimestamp(),
+                    screenshotDir,
+                    scenarioPrefix
+            );
+
             File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
             File saved = saveScreenshot(shot, String.format("ai_header_%03d_x%d.png", index, x));
-
             screenshots.add(saved);
             index++;
         }
