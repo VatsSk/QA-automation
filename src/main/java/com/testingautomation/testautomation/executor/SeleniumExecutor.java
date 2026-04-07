@@ -10,6 +10,7 @@ import com.testingautomation.testautomation.llmconfig.PromptBuilder;
 import com.testingautomation.testautomation.model.Scenario;
 import com.testingautomation.testautomation.services.LLMServices;
 import com.testingautomation.testautomation.services.ScreenshotService;
+import com.testingautomation.testautomation.utils.ScreenshotUtil;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -18,24 +19,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import java.io.BufferedWriter;
+
 import java.io.File;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.time.Duration;
-import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
-
-import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureFullPage;
-import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureScrollablePageScreenshots;
 
 @Component
 public class SeleniumExecutor {
@@ -745,7 +738,7 @@ public class SeleniumExecutor {
 
             // Capture current UI state (recommended: full page via scrolling)
 //            List<File> screenshots = captureFullPage(driver);
-            List<File> screenshots = captureScrollablePageScreenshots(driver);
+            List<File> screenshots = ScreenshotUtil.captureSmartScrollableScreens(driver);
 
             if (screenshots.isEmpty()) {
                 throw new RuntimeException("AI assertion failed: No screenshots captured.");

@@ -2,24 +2,20 @@ package com.testingautomation.testautomation.utils;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
-import org.openqa.selenium.JavascriptExecutor;
-import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.*;
+import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.devtools.DevTools;
 import org.openqa.selenium.devtools.HasDevTools;
 import org.openqa.selenium.devtools.v119.page.Page;
 import org.slf4j.Logger;
-import org.openqa.selenium.TakesScreenshot;
-import org.openqa.selenium.OutputType;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 public class ScreenshotUtil {
@@ -39,7 +35,7 @@ public class ScreenshotUtil {
         DevTools devTools = ((HasDevTools) driver).getDevTools();
         devTools.createSession();
 
-        devTools.send(Page.enable());
+        devTools.send(org.openqa.selenium.devtools.v121.page.Page.enable());
 
         String base64 = devTools.send(
                 Page.captureScreenshot(
@@ -61,48 +57,127 @@ public class ScreenshotUtil {
         return screenshots;
     }
 
+    public static List<File> captureSmartScrollableScreens(WebDriver driver)
+            throws Exception {
 
-    public static List<File> captureScrollablePageScreenshots(WebDriver driver) throws IOException, InterruptedException {
         List<File> screenshots = new ArrayList<>();
-
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
-        Long totalHeight = ((Number) js.executeScript("return document.body.scrollHeight")).longValue();
-        Long viewportHeight = ((Number) js.executeScript("return window.innerHeight")).longValue();
+        // 🔹 Step 1: Detect visible + scrollable elements
+        List<WebElement> scrollables = (List<WebElement>) js.executeScript(
+                "return Array.from(document.querySelectorAll('*')).filter(el => {" +
+                        "  const style = window.getComputedStyle(el);" +
+                        "  const rect = el.getBoundingClientRect();" +
 
-        if (totalHeight == null || viewportHeight == null || viewportHeight <= 0) {
-            throw new RuntimeException("Unable to determine page dimensions for screenshot capture.");
+                        "  const isVisible = style.display !== 'none' && " +
+                        "                    style.visibility !== 'hidden' && " +
+                        "                    rect.width > 0 && rect.height > 0 && " +
+                        "                    rect.bottom > 0 && rect.right > 0 && " +
+                        "                    rect.top < window.innerHeight && " +
+                        "                    rect.left < window.innerWidth;" +
+
+                        "  const isScrollable = (el.scrollHeight > el.clientHeight) || " +
+                        "                       (el.scrollWidth > el.clientWidth);" +
+
+                        "  return isVisible && isScrollable;" +
+                        "});"
+        );
+
+        // 🔹 Step 2: Remove nested scrollables (keep top-most only)
+        List<WebElement> valid = new ArrayList<>();
+
+        for (WebElement el : scrollables) {
+
+            Boolean isChildOfScrollable = (Boolean) js.executeScript(
+                    "let parent = arguments[0].parentElement;" +
+                            "while(parent) {" +
+                            "  if(parent.scrollHeight > parent.clientHeight || parent.scrollWidth > parent.clientWidth) return true;" +
+                            "  parent = parent.parentElement;" +
+                            "}" +
+                            "return false;",
+                    el
+            );
+
+            if (!isChildOfScrollable) {
+                valid.add(el);
+            }
         }
 
-        log.info("Capturing scroll screenshots: totalHeight={}, viewportHeight={}", totalHeight, viewportHeight);
+        log.info("Final scrollable elements count: {}", valid.size());
 
-        long currentScroll = 0;
+        // 🔹 Step 3: Page vertical scroll
+        Long totalHeight = ((Number) js.executeScript(
+                "return document.body.scrollHeight")).longValue();
+
+        Long viewportHeight = ((Number) js.executeScript(
+                "return window.innerHeight")).longValue();
+
+        Set<String> visited = new HashSet<>();
         int index = 1;
 
-        while (currentScroll < totalHeight) {
-            js.executeScript("window.scrollTo(0, arguments[0]);", currentScroll);
-            Thread.sleep(1200); // allow lazy-loaded UI to render
+        for (long y = 0; y < totalHeight; y += viewportHeight) {
 
-            File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
-            File saved = saveScreenshot(shot, "ai_assert_" + index + ".png");
-            screenshots.add(saved);
+            // Scroll page vertically
+            js.executeScript("window.scrollTo(0, arguments[0]);", y);
+            Thread.sleep(800);
 
-            log.info("Captured screenshot {} at scrollY={}", index, currentScroll);
+            for (WebElement el : valid) {
 
-            currentScroll += viewportHeight;
+                Long scrollWidth = ((Number) js.executeScript(
+                        "return arguments[0].scrollWidth", el)).longValue();
 
-            // Prevent infinite loops on weird pages
-            if (index > 20) {
-                log.warn("Stopping screenshot capture after 20 screens for safety.");
-                break;
+                Long visibleWidth = ((Number) js.executeScript(
+                        "return arguments[0].clientWidth", el)).longValue();
+
+                // 🔥 If no horizontal scroll → capture once
+                if (scrollWidth <= visibleWidth) {
+
+                    String key = y + "_0";
+                    if (visited.contains(key)) continue;
+                    visited.add(key);
+
+                    File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+                    screenshots.add(saveScreenshot(shot, "ai_assert_" + index + ".png"));
+
+                    log.info("Captured [{}] at Y={} (no horizontal scroll)", index, y);
+
+                    index++;
+                    continue;
+                }
+
+                // 🔥 Horizontal scroll loop
+                for (long x = 0; x < scrollWidth; x += visibleWidth) {
+
+                    String key = y + "_" + x;
+                    if (visited.contains(key)) continue;
+                    visited.add(key);
+
+                    js.executeScript(
+                            "arguments[0].scrollLeft = arguments[1];",
+                            el, x
+                    );
+
+                    Thread.sleep(500);
+
+                    File shot = ((TakesScreenshot) driver).getScreenshotAs(OutputType.FILE);
+                    screenshots.add(saveScreenshot(shot,
+                            "ai_assert_x_" + x + "_y_" + y + ".png"));
+
+                    log.info("Captured [{}] at Y={}, elementX={}", index, y, x);
+
+                    index++;
+
+                    if (index > 60) return screenshots;
+                }
             }
-
-            index++;
         }
 
-        // Scroll back to top after capture
+        // 🔹 Reset scroll positions
         js.executeScript("window.scrollTo(0, 0);");
-        Thread.sleep(500);
+        for (WebElement el : valid) {
+            js.executeScript("arguments[0].scrollLeft = 0;", el);
+        }
 
         return screenshots;
-    }}
+    }
+}
