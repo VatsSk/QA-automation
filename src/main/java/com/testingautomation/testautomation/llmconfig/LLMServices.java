@@ -82,7 +82,7 @@ public class LLMServices {
 
             // 3. Build request body
             Map<String, Object> request = new HashMap<>();
-            request.put("model", "gpt-4o"); // vision-capable model
+            request.put("model", "gpt-4o-mini"); // vision-capable model
             request.put("messages", List.of(message));
             request.put("temperature", 0);
 

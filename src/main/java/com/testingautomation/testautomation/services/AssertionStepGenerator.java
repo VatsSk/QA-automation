@@ -97,6 +97,9 @@ public class AssertionStepGenerator {
             case ASSERT_ATTRIBUTE:
                 return StepAction.ActionType.ASSERT_ATTRIBUTE;
 
+            case ASSERT_AI:
+                return StepAction.ActionType.ASSERT_AI;
+
             default:
                 throw new GlobalExceptionHandler.BadRequestException(
                         "Invalid configuration - Unknown assertion type: " + type

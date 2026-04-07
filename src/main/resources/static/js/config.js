@@ -157,8 +157,8 @@ export const ASSERT_TYPES = {
     },
     ASSERT_AI:{
         label:'Assert With AI',
-        fields:['prompt'],
-        required:['prompt']
+        fields:['promptAi'],
+        required:['promptAi']
     }
 
 };

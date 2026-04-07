@@ -25,6 +25,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureFullPage;
 import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureScrollablePageScreenshots;
 
 @Component
@@ -734,6 +735,7 @@ public class SeleniumExecutor {
             waitForPageStable(driver);
 
             // Capture current UI state (recommended: full page via scrolling)
+//            List<File> screenshots = captureFullPage(driver);
             List<File> screenshots = captureScrollablePageScreenshots(driver);
 
             if (screenshots.isEmpty()) {

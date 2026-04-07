@@ -232,7 +232,7 @@
             columnName: '',
             order: '',
             rowsBtn: '',
-            prompt:''
+            promptAi:''
         });
 
         renderPanel();
@@ -261,7 +261,7 @@
             // 🔥 smart cleanup (important)
             const newConfig = ASSERT_TYPES[type] || { fields: [] };
 
-            const allFields = ['locator', 'expected', 'tableId', 'columnName', 'order', 'rowsBtn','prompt'];
+            const allFields = ['locator', 'expected', 'tableId', 'columnName', 'order', 'rowsBtn','promptAi'];
 
             allFields.forEach(field => {
                 // console.log("field : "+field+", newConfig.fields.includes(field):  "+newConfig.fields.includes(field))
@@ -269,6 +269,8 @@
                     scenario.assertions[assertionIdx][field] = '';
                 }
             });
+
+            console.log("newConfig "+newConfig);
 
             renderPanel();
         }
@@ -717,7 +719,8 @@
                     tableId: a.tableId || null,
                     columnName: a.columnName || null,
                     order: a.order || null,
-                    rowsBtn: a.rowsBtn || null
+                    rowsBtn: a.rowsBtn || null,
+                    prompt: a.promptAi || null
                 })) : undefined,
             })),
         };

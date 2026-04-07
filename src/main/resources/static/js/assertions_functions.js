@@ -3,13 +3,16 @@ import { ASSERT_TYPES, SORT_ORDER_OPTIONS } from './config.js';
 import { esc } from './utils.js';
 
 function ensureAssertions(scenario) {
+    console.log("Inside ensureAssertions")
     if (!scenario.assertions) {
+        console.log("assertion list is empty!")
         scenario.assertions = [];
     }
     return scenario.assertions;
 }
 // ── Assertions section (for ASSERT type scenarios) ─────────────────────
 export function renderAssertionsSection(idx, s) {
+    console.log("INSIDE renderAssertionsSection")
     const assertions = ensureAssertions(s);
     return `
     <div class="sc-section">Assertions</div>
@@ -46,6 +49,7 @@ function renderAssertion(scIdx, assertionIdx, assertion) {
 }
 
 function renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) {
+    console.log("inside renderAssertionFields")
     let fieldsHtml = '';
     
     assertConfig.fields.forEach(field => {
@@ -120,6 +124,18 @@ function renderAssertionFields(scIdx, assertionIdx, assertion, assertConfig) {
                         placeholder="button selector"
                         oninput="updateAssertionField(${scIdx}, ${assertionIdx}, '${field}', this.value)">
                 </div>`;
+                break;
+
+            case 'promptAi':
+                fieldHtml = `
+                    <div class="field" style="margin:8px 0">
+                        <label class="lbl">AI Prompt ${assertConfig.required.includes(field) ? '*' : ''}</label>
+                        <textarea class="inp" 
+                            rows="3"
+                            placeholder="Describe what should be validated on screen..."
+                            oninput="updateAssertionField(${scIdx}, ${assertionIdx}, '${field}', this.value)"
+                        >${esc(value)}</textarea>
+                    </div>`;
                 break;
         }
         

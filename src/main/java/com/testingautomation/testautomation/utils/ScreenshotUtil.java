@@ -1,8 +1,12 @@
 package com.testingautomation.testautomation.utils;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.devtools.DevTools;
+import org.openqa.selenium.devtools.HasDevTools;
+import org.openqa.selenium.devtools.v119.page.Page;
 import org.slf4j.Logger;
 import org.openqa.selenium.TakesScreenshot;
 import org.openqa.selenium.OutputType;
@@ -13,7 +17,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 public class ScreenshotUtil {
@@ -26,6 +32,33 @@ public class ScreenshotUtil {
         Files.copy(source.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
 
         return target.toFile();
+    }
+
+    public static List<File> captureFullPage(WebDriver driver) throws IOException {
+        List<File> screenshots = new ArrayList<>();
+        DevTools devTools = ((HasDevTools) driver).getDevTools();
+        devTools.createSession();
+
+        devTools.send(Page.enable());
+
+        String base64 = devTools.send(
+                Page.captureScreenshot(
+                        Optional.empty(),                 // format (png default)
+                        Optional.empty(),                 // quality
+                        Optional.empty(),                 // clip
+                        Optional.of(true),                // fromSurface
+                        Optional.of(true),                // captureBeyondViewport ✅ IMPORTANT
+                        Optional.of(true)                 // optimizeForSpeed
+                )
+        );
+
+        byte[] decoded = Base64.getDecoder().decode(base64);
+
+        File file = new File("full_page.png");
+        FileUtils.writeByteArrayToFile(file, decoded);
+        screenshots.add(file);
+
+        return screenshots;
     }
 
 
