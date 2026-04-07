@@ -30,5 +30,6 @@ public class AssertionDto {
     private String order;
     private String assertResult;
     private String errorMessage;
+    private String prompt;
 }
 

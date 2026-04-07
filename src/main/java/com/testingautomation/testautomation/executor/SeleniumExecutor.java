@@ -4,7 +4,11 @@ import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.ResultRun;
 import com.testingautomation.testautomation.dto.StepAction;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
+import com.testingautomation.testautomation.llmconfig.AIService;
+import com.testingautomation.testautomation.llmconfig.AIValidationResult;
+import com.testingautomation.testautomation.llmconfig.PromptBuilder;
 import com.testingautomation.testautomation.model.Scenario;
+import com.testingautomation.testautomation.services.LLMServices;
 import com.testingautomation.testautomation.services.ScreenshotService;
 import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
@@ -30,6 +34,8 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureScrollablePageScreenshots;
+
 @Component
 public class SeleniumExecutor {
     private final Logger logger = LoggerFactory.getLogger(SeleniumExecutor.class);
@@ -37,11 +43,13 @@ public class SeleniumExecutor {
     private final String resultsBaseDir;
     private final boolean screenshotOnStep;
     private final ScreenshotService screenshotService;
+    private final LLMServices lLMServices;
 
-    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService) {
+    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, AIService aiService, LLMServices lLMServices) {
         this.resultsBaseDir = env.getProperty("autotest.results.base-dir", "./test-results");
         this.screenshotOnStep = Boolean.parseBoolean(env.getProperty("autotest.screenshot-on-step", "false"));
         this.screenshotService = screenshotService;
+        this.lLMServices = lLMServices;
     }
 
     /**
@@ -703,6 +711,13 @@ public class SeleniumExecutor {
                         step.getAssertion().setAssertResult("Passed");
                         break;
 
+                    case ASSERT_AI:
+                        assertAI(driver,wait,step);
+                        step.getAssertion().setAssertResult("Passed");
+                        break;
+
+
+
                     default:
                         throw new IllegalArgumentException("Unsupported assertion: " + step.getType());
                 }
@@ -718,6 +733,58 @@ public class SeleniumExecutor {
             // 📸 Take screenshot for BOTH pass & fail
             String screenshotPath = screenshotService.takeScreenshot(driver, String.valueOf(tcIdx),"assert",scenarioDir,scenarioPrefix);
             tcIdx++;
+        }
+    }
+    private void assertAI(WebDriver driver, WebDriverWait wait, StepAction step) {
+        try {
+            logger.info("Running AI assertion for step: {}", step.getType());
+
+            // Wait for page to stabilize a little
+            waitForPageStable(driver);
+
+            // Capture current UI state (recommended: full page via scrolling)
+            List<File> screenshots = captureScrollablePageScreenshots(driver);
+
+            if (screenshots.isEmpty()) {
+                throw new RuntimeException("AI assertion failed: No screenshots captured.");
+            }
+
+            // Build prompt
+            String prompt = PromptBuilder.buildAIPromptOfStep(step);
+
+            // Send screenshots + prompt to LLM
+            AIValidationResult result = lLMServices.analyzeScreenshots(prompt, screenshots);
+
+            logger.info("AI assertion response: {}", result);
+
+            if (!result.isPassed()) {
+                throw new AssertionError("AI assertion failed: " + result.getReason());
+            }
+
+            logger.info("AI assertion passed for step: {}", step.getType());
+
+        } catch (Exception e) {
+            logger.error("AI assertion error in step {}: {}", step.getType(), e.getMessage(), e);
+            throw new RuntimeException("AI assertion failed for step: " + step.getType(), e);
+        }
+    }
+    private void waitForPageStable(WebDriver driver) {
+        try {
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+
+            for (int i = 0; i < 10; i++) {
+                String readyState = (String) js.executeScript("return document.readyState");
+                if ("complete".equals(readyState)) {
+                    break;
+                }
+                Thread.sleep(500);
+            }
+
+            // optional small delay for dynamic UI rendering
+            Thread.sleep(1000);
+
+        } catch (Exception e) {
+            logger.warn("Could not fully verify page stability, continuing anyway.");
         }
     }
     private void assertElementPresent(WebDriver driver, StepAction step) {

@@ -247,6 +247,7 @@ public class ScenarioOrchestratorService {
                 logger.info("generated steps are : {}",steps);
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
                 String expected = tc.getExpectedResult();
+                logger.info("EXPECTED results are : {}",expected);
                 ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
                 if (expected != null) {
                     if(expected.equalsIgnoreCase(runResult.getStatus()) ){
@@ -256,6 +257,9 @@ public class ScenarioOrchestratorService {
                         tc.setResult(runResult.getStatus());
                         totalFails++;
                     }
+                }else{
+                    tc.setResult("Expected result not given !");
+                    totalPasses++;
                 }
                 tc.setUrls(runResult.getScreenshots());
                 logger.info("[{}] Completed testcase {}", tcRunId, tc);
@@ -267,6 +271,7 @@ public class ScenarioOrchestratorService {
 
         logger.info("[{}] Stored {} URL testcases in scenarioResultsMap",
                 scenarioPrefix, testCases.size());
+        logger.info("Total passed {} and Total failed {} testcase size {}", totalPasses, totalFails,testCases.size());
         if (totalPasses == testCases.size()) {
             current.setScenarioStatus(RunStatus.PASSED);
         }
@@ -510,10 +515,6 @@ public class ScenarioOrchestratorService {
                                 );
                             }
                         }
-
-                        // close dropdown to apply filter
-//                        opener.sendKeys(Keys.TAB);
-//                        logger.info("Closed dropdown using TAB");
                         driver.findElement(By.tagName("body")).click();
                         logger.info("Closed dropdown using body click fallback");
                         screenshotService.takeScreenshot(
@@ -569,8 +570,6 @@ public class ScenarioOrchestratorService {
                         e);
                 throw e;
             }
-
-            // save testcase csv path in S3 using scenarioPrefix/<testcaseKey>.csv
             try {
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
@@ -639,7 +638,7 @@ public class ScenarioOrchestratorService {
                 List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
                 logger.info("[{}] scanned {} modal fields", scenarioPrefix, modalFields.size());
                 counterIdx++;
-                try {
+
                     List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                     logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
                     String expected = tc.getExpectedResult();
@@ -655,13 +654,7 @@ public class ScenarioOrchestratorService {
                     if(counterIdx<testCases.size())
                         handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run,scenarioResultsMap);
                     logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
-                }
-                catch(GlobalExceptionHandler.InvalidCountException ex){
-                    throw ex;
-                }
-                catch (Exception e) {
-                    logger.error("[{}] modal testcase failed, continuing: {}", tcRunId, e.getMessage());
-                }
+
             }
 
         }

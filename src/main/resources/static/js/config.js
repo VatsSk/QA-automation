@@ -154,7 +154,13 @@ export const ASSERT_TYPES = {
         label: 'Attribute',
         fields: ['locator', 'expected'],
         required: ['locator', 'expected']
+    },
+    ASSERT_AI:{
+        label:'Assert With AI',
+        fields:['prompt'],
+        required:['prompt']
     }
+
 };
 
 // Sort order options

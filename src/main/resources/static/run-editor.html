@@ -231,7 +231,8 @@
             tableId: '',
             columnName: '',
             order: '',
-            rowsBtn: ''
+            rowsBtn: '',
+            prompt:''
         });
 
         renderPanel();
@@ -259,9 +260,11 @@
 
             // 🔥 smart cleanup (important)
             const newConfig = ASSERT_TYPES[type] || { fields: [] };
-            const allFields = ['locator', 'expected', 'tableId', 'columnName', 'order', 'rowsBtn'];
+
+            const allFields = ['locator', 'expected', 'tableId', 'columnName', 'order', 'rowsBtn','prompt'];
 
             allFields.forEach(field => {
+                // console.log("field : "+field+", newConfig.fields.includes(field):  "+newConfig.fields.includes(field))
                 if (!newConfig.fields.includes(field)) {
                     scenario.assertions[assertionIdx][field] = '';
                 }

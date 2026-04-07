@@ -13,5 +13,6 @@ public enum ScenarioType {
     SEARCH_NAV,
     FORM_MODAL,
     ASSERT,
-    VERIFY_PAGE
+    VERIFY_PAGE,
+    AI_ASSERT
 }

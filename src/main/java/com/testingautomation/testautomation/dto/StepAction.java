@@ -21,7 +21,8 @@ public class StepAction {
         ASSERT_SORT_ORDER,
         ASSERT_COUNT,
         ASSERT_API_CALLED,
-        ASSERT_ATTRIBUTE
+        ASSERT_ATTRIBUTE,
+        ASSERT_AI,
     }
     private ActionType type;
     private String locatorType; // css / xpath / id
@@ -33,9 +34,9 @@ public class StepAction {
     private String tableId;
     private String colName;
     private String rowsBtn;
+    private String prompt;
 //    private String rangeId;
     private String order;
-
     private AssertionDto assertion;
 
     // constructor + getters/setters

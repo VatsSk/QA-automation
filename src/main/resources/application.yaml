@@ -28,6 +28,8 @@ spring:
 
 
 
+
+
 server:
   port: 8080
 
@@ -37,8 +39,6 @@ server:
     timeout-seconds: ${RUNNER_TIMEOUT:120}
 
   # MinIO / S3 configuration
-
-
 
 
 logging:
@@ -67,6 +67,5 @@ autotest:
     pagination:
       default-page-size: 20
       max-page-size: 100
-
 
 

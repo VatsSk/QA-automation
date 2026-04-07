@@ -21,5 +21,6 @@ public enum AssertionType {
 
     // 🔹 Advanced
     ASSERT_API_CALLED,
-    ASSERT_ATTRIBUTE
+    ASSERT_ATTRIBUTE,
+    ASSERT_AI
 }
