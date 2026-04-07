@@ -33,8 +33,8 @@ public class AssertionStepGenerator {
                     description,
                     a.getTableId(),
                     a.getColumnName(),
-                    a.getPrompt(),
                     a.getRowsBtn(),
+                    a.getPrompt(),
                     a.getOrder(),
                     a
             );
