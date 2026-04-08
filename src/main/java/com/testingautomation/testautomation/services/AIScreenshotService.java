@@ -147,6 +147,7 @@ public class AIScreenshotService {
             throws IOException, InterruptedException {
 
         List<File> screenshots = new ArrayList<>();
+
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
         // Bring container into view

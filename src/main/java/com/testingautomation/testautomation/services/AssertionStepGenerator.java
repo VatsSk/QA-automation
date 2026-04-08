@@ -26,17 +26,17 @@ public class AssertionStepGenerator {
 
             String description = buildDescription(a);
             StepAction step = new StepAction(
-                    actionType,
-                    null,
-                    a.getLocator(),
-                    a.getExpected(),   // expected goes as value
-                    description,
-                    a.getTableId(),
-                    a.getColumnName(),
-                    a.getRowsBtn(),
-                    a.getPrompt(),
-                    a.getOrder(),
-                    a
+                    actionType,                 //type
+                    null,                      //locationType
+                    a.getLocator(),           //locator
+                    a.getExpected(),         // expected goes as value(payload)
+                    description,            //description
+                    a.getTableId(),        //tableId
+                    a.getColumnName(),    //column name
+                    a.getRowsBtn(),      //rowsBtn
+                    a.getPrompt(),      //prompt
+                    a.getOrder(),      //order
+                    a                 //assertionDto
             );
 
             steps.add(step);
@@ -143,6 +143,9 @@ public class AssertionStepGenerator {
 
             case ASSERT_ATTRIBUTE:
                 return "Assert attribute";
+
+            case ASSERT_AI:
+                return "Assert via Prompt: "+a.getPrompt();
 
             default:
                 return "Unknown assertion";
