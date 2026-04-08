@@ -788,6 +788,7 @@ public class SeleniumExecutor {
             logger.info("AI assertion response: {}", result);
 //            step.setDescription(result.getReason());
 
+            step.getAssertion().setReason(result.getReason());
             if (result.getStatus()== AIValidationResult.AssertStatus.FAILED) {
                 throw new GlobalExceptionHandler.BadRequestException("AI assertion failed: " + result.getReason());
             }

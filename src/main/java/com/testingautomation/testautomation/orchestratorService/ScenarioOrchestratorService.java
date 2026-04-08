@@ -721,11 +721,13 @@ public class ScenarioOrchestratorService {
                 valuesMap.put("order", assertDto.getOrder());
                 valuesMap.put("errorMessage", assertDto.getErrorMessage());
                 valuesMap.put("prompt", assertDto.getPrompt());
+                valuesMap.put("reason",assertDto.getReason());
 
 
                 // Create TestCaseDTO
                 TestCaseDTO tc = new TestCaseDTO(String.valueOf(tcIdx), valuesMap);
                 tcIdx++;
+//                System.out.println("Final Status: "+assertDto.getAssertResult());
                 if ("PASSED".equalsIgnoreCase(assertDto.getAssertResult())) {
                     passedCount++;
                 } else if ("FAILED".equalsIgnoreCase(assertDto.getAssertResult())) {
@@ -740,6 +742,7 @@ public class ScenarioOrchestratorService {
             if (failedCount == total) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
             } else if (passedCount == total) {
+//                System.out.println("Scenario PASSED");
                 scenario.setScenarioStatus(RunStatus.PASSED);
             } else {
                 scenario.setScenarioStatus(RunStatus.PARTIAL);
