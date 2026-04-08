@@ -31,7 +31,7 @@ public class AIScreenshotService {
         return target.toFile();
     }
 
-    public List<File> captureFullPage(WebDriver driver,String scenarioPrefix,Path screenshotDir) throws IOException, InterruptedException {
+    public List<File> captureFullPage(WebDriver driver,String scenarioPrefix,Path screenshotDir,int []stepCtr) throws IOException, InterruptedException {
         List<File> screenshots = new ArrayList<>();
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
@@ -93,7 +93,7 @@ public class AIScreenshotService {
                 screenshotService.takeScreenshot(
                         driver,
                         "1",
-                        "step "+TimestampUtil.generateTimestamp(),
+                        "step "+stepCtr[0]++,
                         screenshotDir,
                         scenarioPrefix
                 );
@@ -143,7 +143,7 @@ public class AIScreenshotService {
         Thread.sleep(600);
     }
 
-    public List<File> captureScrollableElementScreenshots(WebDriver driver, WebElement container,String scenarioPrefix,Path screenshotDir)
+    public List<File> captureScrollableElementScreenshots(WebDriver driver, WebElement container,String scenarioPrefix,Path screenshotDir,int []stepCtr)
             throws IOException, InterruptedException {
 
         List<File> screenshots = new ArrayList<>();
@@ -204,7 +204,7 @@ public class AIScreenshotService {
                 screenshotService.takeScreenshot(
                         driver,
                         "1",
-                        "step "+TimestampUtil.generateTimestamp(),
+                        "step "+stepCtr[0]++,
                         screenshotDir,
                         scenarioPrefix
                 );
@@ -284,7 +284,7 @@ public class AIScreenshotService {
 
         Thread.sleep(700);
     }
-    public List<File> captureHeaderAcrossAllColumns(WebDriver driver, WebElement container,String scenarioPrefix, Path screenshotDir)
+    public List<File> captureHeaderAcrossAllColumns(WebDriver driver, WebElement container,String scenarioPrefix, Path screenshotDir,int []stepCtr)
             throws IOException, InterruptedException {
 
         List<File> screenshots = new ArrayList<>();
@@ -309,7 +309,7 @@ public class AIScreenshotService {
             screenshotService.takeScreenshot(
                     driver,
                     "1",
-                    "step "+TimestampUtil.generateTimestamp(),
+                    "step "+stepCtr[0]++,
                     screenshotDir,
                     scenarioPrefix
             );

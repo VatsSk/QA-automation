@@ -10,8 +10,8 @@ import java.util.List;
 public class AIValidationResult {
 
     public enum AssertStatus{
-        PASS,
-        FAIL,
+        PASSED,
+        FAILED,
         PARTIAL
     }
     private AssertStatus status;

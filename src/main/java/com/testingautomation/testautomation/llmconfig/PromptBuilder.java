@@ -78,7 +78,7 @@ public class PromptBuilder {
            - Do NOT mark columns as missing if they appear across different screenshots.
         5. Do NOT assume content exists outside the provided screenshots.
         6. Do NOT hallucinate elements that are not clearly visible.
-        7. Prefer FAIL over PASS when evidence is unclear.
+        7. Prefer FAILED over PASSED when evidence is unclear.
         8. Prefer PARTIAL when some parts are correct but completeness is uncertain.
         9. Ignore minor text differences unless explicitly required.
         10. Focus strictly on visible UI evidence.
@@ -88,7 +88,7 @@ public class PromptBuilder {
         - Column names are case-insensitive (e.g., "Added On" == "ADDED ON").
         - Column is considered present if clearly readable.
         - If all required columns appear across combined screenshots (even if split horizontally),
-          → Treat column visibility as FULLY VERIFIED (PASS), not PARTIAL.
+          → Treat column visibility as FULLY VERIFIED (PASSED), not PARTIAL.
         
         Sorting validation rules (IMPORTANT):
         When sorting is part of instruction:
@@ -100,26 +100,26 @@ public class PromptBuilder {
            - Use all visible rows across screenshots.
            - Full dataset visibility is NOT required.
         4. Decision logic:
-           - If visible values clearly follow expected order → PASS
-           - If visible values clearly violate order → FAIL
+           - If visible values clearly follow expected order → PASSED
+           - If visible values clearly violate order → FAILED
            - If visible values are insufficient or unclear → PARTIAL
         5. Edge cases:
-           - If arrow is correct but visible values contradict → FAIL
-           - If data appears correct but arrow is wrong → FAIL
+           - If arrow is correct but visible values contradict → FAILED
+           - If data appears correct but arrow is wrong → FAILED
            - If column exists but values are mostly hidden → PARTIAL
         
         Status definitions:
-        - PASS: fully satisfied with clear visual proof across screenshots.
-        - FAIL: clearly not satisfied OR critical element missing.
+        - PASSED: fully satisfied with clear visual proof across screenshots.
+        - FAILED: clearly not satisfied OR critical element missing.
         - PARTIAL: partially satisfied but incomplete, clipped, or uncertain.
         
         Multi-assertion evaluation rules:
         - If the validation instruction contains multiple assertions:
           1. Evaluate each assertion independently.
           2. Final status should be:
-             • PASS → when ALL assertions are satisfied.
-             • FAIL → when ALL assertions fail OR none are satisfied.
-             • PARTIAL → when there is a mix of PASS and FAIL/PARTIAL.
+             • PASSED → when ALL assertions are satisfied.
+             • FAILED → when ALL assertions failed OR none are satisfied.
+             • PARTIAL → when there is a mix of PASSED and FAILED/PARTIAL.
           3. If any assertion is partially visible or not fully verifiable → treat that assertion as PARTIAL.
           4. In PARTIAL:
              • "reason" → overall summary
@@ -127,7 +127,7 @@ public class PromptBuilder {
           5. Issues must clearly map to failed or partial assertions.
           6. Confidence override (CRITICAL):
              - If visible values clearly establish a consistent order (strictly increasing or decreasing),
-               → Treat sorting as VERIFIED (PASS).
+               → Treat sorting as VERIFIED (PASSED).
              - Do NOT return PARTIAL just because full dataset is not visible.
              - Do NOT downgrade to PARTIAL if ordering pattern is clear in visible data.
         
@@ -149,7 +149,7 @@ public class PromptBuilder {
         4. Multi-page scenario:
            - If Z > Y (e.g., "Showing 1 to 10 of 642"):
              → Pagination MUST exist.
-             → Presence of pagination = PASS (if UI is correct).
+             → Presence of pagination = PASSED (if UI is correct).
         
         5. Single-page edge case:
            - If Z ≤ page size (e.g., "Showing 1 to 15 of 15"):
@@ -158,9 +158,9 @@ public class PromptBuilder {
         
         6. Validation logic:
            - If required elements are visible within current page → consider them valid.
-           - Do NOT fail validation just because additional data exists on other pages.
+           - Do NOT failed validation just because additional data exists on other pages.
         
-        7. When to FAIL:
+        7. When to FAILED:
            - Large dataset (Z > page size) but pagination controls missing.
            - Pagination UI is broken, overlapped, or not visible.
            - "Showing X to Y of Z" missing AND UI appears truncated.
@@ -174,10 +174,10 @@ public class PromptBuilder {
            - Single-page view means missing pagination.
         
         Strict decision rules:
-        - Missing required element → FAIL
+        - Missing required element → FAILED
         - Element present but incomplete → PARTIAL
-        - Element spans multiple screenshots but fully visible → PASS
-        - Conflicting evidence → choose safest (FAIL or PARTIAL)
+        - Element spans multiple screenshots but fully visible → PASSED
+        - Conflicting evidence → choose safest (FAILED or PARTIAL)
         - If all assertions are logically verifiable using combined screenshots and visible data,
            → Do NOT return PARTIAL.
         
@@ -204,7 +204,7 @@ public class PromptBuilder {
         Observation: All 5 columns clearly visible across screenshots
         Response:
         {
-          "status": "PASS",
+          "status": "PASSED",
           "reason": "All required columns are fully visible",
           "partialReason": "",
           "issues": []
@@ -215,7 +215,7 @@ public class PromptBuilder {
         Observation: No button visible
         Response:
         {
-          "status": "FAIL",
+          "status": "FAILED",
           "reason": "Submit button is not visible in provided screenshots",
           "partialReason": "",
           "issues": ["Submit button missing"]
@@ -237,7 +237,7 @@ public class PromptBuilder {
         Observation: Column exists, descending arrow highlighted, but values are ascending
         Response:
         {
-          "status": "FAIL",
+          "status": "FAILED",
           "reason": "Sorting is incorrect for Added On column",
           "partialReason": "",
           "issues": ["Values not in descending order"]
@@ -262,7 +262,7 @@ public class PromptBuilder {
         - Only 10 rows displayed
         Response:
         {
-          "status": "PASS",
+          "status": "PASSED",
           "reason": "Pagination controls and total entry count confirm multi-page data handling",
           "partialReason": "",
           "issues": []
@@ -276,7 +276,7 @@ public class PromptBuilder {
         - 15 rows displayed
         Response:
         {
-          "status": "PASS",
+          "status": "PASSED",
           "reason": "All entries fit within a single page and pagination is correctly handled",
           "partialReason": "",
           "issues": []
@@ -290,7 +290,7 @@ public class PromptBuilder {
         - No "Showing X to Y of Z entries" text
         Response:
         {
-          "status": "FAIL",
+          "status": "FAILED",
           "reason": "Pagination controls are not visible despite limited visible data",
           "partialReason": "",
           "issues": ["Pagination controls missing"]
@@ -317,7 +317,7 @@ public class PromptBuilder {
         - Values are in decreasing order
         Response:
         {
-          "status": "PASS",
+          "status": "PASSED",
           "reason": "Visible values follow descending order and sorting indicator is correct",
           "partialReason": "",
           "issues": []
@@ -325,7 +325,7 @@ public class PromptBuilder {
         
         Return STRICT JSON only in this format:
         {
-          "status": "PASS|FAIL|PARTIAL",
+          "status": "PASSED|FAILED|PARTIAL",
           "reason": "short explanation",
           "partialReason": "required only when status is PARTIAL, otherwise empty string",
           "issues": ["issue1", "issue2"]

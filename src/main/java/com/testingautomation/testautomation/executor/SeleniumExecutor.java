@@ -733,7 +733,8 @@ public class SeleniumExecutor {
             logger.info("Running AI assertion for step: {}", step.getType());
             Path screenshotDir = Paths.get(resultsBaseDir, scenarioPrefix, "ai");
 
-
+            int []stepCtr=new int[1];
+            stepCtr[0]++;
             // Wait for page to stabilize
             waitForPageStable(driver);
 
@@ -742,7 +743,7 @@ public class SeleniumExecutor {
             // =========================================================
             // 1) Capture WHOLE PAGE first (main window scrolling)
             // =========================================================
-            screenshots.addAll(aiScreenshotService.captureFullPage(driver,scenarioPrefix,screenshotDir));
+            screenshots.addAll(aiScreenshotService.captureFullPage(driver,scenarioPrefix,screenshotDir,stepCtr));
 
             // Reset page to top before container capture
             ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
@@ -759,13 +760,13 @@ public class SeleniumExecutor {
                 // 2a) Capture scrollable section HEADER first
                 //     (all horizontal columns, sorting visibility)
                 // -----------------------------------------------------
-                screenshots.addAll(aiScreenshotService.captureHeaderAcrossAllColumns(driver, scrollableContainer,scenarioPrefix,screenshotDir));
+                screenshots.addAll(aiScreenshotService.captureHeaderAcrossAllColumns(driver, scrollableContainer,scenarioPrefix,screenshotDir,stepCtr));
 
                 // -----------------------------------------------------
                 // 2b) Capture scrollable section BODY next
                 //     (all rows + all columns)
                 // -----------------------------------------------------
-                screenshots.addAll(aiScreenshotService.captureScrollableElementScreenshots(driver, scrollableContainer,scenarioPrefix,screenshotDir));
+                screenshots.addAll(aiScreenshotService.captureScrollableElementScreenshots(driver, scrollableContainer,scenarioPrefix,screenshotDir,stepCtr));
             } else {
                 logger.warn("No scrollable container found. Proceeding with full-page screenshots only.");
             }
@@ -791,6 +792,7 @@ public class SeleniumExecutor {
                 throw new GlobalExceptionHandler.BadRequestException("AI assertion failed: " + result.getReason());
             }
             step.getAssertion().setAssertResult(result.getStatus().toString());
+
 
             logger.info("AI assertion passed for step: {}", step.getType());
 

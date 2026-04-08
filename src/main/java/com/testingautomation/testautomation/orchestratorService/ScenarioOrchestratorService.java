@@ -720,6 +720,8 @@ public class ScenarioOrchestratorService {
                 valuesMap.put("rowsBtn", assertDto.getRowsBtn());
                 valuesMap.put("order", assertDto.getOrder());
                 valuesMap.put("errorMessage", assertDto.getErrorMessage());
+                valuesMap.put("prompt", assertDto.getPrompt());
+
 
                 // Create TestCaseDTO
                 TestCaseDTO tc = new TestCaseDTO(String.valueOf(tcIdx), valuesMap);
