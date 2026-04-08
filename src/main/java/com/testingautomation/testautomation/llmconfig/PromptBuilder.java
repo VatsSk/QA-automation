@@ -59,7 +59,7 @@ public class PromptBuilder {
         
         Task:
         Evaluate the provided screenshots of a web application in visual sequence
-        (top to bottom / current scroll order) against the validation instruction.
+        (left to right and then bottom to up and then bottom)against the validation instruction.
         
         Validation instruction:
         %s
@@ -82,6 +82,14 @@ public class PromptBuilder {
         8. Prefer PARTIAL when some parts are correct but completeness is uncertain.
         9. Ignore minor text differences unless explicitly required.
         10. Focus strictly on visible UI evidence.
+        
+        Implicit validation rule:
+            - Even if user instruction is generic (e.g., "pagination should be correctly implemented"):
+              → You MUST validate:
+                 • pagination presence
+                 • pagination visibility
+                 • pagination numerical correctness
+              → Do NOT assume correctness unless all 3 are satisfied.
         
         Column validation rules:
         - Column order should NOT be considered unless explicitly mentioned.
@@ -149,7 +157,8 @@ public class PromptBuilder {
         4. Multi-page scenario:
            - If Z > Y (e.g., "Showing 1 to 10 of 642"):
              → Pagination MUST exist.
-             → Presence of pagination = PASS (if UI is correct).
+             → Presence of pagination is NOT sufficient for PASS
+             → Pagination must be visually correct AND logically consistent
         
         5. Single-page edge case:
            - If Z ≤ page size (e.g., "Showing 1 to 15 of 15"):
@@ -172,6 +181,38 @@ public class PromptBuilder {
         9. Never assume:
            - All rows must be visible in one screenshot.
            - Single-page view means missing pagination.
+           
+        10. Pagination value correctness (CRITICAL):
+        
+               When text "Showing X to Y of Z entries" is visible:
+        
+               - Extract values:
+                 X = start index
+                 Y = end index
+                 Z = total entries
+        
+               - Validate logical correctness:
+        
+                 a. Y must be ≥ X
+                 b. Y must NOT exceed Z
+                 c. Y must NOT be equal to Z unless it is the LAST page
+                 d. If pagination controls show multiple pages (e.g., 1,2,3...):
+                    → current page is NOT the last page
+        
+                 e. If current page is NOT last page:
+                    → Y must be significantly less than Z
+                    → Y must follow page-size pattern (typically 10/15/20/25 rows)
+        
+               - Decision rules (STRICT):
+        
+                 → If ANY numerical inconsistency is detected → FAIL immediately
+                 → If Y == Z AND multiple pages exist → FAIL
+                 → If Y is unreasonably large compared to X → FAIL
+                 → Do NOT return PARTIAL for pagination math errors
+        
+               - NEVER mark pagination as PASS based only on visibility.
+               - Pagination must be BOTH visible AND logically correct.
+
         
         Strict decision rules:
         - Missing required element → FAIL
