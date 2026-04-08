@@ -1,11 +1,9 @@
-package com.testingautomation.testautomation.services;
+package com.testingautomation.testautomation.llmconfig;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.testingautomation.testautomation.llmconfig.AIValidationResult;
 import com.testingautomation.testautomation.utils.UtilServices;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 

@@ -1,24 +1,20 @@
 package com.testingautomation.testautomation.executor;
 
-import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.ResultRun;
 import com.testingautomation.testautomation.dto.StepAction;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.llmconfig.AIService;
 import com.testingautomation.testautomation.llmconfig.AIValidationResult;
 import com.testingautomation.testautomation.llmconfig.PromptBuilder;
-import com.testingautomation.testautomation.model.Scenario;
-import com.testingautomation.testautomation.services.LLMServices;
+import com.testingautomation.testautomation.llmconfig.LLMServices;
 import com.testingautomation.testautomation.services.ScreenshotService;
 import com.testingautomation.testautomation.utils.ScreenshotUtil;
-import org.apache.commons.io.FileUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-
 
 import java.io.File;
 import java.nio.file.*;
@@ -29,6 +25,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureFullPage;
+import static com.testingautomation.testautomation.utils.ScreenshotUtil.captureHeaderAcrossAllColumns;
+
 
 @Component
 public class SeleniumExecutor {
@@ -733,35 +733,113 @@ public class SeleniumExecutor {
         try {
             logger.info("Running AI assertion for step: {}", step.getType());
 
-            // Wait for page to stabilize a little
+            // Wait for page to stabilize
             waitForPageStable(driver);
 
-            // Capture current UI state (recommended: full page via scrolling)
-//            List<File> screenshots = captureFullPage(driver);
-            List<File> screenshots = ScreenshotUtil.captureSmartScrollableScreens(driver);
+            List<File> screenshots = new ArrayList<>();
+
+            // =========================================================
+            // 1) Capture WHOLE PAGE first (main window scrolling)
+            // =========================================================
+            screenshots.addAll(ScreenshotUtil.captureFullPage(driver));
+
+            // Reset page to top before container capture
+            ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, 0);");
+            Thread.sleep(500);
+
+            // =========================================================
+            // 2) Find scrollable container (table/grid section)
+            // =========================================================
+            WebElement scrollableContainer = findMainScrollableContainer(driver);
+
+            if (scrollableContainer != null) {
+
+                // -----------------------------------------------------
+                // 2a) Capture scrollable section HEADER first
+                //     (all horizontal columns, sorting visibility)
+                // -----------------------------------------------------
+                screenshots.addAll(ScreenshotUtil.captureHeaderAcrossAllColumns(driver, scrollableContainer));
+
+                // -----------------------------------------------------
+                // 2b) Capture scrollable section BODY next
+                //     (all rows + all columns)
+                // -----------------------------------------------------
+                screenshots.addAll(ScreenshotUtil.captureScrollableElementScreenshots(driver, scrollableContainer));
+            } else {
+                logger.warn("No scrollable container found. Proceeding with full-page screenshots only.");
+            }
 
             if (screenshots.isEmpty()) {
                 throw new RuntimeException("AI assertion failed: No screenshots captured.");
             }
-
-            // Build prompt
+            logger.info("Length of screenshot list: {}", screenshots.size());
+            // =========================================================
+            // 3) Build prompt
+            // =========================================================
             String prompt = PromptBuilder.buildAIPromptOfStep(step);
 
-            // Send screenshots + prompt to LLM
+            // =========================================================
+            // 4) Send screenshots + prompt to LLM
+            // =========================================================
             AIValidationResult result = lLMServices.analyzeScreenshots(prompt, screenshots);
 
             logger.info("AI assertion response: {}", result);
 
-            if (!result.isPassed()) {
+            if (result.getStatus().equals(AIValidationResult.AssertStatus.FAIL)) {
                 throw new AssertionError("AI assertion failed: " + result.getReason());
             }
 
             logger.info("AI assertion passed for step: {}", step.getType());
 
+        } catch (AssertionError ae) {
+            logger.error("AI assertion failed for step {}: {}", step.getType(), ae.getMessage(), ae);
+            throw ae;
         } catch (Exception e) {
             logger.error("AI assertion error in step {}: {}", step.getType(), e.getMessage(), e);
             throw new RuntimeException("AI assertion failed for step: " + step.getType(), e);
         }
+    }
+    public static WebElement findMainScrollableContainer(WebDriver driver) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+
+        Object result = js.executeScript("""
+        const elements = Array.from(document.querySelectorAll('*'));
+
+        function isVisible(el) {
+            const rect = el.getBoundingClientRect();
+            const style = window.getComputedStyle(el);
+            return rect.width > 200 &&
+                   rect.height > 150 &&
+                   style.display !== 'none' &&
+                   style.visibility !== 'hidden' &&
+                   style.opacity !== '0';
+        }
+
+        function isScrollable(el) {
+            const style = window.getComputedStyle(el);
+            const overflowY = style.overflowY;
+            const overflowX = style.overflowX;
+
+            const vertical = (overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight;
+            const horizontal = (overflowX === 'auto' || overflowX === 'scroll') && el.scrollWidth > el.clientWidth;
+
+            return vertical || horizontal;
+        }
+
+        const candidates = elements.filter(el => isVisible(el) && isScrollable(el));
+
+        if (!candidates.length) return null;
+
+        candidates.sort((a, b) => {
+            const areaA = a.clientWidth * a.clientHeight;
+            const areaB = b.clientWidth * b.clientHeight;
+            return areaB - areaA;
+        });
+
+        return candidates[0];
+    """);
+
+        return (WebElement) result;
     }
     private void waitForPageStable(WebDriver driver) {
         try {
