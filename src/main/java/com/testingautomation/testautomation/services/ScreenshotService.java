@@ -60,10 +60,10 @@ public class ScreenshotService {
 
         try {
 
-            try {
-                ((JavascriptExecutor) driver1).executeScript("window.scrollTo(0,0)");
-                Thread.sleep(300);
-            } catch (Exception ignored) {}
+//            try {
+//                ((JavascriptExecutor) driver1).executeScript("window.scrollTo(0,0)");
+//                Thread.sleep(300);
+//            } catch (Exception ignored) {}
 
             File src = ((TakesScreenshot) driver1).getScreenshotAs(OutputType.FILE);
 

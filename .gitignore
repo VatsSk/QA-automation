@@ -43,3 +43,5 @@ finalResult.csv
 .env
 qa_automation/
 logs/
+
+application.yaml
