@@ -44,4 +44,4 @@ finalResult.csv
 qa_automation/
 logs/
 
-application.yaml
+src/main/resources/application.yaml
