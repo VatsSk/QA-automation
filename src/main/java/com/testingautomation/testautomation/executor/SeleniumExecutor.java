@@ -21,10 +21,7 @@ import java.nio.file.*;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 
 @Component
@@ -733,12 +730,17 @@ public class SeleniumExecutor {
             logger.info("Running AI assertion for step: {}", step.getType());
             Path screenshotDir = Paths.get(resultsBaseDir, scenarioPrefix, "ai");
 
-
+            int []stepCtr=new int[1];
+            stepCtr[0]++;
             // Wait for page to stabilize
             waitForPageStable(driver);
 
             List<File> screenshots = new ArrayList<>();
 
+            // =========================================================
+            // 1) Capture WHOLE PAGE first (main window scrolling)
+            // =========================================================
+            screenshots.addAll(aiScreenshotService.captureFullPage(driver,scenarioPrefix,screenshotDir,stepCtr));
 
 
             // Reset page to top before container capture
@@ -753,23 +755,19 @@ public class SeleniumExecutor {
             if (scrollableContainer != null) {
 
                 // -----------------------------------------------------
-                // 1a) Capture scrollable section HEADER first
+                // 2a) Capture scrollable section HEADER first
                 //     (all horizontal columns, sorting visibility)
                 // -----------------------------------------------------
-                screenshots.addAll(aiScreenshotService.captureHeaderAcrossAllColumns(driver, scrollableContainer,scenarioPrefix,screenshotDir));
+                screenshots.addAll(aiScreenshotService.captureHeaderAcrossAllColumns(driver, scrollableContainer,scenarioPrefix,screenshotDir,stepCtr));
 
                 // -----------------------------------------------------
-                // 1b) Capture scrollable section BODY next
+                // 2b) Capture scrollable section BODY next
                 //     (all rows + all columns)
                 // -----------------------------------------------------
-                screenshots.addAll(aiScreenshotService.captureScrollableElementScreenshots(driver, scrollableContainer,scenarioPrefix,screenshotDir));
+                screenshots.addAll(aiScreenshotService.captureScrollableElementScreenshots(driver, scrollableContainer,scenarioPrefix,screenshotDir,stepCtr));
             } else {
                 logger.warn("No scrollable container found. Proceeding with full-page screenshots only.");
             }
-            // =========================================================
-            // 2) Capture WHOLE PAGE first (main window scrolling)
-            // =========================================================
-            screenshots.addAll(aiScreenshotService.captureFullPage(driver,scenarioPrefix,screenshotDir));
 
             if (screenshots.isEmpty()) {
                 throw new GlobalExceptionHandler.BadRequestException("AI assertion failed: No screenshots captured.");
@@ -783,16 +781,35 @@ public class SeleniumExecutor {
             // =========================================================
             // 4) Send screenshots + prompt to LLM
             // =========================================================
-            logger.info("User prompt : {}",prompt);
+//            logger.info("User prompt : {}",prompt);
             AIValidationResult result = lLMServices.analyzeScreenshots(prompt, screenshots);
+            String runId = AIScreenshotService.getRunId(); // expose getter
+
+            Path dir = Paths.get(System.getProperty("java.io.tmpdir"), "ai-assert-screenshots", runId);
+
+            try {
+                if (Files.exists(dir)) {
+                    Files.walk(dir)
+                            .sorted(Comparator.reverseOrder())
+                            .map(Path::toFile)
+                            .forEach(File::delete);
+                }
+            } catch (Exception e) {
+                logger.warn("Failed to clean temp screenshots", e);
+            }
+
+// 🔥 Prevent memory leak in thread pools
+            AIScreenshotService.clearRunId();
 
             logger.info("AI assertion response: {}", result);
 //            step.setDescription(result.getReason());
 
-            if (result.getStatus()== AIValidationResult.AssertStatus.FAIL) {
+            step.getAssertion().setReason(result.getReason());
+            if (result.getStatus()== AIValidationResult.AssertStatus.FAILED) {
                 throw new GlobalExceptionHandler.BadRequestException("AI assertion failed: " + result.getReason());
             }
             step.getAssertion().setAssertResult(result.getStatus().toString());
+
 
             logger.info("AI assertion passed for step: {}", step.getType());
 

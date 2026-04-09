@@ -14,24 +14,42 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @Service
 public class AIScreenshotService {
     @Autowired
     private ScreenshotService screenshotService;
+
+    private static final ThreadLocal<String> runIdHolder = ThreadLocal.withInitial(
+            () -> UUID.randomUUID().toString()
+    );
+
+    public static String getRunId() {
+        return runIdHolder.get();
+    }
+
+    public static void clearRunId() {
+        runIdHolder.remove();
+    }
     //    Logger logger = Logger.getLogger(ScreenshotUtil.class.getName());
     private File saveScreenshot(File source, String fileName) throws IOException {
-        Path dir = Paths.get(System.getProperty("java.io.tmpdir"), "ai-assert-screenshots");
+        String runId = runIdHolder.get();
+        Path dir = Paths.get(System.getProperty("java.io.tmpdir"), "ai-assert-screenshots",runId);
         Files.createDirectories(dir);
 
-        Path target = dir.resolve(fileName);
+        String uniqueFileName = UUID.randomUUID() + "_" + fileName;
+
+        Path target = dir.resolve(uniqueFileName);
+
         Files.copy(source.toPath(), target, StandardCopyOption.REPLACE_EXISTING);
 
         return target.toFile();
     }
 
-    public List<File> captureFullPage(WebDriver driver,String scenarioPrefix,Path screenshotDir) throws IOException, InterruptedException {
+
+    public List<File> captureFullPage(WebDriver driver,String scenarioPrefix,Path screenshotDir,int []stepCtr) throws IOException, InterruptedException {
         List<File> screenshots = new ArrayList<>();
         JavascriptExecutor js = (JavascriptExecutor) driver;
 
@@ -93,7 +111,7 @@ public class AIScreenshotService {
                 screenshotService.takeScreenshot(
                         driver,
                         "1",
-                        "step "+TimestampUtil.generateTimestamp(),
+                        "step "+stepCtr[0]++,
                         screenshotDir,
                         scenarioPrefix
                 );
@@ -143,7 +161,7 @@ public class AIScreenshotService {
         Thread.sleep(600);
     }
 
-    public List<File> captureScrollableElementScreenshots(WebDriver driver, WebElement container,String scenarioPrefix,Path screenshotDir)
+    public List<File> captureScrollableElementScreenshots(WebDriver driver, WebElement container,String scenarioPrefix,Path screenshotDir,int []stepCtr)
             throws IOException, InterruptedException {
 
         List<File> screenshots = new ArrayList<>();
@@ -204,7 +222,7 @@ public class AIScreenshotService {
                 screenshotService.takeScreenshot(
                         driver,
                         "1",
-                        "step "+TimestampUtil.generateTimestamp(),
+                        "step "+stepCtr[0]++,
                         screenshotDir,
                         scenarioPrefix
                 );
@@ -284,7 +302,7 @@ public class AIScreenshotService {
 
         Thread.sleep(700);
     }
-    public List<File> captureHeaderAcrossAllColumns(WebDriver driver, WebElement container,String scenarioPrefix, Path screenshotDir)
+    public List<File> captureHeaderAcrossAllColumns(WebDriver driver, WebElement container,String scenarioPrefix, Path screenshotDir,int []stepCtr)
             throws IOException, InterruptedException {
 
         List<File> screenshots = new ArrayList<>();
@@ -309,7 +327,7 @@ public class AIScreenshotService {
             screenshotService.takeScreenshot(
                     driver,
                     "1",
-                    "step "+TimestampUtil.generateTimestamp(),
+                    "step "+stepCtr[0]++,
                     screenshotDir,
                     scenarioPrefix
             );
