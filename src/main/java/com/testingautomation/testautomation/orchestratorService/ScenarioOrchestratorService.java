@@ -76,7 +76,9 @@ public class ScenarioOrchestratorService {
                             current,
                             run.getResultStatement(),
                             scenarioPrefix,
-                            scenarioResultsMap
+                            scenarioResultsMap,
+                            scenarios.size(),
+                            i
                     );
                     current.setScenarioBasePath(scenarioPrefix);
                 }else if(current.getType() == ScenarioType.VERIFY_PAGE){
@@ -226,7 +228,7 @@ public class ScenarioOrchestratorService {
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
     public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
-                                        , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
+                                        , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioLen,int currIdx) throws Exception {
         List<FieldDescriptor> fields = scannerService.scanPage(current.getUrl(), driver);
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO>  testCases = csvLoader.loadFromS3(current.getCsv());
@@ -248,7 +250,7 @@ public class ScenarioOrchestratorService {
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
                 String expected = tc.getExpectedResult();
                 logger.info("EXPECTED results are : {}",expected);
-                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
+                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected,scenarioLen,currIdx);
                 if (expected != null) {
                     if(expected.equalsIgnoreCase(runResult.getStatus()) ){
                         tc.setResult("Passed");

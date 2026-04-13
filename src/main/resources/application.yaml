@@ -26,10 +26,6 @@ spring:
       max-file-size: 50MB
       max-request-size: 100MB
 
-
-
-
-
 server:
   port: 8080
 
@@ -69,5 +65,3 @@ autotest:
       max-page-size: 100
 
 
-
-#
