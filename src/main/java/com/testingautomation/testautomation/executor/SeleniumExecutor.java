@@ -52,7 +52,7 @@ public class SeleniumExecutor {
      * containing results.csv and screenshots/.
      */
     public ResultRun run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,
-                         String successMsg, Path scenarioDir, String scenarioPrefix,String expectedResult) {
+                         String successMsg, Path scenarioDir, String scenarioPrefix,String expectedResult,int scenarioLen,int currIdx) {
         List<String> screenshotUrls = new ArrayList<>();
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));
@@ -133,7 +133,7 @@ public class SeleniumExecutor {
             }
 
             // final success message check
-            if (expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty() ) {
+            if (currIdx+1==scenarioLen && expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty() ) {
                 boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
                 String screenshotUrl=screenshotService.takeScreenshot(
                         driver1,
@@ -737,7 +737,7 @@ public class SeleniumExecutor {
             Path screenshotDir = Paths.get(resultsBaseDir, scenarioPrefix, "ai");
 
             int []stepCtr=new int[1];
-            stepCtr[0]++;
+            stepCtr[0]=1;
             // Wait for page to stabilize
             waitForPageStable(driver);
 
