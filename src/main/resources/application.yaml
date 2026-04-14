@@ -29,7 +29,6 @@ spring:
 
 
 
-
 server:
   port: 8080
 
@@ -67,7 +66,3 @@ autotest:
     pagination:
       default-page-size: 20
       max-page-size: 100
-
-
-
-#

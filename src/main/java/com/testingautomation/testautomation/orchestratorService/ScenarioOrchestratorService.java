@@ -30,6 +30,8 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
 
@@ -76,7 +78,9 @@ public class ScenarioOrchestratorService {
                             current,
                             run.getResultStatement(),
                             scenarioPrefix,
-                            scenarioResultsMap
+                            scenarioResultsMap,
+                            scenarios.size(),
+                            i
                     );
                     current.setScenarioBasePath(scenarioPrefix);
                 }else if(current.getType() == ScenarioType.VERIFY_PAGE){
@@ -226,7 +230,7 @@ public class ScenarioOrchestratorService {
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
     public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
-                                        , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
+                                        , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) throws Exception {
         List<FieldDescriptor> fields = scannerService.scanPage(current.getUrl(), driver);
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO>  testCases = csvLoader.loadFromS3(current.getCsv());
@@ -248,7 +252,7 @@ public class ScenarioOrchestratorService {
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
                 String expected = tc.getExpectedResult();
                 logger.info("EXPECTED results are : {}",expected);
-                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
+                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected,scenarioSize,currScenarioIdx);
                 if (expected != null) {
                     if(expected.equalsIgnoreCase(runResult.getStatus()) ){
                         tc.setResult("Passed");
@@ -346,18 +350,62 @@ public class ScenarioOrchestratorService {
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
                 }
+//                else if (currScenario.getType() == ScenarioType.MODAL_NAV) {
+//
+//                    logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
+//                    WebDriverWait wait1 = new WebDriverWait(driver, Duration.ofSeconds(10));
+//
+//                    WebElement opener = wait.until(ExpectedConditions.elementToBeClickable(
+//                            By.cssSelector(currScenario.getCssOpener())
+//                    ));
+//
+////                    opener.click();
+//                    safeClick(driver, By.cssSelector(currScenario.getCssOpener()));
+//                    String url = screenshotService.takeScreenshot(
+//                            driver,
+//                            (modalFormTcIdx +1)+"",
+//                            "step passed",
+//                            navigationScreenshotDir,
+//                            scenarioPrefix
+//                    );
+//
+//                    logger.info("Modal opener clicked successfully");
+//
+//                    scenario.setScenarioStatus(RunStatus.PASSED);
+//                    resultTestCase.setResult("Passed");
+//                }
                 else if (currScenario.getType() == ScenarioType.MODAL_NAV) {
 
                     logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
 
-                    WebElement opener = wait.until(ExpectedConditions.elementToBeClickable(
-                            By.cssSelector(currScenario.getCssOpener())
-                    ));
+                    By openerBy = By.cssSelector(currScenario.getCssOpener());
 
-                    opener.click();
+                    boolean clicked = false;
+
+                    // 1️⃣ TRY SAFE CLICK FIRST
+                    try {
+                        safeClick(driver, openerBy);
+                        clicked = true;
+                        logger.info("Modal opened using safeClick");
+                    } catch (Exception safeEx) {
+                        logger.warn("safeClick failed, falling back to smartClick. Reason: {}", safeEx.getMessage());
+                    }
+
+                    // 2️⃣ FALLBACK TO SMART CLICK
+                    if (!clicked) {
+                        try {
+                            smartClick(driver, openerBy);
+                            clicked = true;
+                            logger.info("Modal opened using smartClick");
+                        } catch (Exception smartEx) {
+                            throw new RuntimeException("Both safeClick and smartClick failed for modal opener", smartEx);
+                        }
+                    }
+
+                    // 3️⃣ Screenshot AFTER success
                     String url = screenshotService.takeScreenshot(
                             driver,
-                            (modalFormTcIdx +1)+"",
+                            (modalFormTcIdx + 1) + "",
                             "step passed",
                             navigationScreenshotDir,
                             scenarioPrefix
@@ -448,6 +496,29 @@ public class ScenarioOrchestratorService {
 
                     // CASE 2 — dropdown opener
                     else {
+                        boolean isSelect2 =
+                                driver.findElements(By.cssSelector(".select2-container--default")).size() > 0
+                                        || driver.findElements(By.cssSelector(".select2-hidden-accessible")).size() > 0;
+                        if (isSelect2) {
+
+                            logger.info("Detected Select2 dropdown");
+
+                            selectSelect2(driver, currScenario.getCssOpener(), value);
+                            // 📸 screenshot after selection
+                            screenshotService.takeScreenshot(
+                                    driver,
+                                    (modalFormTcIdx +1)+"",
+                                    "step passed",
+                                    navigationScreenshotDir,
+                                    scenarioPrefix
+                            );
+
+                            // ✅ IMPORTANT: STOP here
+                            scenario.setScenarioStatus(RunStatus.PASSED);
+                            resultTestCase.setResult("Passed");
+                            currIdx++;
+                            continue;   // 🔥 THIS IS THE FIX
+                        }
 
                         logger.info("Detected dropdown/tree selector opener");
 
@@ -1002,6 +1073,119 @@ public class ScenarioOrchestratorService {
 
         // Default → CSS
         return By.cssSelector(selector);
+    }
+
+    public void safeClick(WebDriver driver, By locator) {
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        try {
+            WebElement element = wait.until(ExpectedConditions.presenceOfElementLocated(locator));
+
+            // 🔥 scroll first (important for sticky overlays)
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].scrollIntoView({block:'center'});", element
+            );
+
+            // 🔥 wait for clickable
+            element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+            element.click();
+
+        } catch (TimeoutException e) {
+
+            // 🔥 fallback 1: JS click on fresh element
+            WebElement element = driver.findElement(locator);
+
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].scrollIntoView({block:'center'});", element
+            );
+
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].click();", element
+            );
+
+        } catch (ElementClickInterceptedException e) {
+
+            // 🔥 fallback 2: JS click (bypass overlay)
+            WebElement element = driver.findElement(locator);
+
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].click();", element
+            );
+        }
+    }
+    private String extractValue(String locatorString) {
+
+        if (locatorString == null) {
+            throw new IllegalArgumentException("Locator string cannot be null");
+        }
+
+        // Common pattern: value='YES' or value="YES"
+        Pattern pattern = Pattern.compile("value\\s*=\\s*['\"](.*?)['\"]");
+        Matcher matcher = pattern.matcher(locatorString);
+
+        if (matcher.find()) {
+            return matcher.group(1);
+        }
+
+        throw new IllegalArgumentException(
+                "Could not extract value from locator: " + locatorString
+        );
+    }
+
+    private void smartClick(WebDriver driver, By locator) {
+
+        String loc = locator.toString();
+
+        // 🔥 RADIO pattern
+        if (loc.contains("value=") && loc.contains("radio")) {
+
+            String value = extractValue(loc);
+
+            By label = By.xpath("//label[.//input[@value='" + value + "']]");
+            driver.findElement(label).click();
+            return;
+        }
+
+        // 🔥 SELECT2 pattern
+        if (loc.contains("select2") || loc.contains("form-select2")) {
+
+            driver.findElement(locator).click();
+            return;
+        }
+
+        // 🔥 fallback JS click
+        WebElement el = driver.findElement(locator);
+        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
+    }
+
+    public void selectSelect2(WebDriver driver, String openerCss, String value) {
+
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+
+        // Extract actual select id from select2 opener
+        String selectId = openerCss
+                .replace("#select2-", "")
+                .replace("-container", "");
+
+        String script =
+                "var select = document.getElementById(arguments[0]);" +
+                        "if (!select) throw 'Select not found: ' + arguments[0];" +
+
+                        "var found = false;" +
+                        "for (var i = 0; i < select.options.length; i++) {" +
+                        "  if (select.options[i].text.trim() === arguments[1]) {" +
+                        "    select.selectedIndex = i;" +
+                        "    found = true;" +
+                        "    break;" +
+                        "  }" +
+                        "}" +
+
+                        "if (!found) throw 'Option not found: ' + arguments[1];" +
+
+                        // 🔥 CRITICAL → notify Select2
+                        "$(select).trigger('change');";
+
+        js.executeScript(script, selectId, value);
     }
 
 

@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 @Component
@@ -48,7 +49,7 @@ public class SeleniumExecutor {
      * containing results.csv and screenshots/.
      */
     public ResultRun run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,
-                         String successMsg, Path scenarioDir, String scenarioPrefix,String expectedResult) {
+                         String successMsg, Path scenarioDir, String scenarioPrefix,String expectedResult,int scenarioSize,int currScenarioIdx) {
         List<String> screenshotUrls = new ArrayList<>();
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));
@@ -129,7 +130,9 @@ public class SeleniumExecutor {
             }
 
             // final success message check
-            if (expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty() ) {
+//
+            System.out.println("while login expected result is : "+expectedResult+", successMsg " +successMsg +" and condition : "+(expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty()) );
+            if ((currScenarioIdx==scenarioSize-1) && expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty() ) {
                 boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
                 String screenshotUrl=screenshotService.takeScreenshot(
                         driver1,
@@ -913,15 +916,102 @@ public class SeleniumExecutor {
 
     private void assertTextEquals(WebDriver driver, WebDriverWait wait, StepAction step) {
 
-        WebElement el = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                getBy(step)
-        ));
+        logger.info("assertTextEquals table Id : {}", step.getTableId());
+        logger.info("assertTextEquals column name : {}", step.getColName());
+        logger.info("assertTextEquals expectedValue : {}", step.getPayload());
 
-        String actual = el.getText().trim();
+        String tableLocator = step.getTableId();
+        String colName = step.getColName();
+        String expectedPayload = step.getPayload(); // assume comma-separated
 
-        if (!actual.equals(step.getPayload())) {
-            throw new GlobalExceptionHandler.BadRequestException("Expected: " + step.getPayload() + " but got: " + actual);
+        logger.info("---- Text Equals Assertion Started ----");
+
+        WebElement table = driver.findElement(By.cssSelector(tableLocator));
+
+        // STEP 1: Fetch headers (same as sorting)
+        List<WebElement> headers = driver.findElements(By.cssSelector(".dataTables_scrollHead th"));
+
+        List<String> actualColumns = headers.stream()
+                .map(h -> {
+                    String text = "";
+                    try {
+                        text = h.findElement(By.cssSelector("div")).getText().trim();
+                    } catch (Exception e) {
+                        text = h.getText().trim();
+                    }
+                    if (text.isEmpty()) {
+                        text = h.getAttribute("aria-label");
+                    }
+                    if (text != null && text.contains(":")) {
+                        text = text.split(":")[0].trim();
+                    }
+                    return text != null ? text : "";
+                })
+                .filter(s -> !s.isEmpty())
+                .toList();
+
+        logger.info("Actual columns from UI: {}", actualColumns);
+
+        // STEP 2: Find column index
+        int columnIndex = -1;
+        for (int i = 0; i < actualColumns.size(); i++) {
+            if (actualColumns.get(i).equalsIgnoreCase(colName)) {
+                columnIndex = i;
+                break;
+            }
         }
+
+        logger.info("---- found column index ---- {}", columnIndex);
+
+        if (columnIndex == -1) {
+            throw new RuntimeException("Column not found: " + colName);
+        }
+
+        // STEP 3: Fetch all row values for that column
+        List<WebElement> rows = driver.findElements(
+                By.cssSelector(tableLocator + " tbody tr")
+        );
+
+        Set<String> actualSet = new HashSet<>();
+
+        for (WebElement row : rows) {
+            List<WebElement> cols = row.findElements(By.tagName("td"));
+
+            if (cols.size() > columnIndex) {
+                actualSet.add(cols.get(columnIndex).getText().trim());
+            }
+        }
+
+        logger.info("Actual values (Set): {}", actualSet);
+
+        // STEP 4: Parse expected values
+        Set<String> expectedSet = Arrays.stream(expectedPayload.split(","))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .collect(Collectors.toSet());
+
+        logger.info("Expected values (Set): {}", expectedSet);
+
+        // STEP 5: Compare sets
+        if (!actualSet.equals(expectedSet)) {
+
+            logger.info("❌ Text assertion failed");
+
+            // Log missing and extra values
+            Set<String> missing = new HashSet<>(expectedSet);
+            missing.removeAll(actualSet);
+
+            Set<String> extra = new HashSet<>(actualSet);
+            extra.removeAll(expectedSet);
+
+            logger.info("Missing values: {}", missing);
+            logger.info("Unexpected extra values: {}", extra);
+
+            throw new GlobalExceptionHandler.BadRequestException("Text values do not match expected set");
+        }
+
+        logger.info("✅ Text assertion passed");
+        logger.info("---- Text Equals Assertion Completed ----");
     }
 
     private void assertTextContains(WebDriver driver, WebDriverWait wait, StepAction step) {
