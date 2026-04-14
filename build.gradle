@@ -69,6 +69,8 @@ dependencies {
     // MapStruct
     implementation 'org.mapstruct:mapstruct:1.5.5.Final'
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
+
+    implementation 'tech.tablesaw:tablesaw-core:0.43.1'
 }
 tasks.named('test') {
     useJUnitPlatform()

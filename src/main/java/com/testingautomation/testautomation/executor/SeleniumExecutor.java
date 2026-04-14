@@ -9,12 +9,14 @@ import com.testingautomation.testautomation.llmconfig.PromptBuilder;
 import com.testingautomation.testautomation.llmconfig.LLMServices;
 import com.testingautomation.testautomation.services.ScreenshotService;
 import com.testingautomation.testautomation.services.AIScreenshotService;
+import com.testingautomation.testautomation.tableSaw.TableSawService;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import tech.tablesaw.api.Table;
 
 import java.io.File;
 import java.nio.file.*;
@@ -33,13 +35,15 @@ public class SeleniumExecutor {
     private final ScreenshotService screenshotService;
     private final LLMServices lLMServices;
     private final AIScreenshotService aiScreenshotService;
+    private final TableSawService tableSawService;
 
-    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, AIService aiService, LLMServices lLMServices, AIScreenshotService aiScreenshotService) {
+    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, AIService aiService, LLMServices lLMServices, AIScreenshotService aiScreenshotService, TableSawService tableSawService) {
         this.resultsBaseDir = env.getProperty("autotest.results.base-dir", "./test-results");
         this.screenshotOnStep = Boolean.parseBoolean(env.getProperty("autotest.screenshot-on-step", "false"));
         this.screenshotService = screenshotService;
         this.lLMServices = lLMServices;
         this.aiScreenshotService = aiScreenshotService;
+        this.tableSawService = tableSawService;
     }
 
     /**
@@ -647,6 +651,8 @@ public class SeleniumExecutor {
         for (StepAction step : steps) {
 
             try {
+                Table currTable=tableSawService.extractDataTableToTablesaw(driver, step);
+                System.out.println("CURRENT TABLE---- "+currTable);
                 System.out.println("Executing assertion: " + step);
 
                 switch (step.getType()) {

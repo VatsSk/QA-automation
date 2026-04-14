@@ -12,6 +12,7 @@ import com.testingautomation.testautomation.services.UiScannerService;
 import com.testingautomation.testautomation.services.AssertionStepGenerator;
 import com.testingautomation.testautomation.services.S3StorageService;
 import com.testingautomation.testautomation.services.ScreenshotService;
+import com.testingautomation.testautomation.tableSaw.TableSawService;
 import com.testingautomation.testautomation.utils.TimestampUtil;
 import lombok.RequiredArgsConstructor;
 import org.openqa.selenium.*;
