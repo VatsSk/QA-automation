@@ -1,6 +1,6 @@
 package com.testingautomation.testautomation.utils;
 
-import com.testingautomation.testautomation.model.Scenario;
+import com.testingautomation.testautomation.entities.Scenario;
 import org.openqa.selenium.WebDriverException;
 
 import java.util.NoSuchElementException;

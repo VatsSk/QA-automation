@@ -27,7 +27,9 @@ export function renderAssertionsSection(idx, s) {
 
 function renderAssertion(scIdx, assertionIdx, assertion) {
     const type = assertion.type || '';
+    console.log("Assert type : "+type);
     const assertConfig = ASSERT_TYPES[type] || { fields: [], required: [] };
+    console.log("assertConfig : "+assertConfig);
     
     return `
     <div class="assertion-card" id="assertion-${scIdx}-${assertionIdx}" style="border:1px solid var(--bd);border-radius:var(--rs);padding:12px;margin-bottom:12px;background:var(--sur2)">

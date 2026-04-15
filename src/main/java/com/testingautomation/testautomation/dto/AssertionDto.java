@@ -1,7 +1,7 @@
 package com.testingautomation.testautomation.dto;
 
 
-import com.testingautomation.testautomation.model.AssertionType;
+import com.testingautomation.testautomation.enums.AssertionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

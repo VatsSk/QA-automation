@@ -1,21 +1,21 @@
 package com.testingautomation.testautomation.services;
 
 
-import com.testingautomation.testautomation.config.StorageProperties;
+import com.testingautomation.testautomation.config.s3Config.StorageProperties;
 import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.responseDto.PagedResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResultsResponse;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
-import com.testingautomation.testautomation.mapper.EntityMapper;
-import com.testingautomation.testautomation.model.Run;
-import com.testingautomation.testautomation.model.RunStatus;
-import com.testingautomation.testautomation.model.Scenario;
-import com.testingautomation.testautomation.model.ScenarioStatus;
-import com.testingautomation.testautomation.orchestratorService.ScenarioOrchestratorService;
-import com.testingautomation.testautomation.pojo.RunFilterParams;
-import com.testingautomation.testautomation.repo.RunRepository;
-import com.testingautomation.testautomation.requestDto.RunRequest;
+import com.testingautomation.testautomation.config.mapperConfig.EntityMapper;
+import com.testingautomation.testautomation.entities.Run;
+import com.testingautomation.testautomation.enums.RunStatus;
+import com.testingautomation.testautomation.entities.Scenario;
+import com.testingautomation.testautomation.enums.ScenarioStatus;
+import com.testingautomation.testautomation.services.orchestratorService.ScenarioOrchestratorService;
+import com.testingautomation.testautomation.dto.filterDto.RunFilterParams;
+import com.testingautomation.testautomation.repositories.runRepos.RunRepository;
+import com.testingautomation.testautomation.dto.requestDto.RunRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
@@ -29,10 +29,8 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.io.BufferedReader;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
@@ -45,7 +43,6 @@ public class RunService {
 
     private final RunRepository runRepository;
     private final EntityMapper mapper;
-    private final RunnerService runnerService;
     private final ScenarioOrchestratorService scenarioOrchestratorService;
     private final StorageProperties storageProperties;
     private final S3Client s3Client;

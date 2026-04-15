@@ -1,9 +1,9 @@
 package com.testingautomation.testautomation.dto.responseDto;
 
 import com.testingautomation.testautomation.dto.AssertionDto;
-import com.testingautomation.testautomation.model.RunStatus;
-import com.testingautomation.testautomation.model.ScenarioStatus;
-import com.testingautomation.testautomation.model.ScenarioType;
+import com.testingautomation.testautomation.enums.RunStatus;
+import com.testingautomation.testautomation.enums.ScenarioStatus;
+import com.testingautomation.testautomation.enums.ScenarioType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;

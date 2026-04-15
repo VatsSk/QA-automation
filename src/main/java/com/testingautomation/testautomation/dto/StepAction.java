@@ -1,6 +1,5 @@
 package com.testingautomation.testautomation.dto;
 
-import com.testingautomation.testautomation.model.Scenario;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 

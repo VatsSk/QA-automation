@@ -110,9 +110,9 @@ export const ASSERT_TYPES = {
 
     // 🔹 Text / Value
     ASSERT_TEXT_EQUALS: {
-        label: 'Text Equals',
-        fields: ['locator', 'expected'],
-        required: ['locator', 'expected']
+        label: 'Assert Column Value(s)',
+        fields: ['tableId', 'columnName','expected'],
+        required: ['tableId', 'columnName','expected']
     },
     ASSERT_TEXT_CONTAINS: {
         label: 'Text Contains',
