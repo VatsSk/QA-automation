@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.entities;
 
 
 import com.testingautomation.testautomation.dto.AssertionDto;
+import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
@@ -29,8 +30,6 @@ public class Scenario {
     private String id;
 
     private RunStatus scenarioStatus;
-
-    /** Scenario type — never includes RESULT_STATEMENT */
     private ScenarioType type;
 
     private Integer sequenceNo;
@@ -39,7 +38,6 @@ public class Scenario {
 
     private String moduleId;
 
-    /** Target URL for URL / URL_NAV / SEARCH_NAV types */
     private String url;
 
     /** CSS selector used to open modal for MODAL / MODAL_NAV types */
@@ -57,7 +55,8 @@ public class Scenario {
     /** Inline manual test cases */
     private List<TestCase> manualTestCases;
     private List<AssertionDto> assertions;
-
+    private List<FilterScenarioDto> filters;
+    private String applyFilterBtn;
     /** S3/MinIO path to result CSV written by runner */
     private String resultCsv;
 

@@ -98,7 +98,7 @@
 <script type="module">
     import * as api      from './js/api.js';
     import * as assrtFunc      from './js/assertions_functions.js';
-    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS } from './js/config.js';
+    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES } from './js/config.js';
     import { esc, toast, openModal, closeModal,
         requireLogin, initTheme, toggleTheme } from './js/utils.js';
     // import { updateFormModalPayload } from './js/form-modal-payload.js';
@@ -403,9 +403,227 @@
         <!-- ── Assertions (only for ASSERT type) ── -->
         ${s.type === 'ASSERT' ? assrtFunc.renderAssertionsSection(scIdx, s) : ''}
 
+        ${s.type === 'FILTER_NAV' ? renderFiltersSection(scIdx, s) : ''}
+
       </div>
     </div>`;
     }
+
+    function renderFiltersSection(idx, s) {
+        console.log("renderFiltersSection")
+        const filters = s.filters || [];
+
+        return `
+    <div class="sc-section">Filters</div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+        ${filters.map((f, fi) => renderFilterRow(idx, fi, f)).join('')}
+    </div>
+
+    <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="addFilter(${idx})">
+            + Add Filter
+        </button>
+    </div>
+
+    <div class="field" style="margin-top:16px">
+        <label class="lbl">Apply Filter Button CSS *</label>
+        <input class="inp inp-mono"
+            value="${esc(s.applyBtnCss || '')}"
+            placeholder="#applyFilters"
+            oninput="updateField(${idx}, 'applyBtnCss', this.value)">
+    </div>
+    `;
+    }
+    function renderFilterRow(scIdx, fi, f) {
+        const ops = FILTER_OPERATIONS[f.filterType] || [];
+
+        return `
+    <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r)">
+
+        <div class="field">
+            <label class="lbl">Column Selector *</label>
+            <input class="inp inp-mono"
+                value="${esc(f.querySelectorOfColName || '')}"
+                placeholder="#name-col"
+                oninput="updateFilter(${scIdx}, ${fi}, 'querySelectorOfColName', this.value)">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+            <div class="field">
+                <label class="lbl">Filter Type *</label>
+                <select class="inp"
+                    onchange="updateFilterType(${scIdx}, ${fi}, this.value)">
+                    <option value="">Select</option>
+                    ${FILTER_TYPES.map(t => `
+                        <option value="${t.value}" ${f.filterType === t.value ? 'selected' : ''}>
+                            ${t.label}
+                        </option>`).join('')}
+                </select>
+            </div>
+
+            <div class="field">
+                <label class="lbl">Operation *</label>
+                <select class="inp"
+                    onchange="updateFilter(${scIdx}, ${fi}, 'operation', this.value)">
+                    <option value="">Select</option>
+                    ${ops.map(o => `
+                        <option value="${o.value}" ${f.operation === o.value ? 'selected' : ''}>
+                            ${o.label}
+                        </option>`).join('')}
+                </select>
+            </div>
+
+        </div>
+
+        ${renderFilterValue(scIdx, fi, f)}
+
+        <div style="text-align:right;margin-top:6px">
+            <button class="btn btn-danger btn-xs"
+                onclick="removeFilter(${scIdx}, ${fi})">Remove</button>
+        </div>
+    </div>
+    `;
+    }
+
+    function formatDateTime(val) {
+        if (!val) return '';
+
+        const [date, time] = val.split('T');
+        if (!date || !time) return val;
+
+        const [y, m, d] = date.split('-');
+
+        return `${d}-${m}-${y} ${time}`;
+    }
+
+    function formatDate(val) {
+        if (!val) return '';
+        const [y, m, d] = val.split('-');
+        console.log("y : "+y+" ,m : "+m+" ,d : "+d);
+        return `${d}-${m}-${y}`;
+    }
+    function renderFilterValue(scIdx, fi, f) {
+
+        if (f.operation === 'RANGE' && f.filterType === 'DATE_TIME') {
+            console.log("inside renderFilterValue and dateRange and Date_Time selected");
+            return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <input class="inp" type="datetime-local" lang="en-GB" value="${f.value?.start || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'start', this.value)">
+
+            <input class="inp" type="datetime-local" lang="en-GB"
+                value="${f.value?.end || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'end', this.value)">
+        </div>`;
+        }
+
+        // ✅ DATE RANGE (two calendars)
+        if (f.operation === 'RANGE') {
+            console.log("inside renderFilterValue and dateRange and Date selected");
+
+            return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <input class="inp" type="date"
+                value="${f.value?.start || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'start', this.value)">
+
+            <input class="inp" type="date"
+                value="${f.value?.end || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'end', this.value)">
+        </div>`;
+        }
+
+        // ✅ SINGLE DATE (calendar)
+        if (f.filterType === 'DATE') {
+            return `
+                <div class="field">
+                    <label class="lbl">Date *</label>
+                    <input class="inp" type="date"
+                        value="${f.value || ''}"
+                        onchange="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+                    <small style="color:var(--tx2)">
+                        ${formatDate(f.value)}
+                    </small>
+                </div>`;
+        }
+        if (f.filterType === 'DATE_TIME') {
+            return `
+    <div class="field">
+        <label class="lbl">Date & Time *</label>
+        <input class="inp" type="datetime-local"
+            value="${f.value || ''}"
+            onchange="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+        <small style="color:var(--tx2)">
+            ${formatDateTime(f.value)}
+        </small>
+    </div>`;
+        }
+
+        // ✅ NUMBER
+        if (f.filterType === 'NUMBER') {
+            return `
+        <div class="field">
+            <label class="lbl">Value *</label>
+            <input class="inp" type="number"
+                value="${f.value || ''}"
+                oninput="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+        </div>`;
+        }
+
+        // ✅ TEXT (default)
+        return `
+    <div class="field">
+        <label class="lbl">Value *</label>
+        <input class="inp"
+            value="${f.value || ''}"
+            oninput="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+    </div>`;
+    }
+
+    window.addFilter = function (scIdx) {
+        console.log("Inside add filter")
+        scenarios[scIdx].filters.push({
+            querySelectorOfColName: '',
+            filterType: '',
+            operation: '',
+            value: ''
+        });
+        renderPanel();
+    };
+
+    window.removeFilter = function (scIdx, fi) {
+        scenarios[scIdx].filters.splice(fi, 1);
+        renderPanel();
+    };
+
+    // window.updateFilter = function (scIdx, fi, field, value) {
+    //     scenarios[scIdx].filters[fi][field] = value;
+    //
+    //     renderPanel();
+    // };
+    window.updateFilter = function (scIdx, fi, field, value) {
+        if (field === 'operation' && typeof value === 'string') {
+            value = value.toUpperCase();
+        }
+        scenarios[scIdx].filters[fi][field] = value;
+        renderPanel();
+    };
+
+    window.updateFilterType = function (scIdx, fi, type) {
+        const f = scenarios[scIdx].filters[fi];
+        f.filterType = type;
+        f.operation = '';
+        f.value = '';
+        renderPanel(); // important
+    };
+
+    window.updateFilterRange = function (scIdx, fi, key, val) {
+        const f = scenarios[scIdx].filters[fi];
+        if (!f.value) f.value = {};
+        f.value[key] = val;
+    };
 
     // ── Test data section (CSV upload or manual entry) ─────────────────────
     function renderDataSection(idx, s, tab) {
@@ -650,6 +868,10 @@
         if (type === 'ASSERT') {
             newScenario.assertions = [];
         }
+        if (type === 'FILTER_NAV') {
+            newScenario.filters = [];
+            newScenario.applyBtnCss = '';
+        }
 
         console.log(type+"choosen!")
 
@@ -664,24 +886,90 @@
     function validate() {
         const name = document.getElementById('f-runName').value.trim();
         if (!name) { toast('Run name is required', 'warning'); return false; }
-        if (!scenarios.length) { toast('Add at least one scenario', 'warning'); return false; }
+
+        if (!scenarios.length) {
+            toast('Add at least one scenario', 'warning');
+            return false;
+        }
+
         for (let i = 0; i < scenarios.length; i++) {
-            const s   = scenarios[i];
-            console.log("s.type : "+s.type)
+            const s = scenarios[i];
+
             const req = REQUIRED[s.type] || [];
-            console.log("req : "+ req);
+
+            // ✅ existing validation
             for (const f of req) {
                 const val = f === 'cssSelector' ? s.cssSelector : s[f];
-                console.log("val : "+ val);
-                console.log(!val?.trim())
-                if (!val?.trim()) {
+
+                if (!val || (typeof val === 'string' && !val.trim())) {
                     toast(`Scenario #${i + 1} (${s.type}): "${f}" is required`, 'warning');
                     selectScenario(i);
                     return false;
                 }
             }
+
+            // ✅ 🔥 FILTER_NAV validation
+            if (s.type === 'FILTER_NAV') {
+
+                if (!s.filters || s.filters.length === 0) {
+                    toast(`Scenario #${i + 1}: Add at least one filter`, 'warning');
+                    selectScenario(i);
+                    return false;
+                }
+
+                for (let j = 0; j < s.filters.length; j++) {
+                    const f = s.filters[j];
+
+                    if (!f.querySelectorOfColName?.trim()) {
+                        toast(`Scenario #${i + 1} → Filter #${j + 1}: Column selector required`, 'warning');
+                        selectScenario(i);
+                        return false;
+                    }
+
+                    if (!f.filterType) {
+                        toast(`Scenario #${i + 1} → Filter #${j + 1}: Select filter type`, 'warning');
+                        selectScenario(i);
+                        return false;
+                    }
+
+                    if (!f.operation) {
+                        toast(`Scenario #${i + 1} → Filter #${j + 1}: Select operation`, 'warning');
+                        selectScenario(i);
+                        return false;
+                    }
+
+                    // ✅ handle date range specially
+                    if (f.operation === 'RANGE') {
+                        if (!f.value?.start || !f.value?.end) {
+                            toast(`Scenario #${i + 1} → Filter #${j + 1}: Date range required`, 'warning');
+                            selectScenario(i);
+                            return false;
+                        }
+                    } else {
+                        if (!f.value || (typeof f.value === 'string' && !f.value.trim())) {
+                            toast(`Scenario #${i + 1} → Filter #${j + 1}: Value required`, 'warning');
+                            selectScenario(i);
+                            return false;
+                        }
+                    }
+                }
+
+                // apply button validation (extra safety)
+                if (!s.applyBtnCss?.trim()) {
+                    toast(`Scenario #${i + 1}: Apply button selector required`, 'warning');
+                    selectScenario(i);
+                    return false;
+                }
+            }
         }
+
         return true;
+    }
+
+    function formatRange(start, end, type) {
+        if (type === 'DATE') return `${formatDate(start)} to ${formatDate(end)}`;
+        if (type === 'DATE_TIME') return `${formatDateTime(start)} to ${formatDateTime(end)}`;
+        return `${start} to ${end}`;
     }
 
     // ── Build payload ──────────────────────────────────────────────────────
@@ -722,6 +1010,29 @@
                     rowsBtn: a.rowsBtn || null,
                     prompt: a.promptAi || null
                 })) : undefined,
+                filters: s.type === 'FILTER_NAV'
+                    ? (s.filters || []).map(f => {
+
+                        let finalValue = f.value;
+
+                        if (f.operation === 'RANGE') {
+                            const start = f.value?.start;
+                            const end = f.value?.end;
+
+                            if (start && end) {
+                                finalValue = formatRange(start, end, f.filterType);
+                            }
+                        }
+
+                        return {
+                            querySelector: f.querySelectorOfColName,
+                            filterType: f.filterType,
+                            operation: f.operation,
+                            value: finalValue
+                        };
+                    })
+                    : undefined,
+                applyFilterBtn: s.type === 'FILTER_NAV' ? s.applyBtnCss : undefined,
             })),
         };
     }

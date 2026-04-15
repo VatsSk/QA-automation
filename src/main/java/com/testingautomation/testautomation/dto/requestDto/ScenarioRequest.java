@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.dto.requestDto;
 
 import com.testingautomation.testautomation.dto.AssertionDto;
+import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -32,4 +33,6 @@ public class ScenarioRequest {
 
     private List<ManualTestCaseRequest> manualTestCases;
     private List<AssertionDto> assertions;
+    private List<FilterScenarioDto> filters;
+    private String applyFilterBtn;
 }
