@@ -7,26 +7,13 @@ import org.springframework.web.bind.annotation.*;
 //@RequestMapping("/scanner")
 public class UiScannerController {
 
-//    private final UiScannerService scannerService;
-//
-//    public UiScannerController(UiScannerService scannerService) {
-//        this.scannerService = scannerService;
-//    }
-//
-//    @GetMapping("/scan")
-//    public List<FieldDescriptor> scan(@RequestParam String url) {
-//        return scannerService.scanPage(url);
-//    }
     @GetMapping("/")
     public String getHome(){
         return "index.html";
     }
 
     @GetMapping("/auth")
-    public String getAuth(){
-        System.out.println("AUTH controller calleld::");
-        return "runs.html";
-    }
+    public String getAuth(){return "runs.html";}
 
     @GetMapping("/run-detail")
     public String getRunDetail(){

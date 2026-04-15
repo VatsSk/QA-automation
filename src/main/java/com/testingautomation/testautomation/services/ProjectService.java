@@ -5,13 +5,13 @@ package com.testingautomation.testautomation.services;
 
 import com.testingautomation.testautomation.dto.responseDto.ProjectResponse;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
-import com.testingautomation.testautomation.mapper.EntityMapper;
+import com.testingautomation.testautomation.config.mapperConfig.EntityMapper;
 
-import com.testingautomation.testautomation.model.Project;
-import com.testingautomation.testautomation.repo.ModuleRepository;
-import com.testingautomation.testautomation.repo.ProjectRepository;
-import com.testingautomation.testautomation.repo.RunRepository;
-import com.testingautomation.testautomation.requestDto.ProjectRequest;
+import com.testingautomation.testautomation.entities.Project;
+import com.testingautomation.testautomation.repositories.moduleRepos.ModuleRepository;
+import com.testingautomation.testautomation.repositories.projectRepo.ProjectRepository;
+import com.testingautomation.testautomation.repositories.runRepos.RunRepository;
+import com.testingautomation.testautomation.dto.requestDto.ProjectRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;

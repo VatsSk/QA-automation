@@ -2,7 +2,7 @@ package com.testingautomation.testautomation.controllers;
 
 import com.testingautomation.testautomation.dto.responseDto.UploadResponse;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
-import com.testingautomation.testautomation.services.StorageService;
+import com.testingautomation.testautomation.services.s3Service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Set;
-import java.util.UUID;
 
 @Slf4j
 @RestController

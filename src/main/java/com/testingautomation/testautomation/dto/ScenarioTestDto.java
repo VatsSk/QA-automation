@@ -1,6 +1,6 @@
 package com.testingautomation.testautomation.dto;
 
-import com.testingautomation.testautomation.model.RunStatus;
+import com.testingautomation.testautomation.enums.RunStatus;
 import lombok.Data;
 
 import java.util.List;
