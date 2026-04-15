@@ -87,6 +87,18 @@ export const TYPES = {
         hint:    'Assert element value or text content',
         dynamicFields: true,
     },
+    FILTER_NAV: {
+        label:   'Filter Nav',
+        icon:    '⛃',
+        color:   'var(--cyan)',
+        bg:      'var(--cyan-d)',
+        // Top-level fields
+        fields:  ['filters', 'applyBtnCss'],
+        hasData: false,
+        hint: 'Apply multiple filters and trigger search',
+        dynamicFields: true,
+    }
+
 };
 
 // Assertion type definitions and their field requirements
@@ -163,6 +175,40 @@ export const ASSERT_TYPES = {
 
 };
 
+export const FILTER_TYPES = [
+    { value: 'TEXT', label: 'Text' },
+    { value: 'DATE', label: 'Date' },
+    { value: 'DATE_TIME', label: 'Date Time' },
+    { value: 'NUMBER', label: 'Number' },
+];
+
+export const   FILTER_OPERATIONS = {
+    TEXT: [
+        { value: 'EQUALS', label: 'Equals' },
+        { value: 'NOT_EQUALS', label: 'Not Equals' },
+        { value: 'CONTAINS', label: 'Contains' },
+        { value: 'STARTS_WITH', label: 'Starts With' },
+    ],
+    DATE: [
+        { value: 'EQUALS', label: 'Equals' },
+        { value: 'GREATER_THAN', label: 'Greater Than' },
+        { value: 'LESS_THAN', label: 'Less Than' },
+        { value: 'RANGE', label: 'Date Range' },
+    ],
+    DATE_TIME: [
+        { value: 'EQUALS', label: 'Equals' },
+        { value: 'GREATER_THAN', label: 'Greater Than' },
+        { value: 'LESS_THAN', label: 'Less Than' },
+        { value: 'RANGE', label: 'Date Range' },
+    ],
+
+    NUMBER: [
+        { value: 'EQUALS', label: 'Equals' },
+        { value: 'GREATER_THAN', label: 'Greater Than' },
+        { value: 'LESS_THAN', label: 'Less Than' },
+    ]
+};
+
 // Sort order options
 export const SORT_ORDER_OPTIONS = [
     { value: 'ascending', label: 'Ascending' },
@@ -179,4 +225,5 @@ export const REQUIRED = {
     VERIFY_PAGE: ['url', 'cssSelector'],
     FORM_MODAL:  ['cssSelector'],
     ASSERT:     [],
+    FILTER_NAV: ['applyBtnCss'],
 };

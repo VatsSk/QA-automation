@@ -352,30 +352,6 @@ public class ScenarioOrchestratorService {
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
                 }
-//                else if (currScenario.getType() == ScenarioType.MODAL_NAV) {
-//
-//                    logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
-//                    WebDriverWait wait1 = new WebDriverWait(driver, Duration.ofSeconds(10));
-//
-//                    WebElement opener = wait.until(ExpectedConditions.elementToBeClickable(
-//                            By.cssSelector(currScenario.getCssOpener())
-//                    ));
-//
-////                    opener.click();
-//                    safeClick(driver, By.cssSelector(currScenario.getCssOpener()));
-//                    String url = screenshotService.takeScreenshot(
-//                            driver,
-//                            (modalFormTcIdx +1)+"",
-//                            "step passed",
-//                            navigationScreenshotDir,
-//                            scenarioPrefix
-//                    );
-//
-//                    logger.info("Modal opener clicked successfully");
-//
-//                    scenario.setScenarioStatus(RunStatus.PASSED);
-//                    resultTestCase.setResult("Passed");
-//                }
                 else if (currScenario.getType() == ScenarioType.MODAL_NAV) {
 
                     logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
@@ -616,6 +592,9 @@ public class ScenarioOrchestratorService {
 
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
+                }
+                else if(currScenario.getType()==ScenarioType.FILTER_NAV){
+
                 }
 
                 Thread.sleep(1000);

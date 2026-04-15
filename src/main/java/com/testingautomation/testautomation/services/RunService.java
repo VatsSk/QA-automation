@@ -3,6 +3,7 @@ package com.testingautomation.testautomation.services;
 
 import com.testingautomation.testautomation.config.s3Config.StorageProperties;
 import com.testingautomation.testautomation.dto.AssertionDto;
+import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.dto.responseDto.PagedResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.dto.responseDto.RunResultsResponse;
@@ -143,6 +144,8 @@ public class RunService {
                 .updatedAt(Instant.now())
                 .build();
 
+        System.out.println("original :" + original);
+
         // Deep-clone scenarios — clear result fields
         if (original.getScenariosList() != null) {
             List<Scenario> clonedScenarios = original.getScenariosList().stream()
@@ -151,6 +154,8 @@ public class RunService {
             clone.setScenariosList(clonedScenarios);
             clone.setScenarioCount(clonedScenarios.size());
         }
+        System.out.println("clone :" + clone);
+
 
         Run saved = runRepository.save(clone);
         log.info("Cloned run {} -> new run {}", id, saved.getId());
@@ -360,6 +365,17 @@ public class RunService {
                 .statement(original.getStatement())
                 .csv(original.getCsv())
                 .manualTestCases(original.getManualTestCases())
+                // ✅ FIX: clone filters
+                .filters(
+                        original.getFilters() != null
+                                ? original.getFilters().stream()
+                                .map(this::cloneFilter)
+                                .collect(Collectors.toList())
+                                : null
+                )
+
+                // ✅ FIX: clone apply button
+                .applyFilterBtn(original.getApplyFilterBtn())
                 // result fields cleared:
                 .resultCsv(null)
                 .screenshots(null)
@@ -385,6 +401,16 @@ public class RunService {
                 .rowsBtn(a.getRowsBtn())
                 .order(a.getOrder())   // ⚠️ THIS is your missing stability
                 .build();
+    }
+
+    private FilterScenarioDto cloneFilter(FilterScenarioDto f) {
+        FilterScenarioDto copy = new FilterScenarioDto();
+        copy.setQuerySelector(f.getQuerySelector());
+        copy.setColumnName(f.getColumnName());
+        copy.setFilterType(f.getFilterType());
+        copy.setOperation(f.getOperation());
+        copy.setValue(f.getValue());
+        return copy;
     }
 
 

@@ -1,8 +1,8 @@
 package com.testingautomation.testautomation.enums;
 
 public enum DataType {
-    STRING,
+    TEXT,
     NUMBER,     // always double
     DATE,
-    DATETIME
+    DATE_TIME,
 }
