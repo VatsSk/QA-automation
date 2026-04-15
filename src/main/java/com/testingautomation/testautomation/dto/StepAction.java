@@ -22,6 +22,7 @@ public class StepAction {
         ASSERT_API_CALLED,
         ASSERT_ATTRIBUTE,
         ASSERT_AI,
+        ASSERT_FILTER,
     }
     private ActionType type;
     private String locatorType; // css / xpath / id

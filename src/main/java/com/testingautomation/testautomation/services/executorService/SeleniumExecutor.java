@@ -2,9 +2,12 @@ package com.testingautomation.testautomation.services.executorService;
 
 import com.testingautomation.testautomation.dto.ResultRun;
 import com.testingautomation.testautomation.dto.StepAction;
+import com.testingautomation.testautomation.enums.DataType;
+import com.testingautomation.testautomation.enums.Operator;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.dto.AIValidationResult;
 import com.testingautomation.testautomation.services.TableSawService;
+import com.testingautomation.testautomation.utils.TableColumnValidator;
 import com.testingautomation.testautomation.utils.promptUtils.PromptBuilder;
 import com.testingautomation.testautomation.config.llmConfig.LLMServices;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
@@ -653,8 +656,8 @@ public class SeleniumExecutor {
         for (StepAction step : steps) {
 
             try {
-                Table currTable=tableSawService.extractDataTableToTablesaw(driver, step);
-                System.out.println("CURRENT TABLE---- "+currTable);
+//                Table currTable=tableSawService.extractDataTableToTablesaw(driver, step);
+//                System.out.println("CURRENT TABLE---- "+currTable);
                 System.out.println("Executing assertion: " + step);
 
                 switch (step.getType()) {
@@ -713,7 +716,9 @@ public class SeleniumExecutor {
                         assertAI(driver,wait,step,scenarioPrefix);
 //                        step.getAssertion().setAssertResult("Passed");
                         break;
-
+                    case ASSERT_FILTER:
+                        assertTableFilter(driver,wait,step,scenarioPrefix);
+                        break;
 
 
                     default:
@@ -733,6 +738,18 @@ public class SeleniumExecutor {
             tcIdx++;
         }
     }
+
+    private void assertTableFilter(WebDriver driver, WebDriverWait wait, StepAction step, String scenarioPrefix) {
+        logger.info("Executing assertFilter");
+        waitForPageStable(driver);
+        Table currTable=tableSawService.extractDataTableToTablesaw(driver,step);
+
+        if(TableColumnValidator.allRowsMatchInColumn(currTable,"Created By", Operator.EQUALS,"araujo_exe", DataType.STRING)){
+                step.getAssertion().setAssertResult("Passed");
+        }else
+            throw new  GlobalExceptionHandler.BadRequestException("Assertion Failed");
+    }
+
     private void assertAI(WebDriver driver, WebDriverWait wait, StepAction step,String scenarioPrefix) {
         try {
             logger.info("Running AI assertion for step: {}", step.getType());
