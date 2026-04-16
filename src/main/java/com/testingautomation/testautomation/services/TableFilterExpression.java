@@ -19,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 
-@Service
 public final class TableFilterExpression {
 
     private static final Logger log = LoggerFactory.getLogger(TableFilterExpression.class);
@@ -165,7 +164,7 @@ public final class TableFilterExpression {
         if (logicalOperator == null || logicalOperator.trim().isEmpty()) {
             return "AND";
         }
-        return logicalOperator.trim().toUpperCase(Locale.ROOT);
+        return "OR";
     }
 
     private static String buildDebugExpression(List<List<PreparedCondition>> groups) {

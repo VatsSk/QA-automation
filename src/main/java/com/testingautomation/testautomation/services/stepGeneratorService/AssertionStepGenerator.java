@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.testingautomation.testautomation.dto.StepAction.ActionType.ASSERT_FILTER;
+
 @Service
 public class AssertionStepGenerator {
 
@@ -99,6 +101,8 @@ public class AssertionStepGenerator {
 
             case ASSERT_AI:
                 return StepAction.ActionType.ASSERT_AI;
+            case ASSERT_FILTER:
+                return StepAction.ActionType.ASSERT_FILTER;
 
             default:
                 throw new GlobalExceptionHandler.BadRequestException(
