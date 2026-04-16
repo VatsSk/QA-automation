@@ -1,11 +1,15 @@
 package com.testingautomation.testautomation.services.executorService;
 
+import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.dto.ResultRun;
 import com.testingautomation.testautomation.dto.StepAction;
+import com.testingautomation.testautomation.entities.Scenario;
 import com.testingautomation.testautomation.enums.DataType;
 import com.testingautomation.testautomation.enums.Operator;
+import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.dto.AIValidationResult;
+import com.testingautomation.testautomation.services.TableFilterExpression;
 import com.testingautomation.testautomation.services.TableSawService;
 import com.testingautomation.testautomation.utils.TableColumnValidator;
 import com.testingautomation.testautomation.utils.promptUtils.PromptBuilder;
@@ -27,6 +31,8 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.util.Arrays.stream;
 
 
 @Component
@@ -647,7 +653,12 @@ public class SeleniumExecutor {
         }
     }
 
-    public void runAssertionSteps(WebDriver driver, List<StepAction> steps ,Path scenarioDir, String scenarioPrefix) {
+    public void runAssertionSteps(WebDriver driver,
+                                  List<StepAction> steps ,
+                                  Path scenarioDir,
+                                  String scenarioPrefix,
+                                  List<Scenario> scenarios
+    ) {
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
@@ -656,6 +667,7 @@ public class SeleniumExecutor {
         for (StepAction step : steps) {
 
             try {
+//                if(step.getType()==ASS)
 //                Table currTable=tableSawService.extractDataTableToTablesaw(driver, step);
 //                System.out.println("CURRENT TABLE---- "+currTable);
                 System.out.println("Executing assertion: " + step);
@@ -717,7 +729,8 @@ public class SeleniumExecutor {
 //                        step.getAssertion().setAssertResult("Passed");
                         break;
                     case ASSERT_FILTER:
-                        assertTableFilter(driver,wait,step,scenarioPrefix);
+
+                        assertFilters(driver,wait,step,scenarioPrefix,scenarios);
                         break;
 
 
@@ -738,16 +751,37 @@ public class SeleniumExecutor {
             tcIdx++;
         }
     }
-
-    private void assertTableFilter(WebDriver driver, WebDriverWait wait, StepAction step, String scenarioPrefix) {
+    private void assertFilters(WebDriver driver,
+                               WebDriverWait wait,
+                               StepAction step,
+                               String scenarioPrefix,
+                               List<Scenario> scenarios) {
         logger.info("Executing assertFilter");
         waitForPageStable(driver);
-        Table currTable=tableSawService.extractDataTableToTablesaw(driver,step);
+        List<FilterScenarioDto> filters= ((Scenario) scenarios.stream().filter(scenario -> scenario.getType()== ScenarioType.FILTER_NAV)).getFilters();
+        assertTableFilter(driver,wait,step,scenarioPrefix,filters);
+    }
 
-        if(TableColumnValidator.allRowsMatchInColumn(currTable,"Created By", Operator.EQUALS,"araujo_exe", DataType.TEXT)){
-                step.getAssertion().setAssertResult("Passed");
-        }else
-            throw new  GlobalExceptionHandler.BadRequestException("Assertion Failed");
+    private void assertTableFilter(WebDriver driver,
+                                   WebDriverWait wait,
+                                   StepAction step,
+                                   String scenarioPrefix,
+                                   List<FilterScenarioDto> scenarios) {
+
+        waitForPageStable(driver);
+
+        Table currTable = tableSawService.extractDataTableToTablesaw(driver, step);
+
+        TableFilterExpression expression =
+                TableFilterExpression.compile(scenarioPrefix, currTable, scenarios);
+
+        if (expression.matchesAllRows()) {
+            step.getAssertion().setAssertResult("Passed");
+        } else {
+            throw new GlobalExceptionHandler.BadRequestException(
+                    "Assertion Failed. Expression: " + expression.getDebugExpression()
+            );
+        }
     }
 
     private void assertAI(WebDriver driver, WebDriverWait wait, StepAction step,String scenarioPrefix) {
@@ -1007,7 +1041,7 @@ public class SeleniumExecutor {
         logger.info("Actual values (Set): {}", actualSet);
 
         // STEP 4: Parse expected values
-        Set<String> expectedSet = Arrays.stream(expectedPayload.split(","))
+        Set<String> expectedSet = stream(expectedPayload.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .collect(Collectors.toSet());
@@ -1071,7 +1105,7 @@ public class SeleniumExecutor {
         String columnNames = step.getColName();
         logger.info("Received column payload: {}", columnNames);
 
-        List<String> expectedColumns = Arrays.stream(columnNames.split(","))
+        List<String> expectedColumns = stream(columnNames.split(","))
                 .map(String::trim)
                 .toList();
 

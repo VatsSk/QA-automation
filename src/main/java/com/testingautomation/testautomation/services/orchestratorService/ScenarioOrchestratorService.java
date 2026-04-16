@@ -878,7 +878,7 @@ public class ScenarioOrchestratorService {
         if(currModal.getType()==ScenarioType.ASSERT){
             logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
             currEle, currModal.getType());
-            runAssertionGeneric(driver,currModal,baseS3Prefix);
+            runAssertionGeneric(driver,currModal,baseS3Prefix,scenarios);
             return;
         }
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
@@ -943,7 +943,8 @@ public class ScenarioOrchestratorService {
     public void runAssertionGeneric(
             WebDriver driver,
             Scenario scenario,
-            String baseS3Prefix
+            String baseS3Prefix,
+            List<Scenario> scenarios
     ) throws Exception {
 
         int scenarioId = scenario.getSequenceNo();
@@ -959,7 +960,7 @@ public class ScenarioOrchestratorService {
 
         logger.info("steps of Assert scenario : {}",steps);
         try {
-            executor.runAssertionSteps(driver, steps,scenarioDir,scenarioPrefix);
+            executor.runAssertionSteps(driver, steps,scenarioDir,scenarioPrefix,scenarios);
             List<AssertionDto> assertionDtos=scenario.getAssertions();
             List<TestCaseDTO> testDtos = new ArrayList<>();
             int tcIdx = 1;
