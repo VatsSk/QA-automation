@@ -41,10 +41,10 @@ public class TableColumnValidator {
             }
 
             boolean matched = switch (dataType) {
-                case STRING -> matchString(cell, operator, expectedValue);
+                case TEXT -> matchString(cell, operator, expectedValue);
                 case NUMBER -> matchNumber(cell, operator, expectedValue);
                 case DATE -> matchDate(cell, operator, expectedValue);
-                case DATETIME -> matchDateTime(cell, operator, expectedValue);
+                case DATE_TIME -> matchDateTime(cell, operator, expectedValue);
             };
 
             if (!matched) {
@@ -71,7 +71,7 @@ public class TableColumnValidator {
             return false;
         }
 
-        if (dataType != DataType.DATE && dataType != DataType.DATETIME) {
+        if (dataType != DataType.DATE && dataType != DataType.DATE_TIME) {
             throw new IllegalArgumentException("allRowsInRange() supports only DATE or DATETIME");
         }
 
@@ -85,7 +85,7 @@ public class TableColumnValidator {
 
             boolean matched = switch (dataType) {
                 case DATE -> isDateInRange(cell, fromValue, toValue);
-                case DATETIME -> isDateTimeInRange(cell, fromValue, toValue);
+                case DATE_TIME -> isDateTimeInRange(cell, fromValue, toValue);
                 default -> false;
             };
 

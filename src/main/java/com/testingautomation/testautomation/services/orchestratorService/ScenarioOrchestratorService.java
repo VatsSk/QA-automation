@@ -337,7 +337,15 @@ public class ScenarioOrchestratorService {
 
             try {
 
-                if (currScenario.getType() == ScenarioType.URL_NAV) {
+                if(currScenario.getType()== ScenarioType.FILTER_NAV){
+                    logger.info("Executing navigation filter at index {}", currIdx);
+                    List<FilterScenarioDto> filterScenarioDtos=currScenario.getFilters();
+                    for(FilterScenarioDto filterScenarioDto:filterScenarioDtos){
+
+                    }
+                }
+
+                else if (currScenario.getType() == ScenarioType.URL_NAV) {
 
                     logger.info("Navigating to URL: {}", currScenario.getUrl());
                     driver.get(currScenario.getUrl());

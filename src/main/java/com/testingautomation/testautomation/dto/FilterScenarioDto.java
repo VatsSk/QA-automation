@@ -12,5 +12,4 @@ public class FilterScenarioDto {
     private DataType filterType;
     private Operator operation;
     private String value;
-
 }

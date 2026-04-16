@@ -744,7 +744,7 @@ public class SeleniumExecutor {
         waitForPageStable(driver);
         Table currTable=tableSawService.extractDataTableToTablesaw(driver,step);
 
-        if(TableColumnValidator.allRowsMatchInColumn(currTable,"Created By", Operator.EQUALS,"araujo_exe", DataType.STRING)){
+        if(TableColumnValidator.allRowsMatchInColumn(currTable,"Created By", Operator.EQUALS,"araujo_exe", DataType.TEXT)){
                 step.getAssertion().setAssertResult("Passed");
         }else
             throw new  GlobalExceptionHandler.BadRequestException("Assertion Failed");
