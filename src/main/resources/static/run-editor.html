@@ -479,8 +479,12 @@
 
         ${renderFilterValue(scIdx, fi, f)}
         <div class="field">
-            <label class="lbl">Search CSS Selector</label>
+            <label class="lbl">Value CSS Selector</label>
              <input class="inp inp-mono" value="${esc(f.searchCssSelector || '')}" placeholder="value Css Selector" oninput="updateFilter(${scIdx}, ${fi}, 'searchCssSelector', this.value)">
+         </div>
+         <div class="field">
+            <label class="lbl"> Logical Operator Selector</label>
+             <input class="inp inp-mono" value="${esc(f.logicalOperatorSelector || '')}" placeholder="if OR logical operator write Selector otherwise leave blank" oninput="updateFilter(${scIdx}, ${fi}, 'logicalOperatorSelector', this.value)">
          </div>
 
         <div style="text-align:right;margin-top:6px">
@@ -602,7 +606,8 @@
             filterType: '',
             operation: '',
             value: '',
-            searchCssSelector: ''
+            searchCssSelector: '',
+            logicalOperatorSelector:'',
         });
         renderPanel();
     };
@@ -622,7 +627,6 @@
             value = value.toUpperCase();
         }
         scenarios[scIdx].filters[fi][field] = value;
-        renderPanel();
     };
 
     window.updateFilterType = function (scIdx, fi, type) {
@@ -631,6 +635,7 @@
         f.operation = '';
         f.value = '';
         f.searchCssSelector='';
+        f.logicalOperatorSelector='';
         renderPanel(); // important
     };
 
@@ -1044,7 +1049,8 @@
                             filterType: f.filterType,
                             operation: f.operation,
                             value: finalValue,
-                            valueSelector: f.searchCssSelector || null
+                            valueSelector: f.searchCssSelector || null,
+                            logicalOperator : f.logicalOperatorSelector || null
                         };
                     })
                     : undefined,

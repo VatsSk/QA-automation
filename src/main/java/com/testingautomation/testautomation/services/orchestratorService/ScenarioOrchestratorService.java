@@ -730,7 +730,37 @@ public class ScenarioOrchestratorService {
                                 navigationScreenshotDir,
                                 scenarioPrefix
                         );
+
+                        // =========================
+                        // 4.5️⃣ HANDLE LOGICAL OPERATOR (AND/OR)
+                        // =========================
+                        try {
+                            System.out.println("logical operator : "+filter.getLogicalOperator());
+
+                            if (filter.getLogicalOperator() != null) {
+
+                                String operatorId = filter.getLogicalOperator(); // e.g. "name-operator"
+
+                                WebElement toggle = driver.findElement(
+                                        By.cssSelector("#" + operatorId)
+                                );
+
+                                // 🔥 BEST → JS click
+                                ((JavascriptExecutor) driver).executeScript(
+                                        "arguments[0].click();",
+                                        toggle
+                                );
+
+                                logger.info("Toggled logical operator: {}", operatorId);
+                            }else{
+                                logger.info("already And operator is chosen!");
+                            }
+
+                        } catch (Exception e) {
+                            logger.warn("Logical operator toggle failed", e);
+                        }
                     }
+
 
                     // =========================
                     // 5️⃣ APPLY FILTER BUTTON
@@ -740,12 +770,33 @@ public class ScenarioOrchestratorService {
 
                             By applyBtn = By.cssSelector(currScenario.getApplyFilterBtn());
 
-                            safeClick(driver, applyBtn);
+                            WebDriverWait wait1 = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+                            WebElement button = wait.until(
+                                    ExpectedConditions.elementToBeClickable(applyBtn)
+                            );
+
+                            // 🔥 scroll (important)
+                            ((JavascriptExecutor) driver).executeScript(
+                                    "arguments[0].scrollIntoView({block:'center'});",
+                                    button
+                            );
+
+                            try {
+                                button.click();
+                            } catch (Exception e) {
+                                // 🔥 fallback JS click
+                                ((JavascriptExecutor) driver).executeScript(
+                                        "arguments[0].click();",
+                                        button
+                                );
+                            }
 
                             logger.info("Clicked Apply Filter button");
                         }
+
                     } catch (Exception e) {
-                        logger.warn("Apply filter button click failed");
+                        logger.warn("Apply filter button click failed", e);
                     }
 
                     scenario.setScenarioStatus(RunStatus.PASSED);
@@ -1227,6 +1278,7 @@ public class ScenarioOrchestratorService {
             element.click();
 
         } catch (TimeoutException e) {
+            logger.info("time out exception");
 
             // 🔥 fallback 1: JS click on fresh element
             WebElement element = driver.findElement(locator);
@@ -1240,6 +1292,8 @@ public class ScenarioOrchestratorService {
             );
 
         } catch (ElementClickInterceptedException e) {
+            logger.info("ElementClickInterceptedException");
+
 
             // 🔥 fallback 2: JS click (bypass overlay)
             WebElement element = driver.findElement(locator);
