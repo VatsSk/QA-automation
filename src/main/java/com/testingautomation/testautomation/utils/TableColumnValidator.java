@@ -12,6 +12,8 @@ import java.util.List;
 
 public class TableColumnValidator {
 
+
+
     // =========================
     // MAIN METHOD (single value)
     // =========================
