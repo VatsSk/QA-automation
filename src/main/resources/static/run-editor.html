@@ -478,6 +478,10 @@
         </div>
 
         ${renderFilterValue(scIdx, fi, f)}
+        <div class="field">
+            <label class="lbl">Search CSS Selector</label>
+             <input class="inp inp-mono" value="${esc(f.searchCssSelector || '')}" placeholder="value Css Selector" oninput="updateFilter(${scIdx}, ${fi}, 'searchCssSelector', this.value)">
+         </div>
 
         <div style="text-align:right;margin-top:6px">
             <button class="btn btn-danger btn-xs"
@@ -583,12 +587,22 @@
     }
 
     window.addFilter = function (scIdx) {
-        console.log("Inside add filter")
+        console.log("Inside add filter");
+
+        if (!scenarios[scIdx]) {
+            console.error("Invalid scenario index:", scIdx);
+            return;
+        }
+
+        if (!Array.isArray(scenarios[scIdx].filters)) {
+            scenarios[scIdx].filters = [];
+        }
         scenarios[scIdx].filters.push({
             querySelectorOfColName: '',
             filterType: '',
             operation: '',
-            value: ''
+            value: '',
+            searchCssSelector: ''
         });
         renderPanel();
     };
@@ -616,6 +630,7 @@
         f.filterType = type;
         f.operation = '';
         f.value = '';
+        f.searchCssSelector='';
         renderPanel(); // important
     };
 
@@ -1028,7 +1043,8 @@
                             querySelector: f.querySelectorOfColName,
                             filterType: f.filterType,
                             operation: f.operation,
-                            value: finalValue
+                            value: finalValue,
+                            valueSelector: f.searchCssSelector || null
                         };
                     })
                     : undefined,

@@ -593,8 +593,163 @@ public class ScenarioOrchestratorService {
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
                 }
-                else if(currScenario.getType()==ScenarioType.FILTER_NAV){
+                else if (currScenario.getType() == ScenarioType.FILTER_NAV) {
 
+                    logger.info("Executing FILTER_NAV scenario");
+
+                    List<FilterScenarioDto> filters = currScenario.getFilters();
+
+                    for (FilterScenarioDto filter : filters) {
+
+                        logger.info("Processing filter: {}", filter);
+
+                        By queryBy = By.cssSelector(filter.getQuerySelector());
+
+                        // =========================
+                        // 1️⃣ CLICK QUERY SELECTOR
+                        // =========================
+                        try {
+                            safeClick(driver, queryBy);
+                            logger.info("Clicked query selector using safeClick");
+                        } catch (Exception e) {
+                            logger.warn("safeClick failed, using smartClick");
+                            smartClick(driver, queryBy);
+                        }
+
+                        // =========================
+                        // 2️⃣ EXTRACT COLUMN NAME
+                        // =========================
+                        try {
+                            WebElement el = wait.until(ExpectedConditions.presenceOfElementLocated(queryBy));
+
+                            String columnText = el.getText().trim();
+
+                            if (columnText.isEmpty()) {
+                                columnText = el.getAttribute("innerText");
+                            }
+
+                            filter.setColumnName(columnText);
+
+                            logger.info("Captured columnName: {}", columnText);
+
+                        } catch (Exception e) {
+                            logger.warn("Failed to extract column name");
+                        }
+
+                        // =========================
+                        // 3️⃣ HANDLE OPERATION
+                        // =========================
+                        try {
+
+                            String value = filter.getOperation().toString();
+
+                            WebElement radio = driver.findElement(
+                                    By.cssSelector("input[type='radio'][value='" + value + "']")
+                            );
+
+                            // 🔥 BEST → JS click (reliable)
+                            ((JavascriptExecutor) driver).executeScript(
+                                    "arguments[0].click();",
+                                    radio
+                            );
+
+                            logger.info("Operation selected via JS click: {}", value);
+
+                        } catch (Exception e) {
+
+                            throw new RuntimeException("Operation handling failed: " + filter.getOperation(), e);
+                        }
+
+                        // =========================
+                        // 4️⃣ HANDLE VALUE INPUT
+                        // =========================
+                        try {
+
+                            String valueSelector = filter.getValueSelector();
+
+                            if (valueSelector == null || valueSelector.isEmpty()) {
+                                logger.warn("No valueSelector provided, skipping value input");
+                                continue;
+                            }
+
+                            boolean isSelect2 =
+                                    driver.findElements(By.cssSelector(".select2-container--default")).size() > 0
+                                            || driver.findElements(By.cssSelector(".select2-hidden-accessible")).size() > 0;
+
+                            if (isSelect2) {
+
+                                logger.info("Detected Select2 for value");
+
+                                selectSelect2(driver, valueSelector, filter.getValue());
+
+                            } else {
+
+                                WebElement valueEl = wait.until(ExpectedConditions.elementToBeClickable(
+                                        By.cssSelector(valueSelector)
+                                ));
+
+                                String tag = valueEl.getTagName();
+
+                                if ("input".equalsIgnoreCase(tag) || "textarea".equalsIgnoreCase(tag)) {
+
+                                    valueEl.clear();
+                                    valueEl.sendKeys(filter.getValue());
+
+                                    logger.info("Entered value: {}", filter.getValue());
+
+                                } else {
+
+                                    safeClick(driver, By.cssSelector(valueSelector));
+
+                                    try {
+                                        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                                By.xpath("//*[text()='" + filter.getValue() + "']")
+                                        ));
+                                        option.click();
+                                    } catch (Exception ignored) {
+
+                                        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                                By.xpath("//*[contains(text(),'" + filter.getValue() + "')]")
+                                        ));
+                                        option.click();
+                                    }
+
+                                    logger.info("Selected value from dropdown");
+                                }
+                            }
+
+                        } catch (Exception e) {
+                            throw new RuntimeException("Value handling failed", e);
+                        }
+
+                        // 📸 Screenshot per filter
+                        screenshotService.takeScreenshot(
+                                driver,
+                                (modalFormTcIdx + 1) + "",
+                                "filter step",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+                    }
+
+                    // =========================
+                    // 5️⃣ APPLY FILTER BUTTON
+                    // =========================
+                    try {
+                        if (currScenario.getApplyFilterBtn() != null) {
+
+                            By applyBtn = By.cssSelector(currScenario.getApplyFilterBtn());
+
+                            safeClick(driver, applyBtn);
+
+                            logger.info("Clicked Apply Filter button");
+                        }
+                    } catch (Exception e) {
+                        logger.warn("Apply filter button click failed");
+                    }
+
+                    scenario.setScenarioStatus(RunStatus.PASSED);
+                    resultTestCase.setResult("Passed");
                 }
 
                 Thread.sleep(1000);
@@ -1113,6 +1268,22 @@ public class ScenarioOrchestratorService {
         );
     }
 
+    private String extractLabelText(WebDriver driver, String selector) {
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
+        WebElement label = wait.until(
+                ExpectedConditions.presenceOfElementLocated(By.cssSelector(selector))
+        );
+
+        String text = label.getText().trim();
+
+        if (text.isEmpty()) {
+            text = label.getAttribute("innerText");
+        }
+
+        return text != null ? text.trim() : "";
+    }
     private void smartClick(WebDriver driver, By locator) {
 
         String loc = locator.toString();

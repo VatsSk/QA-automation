@@ -139,7 +139,7 @@ export const ASSERT_TYPES = {
         required: ['tableId', 'columnName']
     },
     ASSERT_COUNT: {
-        label: 'Count',
+        label: 'Pagination',
         fields: ['tableId', 'rowsBtn'],
         required: ['tableId','rowsBtn']
     },

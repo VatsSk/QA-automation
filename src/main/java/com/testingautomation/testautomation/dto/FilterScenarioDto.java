@@ -11,6 +11,7 @@ public class FilterScenarioDto {
     private String columnName;
     private DataType filterType;
     private Operator operation;
+    private String valueSelector;
     private String value;
 
 }
