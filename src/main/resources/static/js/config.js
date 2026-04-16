@@ -171,6 +171,11 @@ export const ASSERT_TYPES = {
         label:'Assert With AI',
         fields:['promptAi'],
         required:['promptAi']
+    },
+    ASSERT_FILTER:{
+        label :'Assert Table filter',
+        fields : ['tableId'],
+        required:['tableId']
     }
 
 };

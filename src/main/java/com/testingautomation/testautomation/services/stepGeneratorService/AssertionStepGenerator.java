@@ -99,6 +99,8 @@ public class AssertionStepGenerator {
 
             case ASSERT_AI:
                 return StepAction.ActionType.ASSERT_AI;
+            case ASSERT_FILTER:
+                return StepAction.ActionType.ASSERT_FILTER;
 
             default:
                 throw new GlobalExceptionHandler.BadRequestException(
