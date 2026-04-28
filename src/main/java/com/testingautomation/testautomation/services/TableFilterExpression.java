@@ -165,7 +165,7 @@ public final class TableFilterExpression {
         if (logicalOperator == null || logicalOperator.trim().isEmpty()) {
             return "AND";
         }
-        return logicalOperator.trim().toUpperCase(Locale.ROOT);
+        return "OR";
     }
 
     private static String buildDebugExpression(List<List<PreparedCondition>> groups) {

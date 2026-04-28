@@ -35,4 +35,5 @@ public class ScenarioRequest {
     private List<AssertionDto> assertions;
     private List<FilterScenarioDto> filters;
     private String applyFilterBtn;
+    private String clickCss;
 }

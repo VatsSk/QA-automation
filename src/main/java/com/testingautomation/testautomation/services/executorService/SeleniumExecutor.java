@@ -667,9 +667,6 @@ public class SeleniumExecutor {
         for (StepAction step : steps) {
 
             try {
-//                if(step.getType()==ASS)
-//                Table currTable=tableSawService.extractDataTableToTablesaw(driver, step);
-//                System.out.println("CURRENT TABLE---- "+currTable);
                 System.out.println("Executing assertion: " + step);
 
                 switch (step.getType()) {
@@ -729,7 +726,6 @@ public class SeleniumExecutor {
 //                        step.getAssertion().setAssertResult("Passed");
                         break;
                     case ASSERT_FILTER:
-
                         assertFilters(driver,wait,step,scenarioPrefix,scenarios);
                         break;
 
@@ -758,8 +754,11 @@ public class SeleniumExecutor {
                                List<Scenario> scenarios) {
         logger.info("Executing assertFilter");
         waitForPageStable(driver);
-        List<FilterScenarioDto> filters= ((Scenario) scenarios.stream().filter(scenario -> scenario.getType()== ScenarioType.FILTER_NAV)).getFilters();
-        assertTableFilter(driver,wait,step,scenarioPrefix,filters);
+        List<FilterScenarioDto> filters = scenarios.stream()
+                .filter(scenario -> scenario.getType() == ScenarioType.FILTER_NAV)
+                .findFirst()
+                .map(Scenario::getFilters)
+                .orElseThrow(() -> new GlobalExceptionHandler.BadRequestException("No FILTER_NAV scenario found"));        assertTableFilter(driver,wait,step,scenarioPrefix,filters);
     }
 
     private void assertTableFilter(WebDriver driver,

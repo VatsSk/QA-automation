@@ -194,6 +194,16 @@
                         order: a.order || '',
                         rowsBtn: a.rowsBtn || ''
                     })),
+                    filters: (s.filters || []).map(f => ({
+                        querySelectorOfColName: f.querySelector || '',
+                        filterType: f.filterType || '',
+                        operation: f.operation || '',
+                        value: f.value || '',
+                        searchCssSelector: f.valueSelector || '',
+                        logicalOperatorSelector: f.logicalOperator || ''
+                    })),
+
+                    applyBtnCss: s.applyFilterBtn || ''
                 }));
                 renderSidebar();
                 renderPanel();

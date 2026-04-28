@@ -32,6 +32,7 @@ public class ScenarioResponse {
     private String csv;
     private List<AssertionDto> assertions;
     private List<FilterScenarioDto> filters;
+    private String applyFilterBtn;
     private List<ManualTestCaseResponse> manualTestCases;
     private String resultCsv;
     private List<String> screenshots;
