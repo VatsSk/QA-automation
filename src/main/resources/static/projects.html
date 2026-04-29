@@ -100,12 +100,16 @@
 
     function projectCard(p) {
         const pid = p.id || p._id;
-        const pj  = JSON.stringify(p).replace(/</g, '\\u003c');
+        const pj = JSON.stringify(p)
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/'/g, '&#39;');
         return `
     <div class="proj-card" onclick="window.location.href='/modules.html?projectId=${pid}'">
       <div class="proj-card-actions">
         <button class="btn btn-ghost btn-xs"
-          onclick="event.stopPropagation();showEditModal(${pj})">⚙</button>
+          data-project='${pj}'
+          onclick="event.stopPropagation();showEditModal(JSON.parse(this.dataset.project))">⚙</button>
         <button class="btn btn-danger btn-xs"
           onclick="event.stopPropagation();deleteProject('${pid}')">✕</button>
       </div>
@@ -113,7 +117,7 @@
       <h3>${esc(p.name)}</h3>
       <p>${esc(p.description || 'No description')}</p>
       <div class="proj-card-foot">
-        <code style="font-size:11px">${esc(p.baseUrl || '—')}</code>
+        <code style="font-size:11px">${esc(p.loginUrl || '—')}</code>
         <span class="badge badge-blue">Open →</span>
       </div>
     </div>`;
@@ -136,8 +140,12 @@
           <textarea id="np-desc" class="inp" placeholder="What does this project cover?"></textarea>
         </div>
         <div class="field">
-          <label class="lbl">Base URL</label>
-          <input id="np-url" class="inp inp-mono" placeholder="http://localhost:8080">
+          <label class="lbl">Login URL</label>
+          <input id="np-url" class="inp inp-mono" placeholder="http://localhost:8080/login">
+        </div>
+        <div class="field">
+          <label class="lbl">CSV File</label>
+          <input id="np-csv" class="inp" type="file" accept=".csv">
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
           <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -149,10 +157,25 @@
     window.createProject = async function () {
         const name    = document.getElementById('np-name').value.trim();
         const desc    = document.getElementById('np-desc').value.trim();
-        const baseUrl = document.getElementById('np-url').value.trim();
-        if (!name) { toast('Project name is required', 'warning'); return; }
+        const loginUrl = document.getElementById('np-url').value.trim();
+        const csvFile = document.getElementById('np-csv').files[0];
+        if (!name) {
+            toast('Project name is required', 'warning');
+            return;
+        }
+
+        if (!loginUrl) {
+            toast('Login URL is required', 'warning');
+            return;
+        }
+
+        if (!csvFile) {
+            toast('Login credentials CSV is required', 'warning');
+            return;
+        }
+        const upload = await api.uploads.projectLoginCsv(csvFile, name);
         try {
-            const p = await api.projects.create({ name, description: desc, baseUrl, createdBy: user.username});
+            const p = await api.projects.create({ name, description: desc, loginUrl, loginCredS3Path: upload.path,createdBy: user.username});
             projects.unshift(p);
             closeModal();
             render();
@@ -162,6 +185,7 @@
 
     // ── Edit project ───────────────────────────────────────────────────────
     window.showEditModal = function (p) {
+        console.log("edit project");
         openModal(`
       <div class="modal">
         <div class="modal-head">
@@ -177,8 +201,12 @@
           <textarea id="ep-desc" class="inp">${esc(p.description || '')}</textarea>
         </div>
         <div class="field">
-          <label class="lbl">Base URL</label>
-          <input id="ep-url" class="inp inp-mono" value="${esc(p.baseUrl || '')}">
+          <label class="lbl">Login URL</label>
+          <input id="ep-url" class="inp inp-mono" value="${esc(p.loginUrl || '')}">
+        </div>
+        <div class="field">
+          <label class="lbl">CSV File</label>
+          <input id="ep-csv" class="inp" type="file" accept=".csv">
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
           <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -190,10 +218,11 @@
     window.saveEditProject = async function (id) {
         const name    = document.getElementById('ep-name').value.trim();
         const desc    = document.getElementById('ep-desc').value.trim();
-        const baseUrl = document.getElementById('ep-url').value.trim();
+        const loginUrl = document.getElementById('ep-url').value.trim();
+        const csvFile = document.getElementById('ep-csv').files[0];
         if (!name) { toast('Name required', 'warning'); return; }
         try {
-            const updated = await api.projects.update(id, { name, description: desc, baseUrl });
+            const updated = await api.projects.update(id, { name, description: desc, loginUrl });
             const idx = projects.findIndex(p => (p.id || p._id) === id);
             if (idx >= 0) projects[idx] = updated;
             closeModal();

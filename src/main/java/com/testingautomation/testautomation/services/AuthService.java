@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -28,12 +29,17 @@ public class AuthService {
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new GlobalExceptionHandler.BadRequestException("Invalid username or password"));
+
         return LoginResponse.builder()
                 .userId(user.getId())
                 .username(user.getUsername())
                 .role(user.getRole())
                 .token("stub-token-" + UUID.randomUUID())
                 .build();
+    }
+
+    public List<User> getAllUsers(){
+        return userRepository.findAll();
     }
 
 }

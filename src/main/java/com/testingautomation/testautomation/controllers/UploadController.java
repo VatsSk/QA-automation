@@ -57,23 +57,27 @@ public class UploadController {
                 .build());
     }
 
-//    @PostMapping(value = "/testcase", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-//    public ResponseEntity<UploadResponse> uploadTestCaseCsv(
-//            @RequestParam("file") MultipartFile file) {
-//
-//        validateFile(file, ALLOWED_CSV_TYPES, 20 * 1024 * 1024L, "CSV/XLSX");
-//
-//        String filename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "demo-testcase.csv";
-//        String path = "demo/testcases/" + UUID.randomUUID() + "-" + filename;
-//        String url = "https://demo-bucket.s3.ap-south-1.amazonaws.com/" + path;
-//
-//        return ResponseEntity.ok(UploadResponse.builder()
-//                .path(path)
-//                .url(url)
-//                .filename(filename)
-//                .sizeBytes(file.getSize())
-//                .build());
-//    }
+    @PostMapping(value = "/project-login", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UploadResponse> uploadLoginCredCsv(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam("projectName") String projectName) {
+
+        validateFile(file, ALLOWED_CSV_TYPES, 20 * 1024 * 1024L, "CSV");
+
+        log.info("Uploading login credential CSV for project: {}", projectName);
+
+        String path = storageService.uploadProjectLoginCsv(file, projectName);
+
+        return ResponseEntity.ok(
+                UploadResponse.builder()
+                        .path(path)
+                        .url(path)
+                        .filename(file.getOriginalFilename())
+                        .sizeBytes(file.getSize())
+                        .build()
+        );
+    }
+
 
     /**
      * POST /api/uploads/screenshot

@@ -121,6 +121,7 @@
     let scenarios = [];   // array of scenario objects
     let scIdx     = 0;    // index of the currently selected scenario
     let scKey     = 0;    // incrementing key for unique DOM IDs
+    let projectData = null;
 
     // scTab[key] = 'manual' | 'csv' — tracks active test-data tab per scenario
     const scTab   = {};
@@ -147,9 +148,14 @@
         if (projectId) {
             try {
                 const proj = await api.projects.get(projectId);
+                projectData = proj;
                 document.getElementById('crumb-proj').textContent = proj.name;
                 document.getElementById('crumb-proj').onclick = () =>
                     window.location.href = `/modules.html?projectId=${projectId}`;
+                // NEW RUN only
+                if (!runId && scenarios.length === 0) {
+                    createDefaultLoginScenario(proj);
+                }
             } catch {}
         }
         if (moduleId) {
@@ -162,6 +168,32 @@
             } catch {}
         }
     })();
+
+    function createDefaultLoginScenario(proj) {
+
+        if (!proj.loginUrl) return;
+
+        scenarios.push({
+            _key: ++scKey,
+            id: undefined,
+
+            type: 'URL',
+            url: proj.loginUrl || '',
+            cssSelector: '',
+            value: '',
+            clickEnabled: false,
+            clickCss: '',
+            csv: proj.loginCredS3Path || '',
+            manualTestCases: [],
+            assertions: [],
+            filters: []
+        });
+
+        scIdx = 0;
+
+        renderSidebar();
+        renderPanel();
+    }
 
     // ── Load existing run (edit mode) ──────────────────────────────────────
     if (runId) {

@@ -11,6 +11,8 @@ public class ProjectRequest {
 
     @NotBlank(message = "Project name is required")
     private String name;
+    private String loginUrl;
+    private String loginCredS3Path;
 
     private String description;
     private String createdBy;

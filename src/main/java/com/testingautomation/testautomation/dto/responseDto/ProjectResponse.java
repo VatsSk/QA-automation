@@ -17,7 +17,8 @@ public class ProjectResponse {
     private String name;
     private String description;
     private String createdBy;
-    private String baseUrl;
+    private String loginUrl;
+    private String loginCredS3Path;
     private List<String> tags;
     private Instant createdAt;
     private Instant updatedAt;

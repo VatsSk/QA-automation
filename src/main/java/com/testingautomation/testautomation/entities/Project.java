@@ -25,6 +25,8 @@ public class Project {
 
     private String name;
     private String description;
+    private String loginUrl;
+    private String loginCredS3Path;
 
     /** ID of the user who created this project */
     @Indexed

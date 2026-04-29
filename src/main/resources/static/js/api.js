@@ -139,4 +139,11 @@ export const uploads = {
         fd.append('sequenceNo', String(sequenceNo));
         return uploadFile('/api/uploads/testcase', fd);
     },
+    projectLoginCsv(file, projectName='') {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('projectName', projectName);
+
+        return uploadFile('/api/uploads/project-login', fd);
+    }
 };

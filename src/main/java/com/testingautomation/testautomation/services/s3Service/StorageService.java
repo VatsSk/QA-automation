@@ -83,6 +83,72 @@ public class StorageService {
             );
         }
     }
+
+    public String uploadProjectLoginCsv(MultipartFile file,
+                                        String projectName) {
+
+        String ext = FilenameUtils.getExtension(file.getOriginalFilename());
+
+        String safeProject =
+                projectName == null || projectName.isBlank()
+                        ? UUID.randomUUID().toString()
+                        : projectName.trim()
+                        .toLowerCase()
+                        .replaceAll("[^a-z0-9]+", "-")
+                        .replaceAll("^-|-$", "");
+
+        String key = String.format("%s/auth/login-credentials.%s", safeProject, ext);
+
+        try (
+                Reader reader = new InputStreamReader(file.getInputStream(), StandardCharsets.UTF_8);
+                StringWriter stringWriter = new StringWriter();
+                CSVReader csvReader = new CSVReader(reader);
+                CSVWriter csvWriter = new CSVWriter(stringWriter)
+        ) {
+
+            List<String[]> rows = csvReader.readAll();
+
+            if (rows == null || rows.isEmpty()) {
+                throw new RuntimeException("Uploaded CSV is empty");
+            }
+
+            // Add testCaseId to header
+            String[] originalHeader = rows.get(0);
+            String[] newHeader = new String[originalHeader.length + 1];
+
+            newHeader[0] = "testCaseId";
+            System.arraycopy(originalHeader, 0, newHeader, 1, originalHeader.length);
+
+            csvWriter.writeNext(newHeader);
+
+            // Add row numbers
+            for (int i = 1; i < rows.size(); i++) {
+
+                String[] originalRow = rows.get(i);
+                String[] newRow = new String[originalRow.length + 1];
+
+                newRow[0] = String.valueOf(i); // 1,2,3...
+                System.arraycopy(originalRow, 0, newRow, 1, originalRow.length);
+
+                csvWriter.writeNext(newRow);
+            }
+
+            csvWriter.flush();
+
+            byte[] modifiedBytes =
+                    stringWriter.toString().getBytes(StandardCharsets.UTF_8);
+
+            return upload(modifiedBytes, "text/csv", key);
+
+        } catch (Exception e) {
+
+            throw new GlobalExceptionHandler.StorageException(
+                    "Failed to upload login credential CSV: " +
+                            file.getOriginalFilename(),
+                    e
+            );
+        }
+    }
     /**
      * Upload a screenshot image to S3 under the screenshots/ prefix.
      * Returns the S3 object key (including basePrefix if configured).
