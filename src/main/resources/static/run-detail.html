@@ -58,6 +58,43 @@
     } from './js/utils.js';
     import { TYPES } from './js/config.js';
 
+    // import {} from './js/'
+
+    window.openEditModal = function () {
+        openModal(`
+        <div class="modal">
+            <div class="modal-head">
+                <h2>Edit Run</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+
+            <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+
+                <button class="btn btn-primary"
+                    onclick="editManualRun()">
+                    ✏️ Manual Mode
+                </button>
+
+                <button class="btn btn-secondary"
+                    onclick="editDLRun()">
+                    📝 DL Mode
+                </button>
+
+            </div>
+        </div>
+    `);
+    };
+    window.editManualRun = function () {
+        closeModal();
+        window.location.href =
+            `/run-editor.html?projectId=${run.projectId}&moduleId=${run.moduleId}&runId=${runId}`;
+    };
+
+    window.editDLRun = function () {
+        closeModal();
+        window.location.href =
+            `/run-editor.html?projectId=${run.projectId}&moduleId=${run.moduleId}&runId=${runId}&editMode=dl`;
+    };
     window.toggleTheme = toggleTheme;
     window.closeModal = closeModal;
 
@@ -219,7 +256,8 @@
             <!-- Action bar -->
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
                 <a href="${backUrl}" class="btn btn-ghost btn-sm">← Back to Runs</a>
-                <a href="/run-editor.html?runId=${esc(runId)}" class="btn btn-ghost btn-sm">✏️ Edit</a>
+<!--                <a href="/run-editor.html?runId=${esc(runId)}" class="btn btn-ghost btn-sm">✏️ Edit</a>-->
+                    <button class="btn btn-ghost btn-sm" onclick="openEditModal()">✏️ Edit</button>
                 <button class="btn btn-ghost btn-sm" onclick="cloneRun()">📋 Clone</button>
                 <button id="run-btn" class="btn btn-success btn-sm"
                     onclick="executeRun()" ${isRunning ? 'disabled' : ''}>

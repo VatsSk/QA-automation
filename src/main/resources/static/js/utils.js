@@ -75,6 +75,7 @@ export function openModal(html) {
 }
 
 export function closeModal() {
+    console.log("closed")
     const root = document.getElementById('modal-root');
     if (root) root.innerHTML = '';
 }
