@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>QA Studio — Run Editor</title>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
     <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
@@ -101,6 +102,7 @@
     import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES } from './js/config.js';
     import { esc, toast, openModal, closeModal,
         requireLogin, initTheme, toggleTheme } from './js/utils.js';
+    import {buildPayload} from './js/payload.js'
     // import { updateFormModalPayload } from './js/form-modal-payload.js';
 
     window.toggleTheme = toggleTheme;
@@ -116,6 +118,8 @@
     const runId     = params.get('runId');
     const projectId = params.get('projectId')  || sessionStorage.getItem('qa_projectId');
     const moduleId  = params.get('moduleId')   || sessionStorage.getItem('qa_moduleId');
+    const mode = params.get('mode') ;
+
 
     // ── State ──────────────────────────────────────────────────────────────
     let scenarios = [];   // array of scenario objects
@@ -132,6 +136,301 @@
             scenario.assertions = [];
         }
         return scenario.assertions;
+    }
+    // DL Editor
+    function initDLEditorMode() {
+        document.getElementById('crumb-cur').textContent = 'New DL Run';
+
+        document.querySelector('.editor-sidebar').style.display = 'none';
+        document.querySelector('.editor-main').style.width = '100%';
+
+        // Create default scenario for DL mode if no scenarios exist
+        // if (!runId && scenarios.length === 0 && projectData) {
+        //     console.log("Inside first tym creating run");
+        //     createDefaultDLScenario(projectData);
+        // }
+
+        document.getElementById('sc-panel').innerHTML = `
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">📝 DL Script Editor</span>
+            </div>
+            <div class="card-body">
+                <div id="dl-editor" style="height:400px;"></div>
+            </div>
+        </div>
+    `;
+
+        // ✅ THIS IS THE KEY FIX
+        setTimeout(() => {
+            initMonacoEditor();
+        }, 0);
+    }
+
+    function initMonacoEditor() {
+        require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+
+        require(['vs/editor/editor.main'], function () {
+
+            monaco.languages.register({ id: 'dl' });
+
+            monaco.languages.setMonarchTokensProvider('dl', {
+                tokenizer: {
+                    root: [
+                        // Step keyword (@URL_NAV)
+                        [/^\s*@\w+/, 'keyword'],
+
+                        // Attribute key (^url)
+                        [/^\s*\^\w+/, 'attribute.name'],
+
+                        // Colon
+                        [/:/, 'delimiter'],
+
+                        // URL / value
+                        [/https?:\/\/[^\s]+/, 'string']
+                    ]
+                }
+            });
+
+            monaco.languages.registerCompletionItemProvider('dl', {
+                triggerCharacters: ['@', '^', '!', ':'],
+
+                provideCompletionItems: function (model, position) {
+
+                    const textUntilPosition = model.getValueInRange({
+                        startLineNumber: 1,
+                        startColumn: 1,
+                        endLineNumber: position.lineNumber,
+                        endColumn: position.column
+                    });
+
+                    const lines = textUntilPosition.split('\n');
+                    const currentLine = lines[lines.length - 1].trim();
+
+                    // 🔥 Detect current scenario
+                    let currentType = null;
+                    let insideFilterBlock = false;
+                    let lastFilterType = null;
+
+                    for (let i = lines.length - 1; i >= 0; i--) {
+                        const line = lines[i].trim();
+
+                        if (line.startsWith('@') && !currentType) {
+                            currentType = line.substring(1).trim();
+                        }
+
+                        if (line.startsWith('!FILTER')) {
+                            insideFilterBlock = true;
+                        }
+
+                        if (line.startsWith('^filterType:')) {
+                            lastFilterType = line.split(':')[1]?.trim();
+                        }
+
+                        if (currentType && insideFilterBlock) break;
+                    }
+
+                    // =========================================================
+                    // 🔹 SCENARIO SUGGESTION (@)
+                    // =========================================================
+                    if (currentLine.startsWith('@')) {
+                        return {
+                            suggestions: Object.keys(TYPES).map(type => ({
+                                label: type,
+                                kind: monaco.languages.CompletionItemKind.Keyword,
+                                insertText: type,
+                                detail: TYPES[type].hint || '',
+                            }))
+                        };
+                    }
+
+                    // =========================================================
+                    // 🔹 BLOCK SUGGESTION (!)
+                    // =========================================================
+                    if (currentLine.startsWith('!')) {
+
+                        if (currentType === 'FILTER_NAV') {
+                            return {
+                                suggestions: [{
+                                    label: 'FILTER',
+                                    kind: monaco.languages.CompletionItemKind.Struct,
+                                    insertText: 'FILTER',
+                                    detail: 'Start filter block'
+                                }]
+                            };
+                        }
+                    }
+
+                    // =========================================================
+                    // 🔹 FIELD SUGGESTION (^)
+                    // =========================================================
+                    if (currentLine.startsWith('^')) {
+                        // =========================================
+                        // 🔹 ASSERT HANDLING (ADD THIS FIRST)
+                        // =========================================
+                        //
+                        if (currentType === 'ASSERT') {
+
+                            const typedKey = currentLine.replace('^', '').split(':')[0].trim();
+
+                            // 🔥 STEP 1: find last selected assert type FIRST
+                            let lastAssertType = null;
+
+                            for (let i = lines.length - 1; i >= 0; i--) {
+                                const line = lines[i].trim();
+                                if (line.startsWith('^type:')) {
+                                    lastAssertType = line.split(':')[1]?.trim();
+                                    break;
+                                }
+                            }
+
+                            // =====================================================
+                            // ✅ STEP 2: Suggest ASSERT TYPES (only for type field)
+                            // =====================================================
+                            if (typedKey === 'type') {
+                                return {
+                                    suggestions: Object.keys(ASSERT_TYPES).map(type => ({
+                                        label: type,
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: type,
+                                        detail: ASSERT_TYPES[type].label
+                                    }))
+                                };
+                            }
+
+                            // =====================================================
+                            // ✅ STEP 3: If assertType selected → show ONLY its fields
+                            // =====================================================
+                            if (lastAssertType && ASSERT_TYPES[lastAssertType]) {
+                                const fields = ASSERT_TYPES[lastAssertType].fields;
+
+                                return {
+                                    suggestions: fields.map(f => ({
+                                        label: f,
+                                        kind: monaco.languages.CompletionItemKind.Field,
+                                        insertText: `${f}:`
+                                    }))
+                                };
+                            }
+
+                            // =====================================================
+                            // ✅ STEP 4: fallback (no type selected yet)
+                            // =====================================================
+                            return {
+                                suggestions: TYPES['ASSERT'].fields.map(f => ({
+                                    label: f,
+                                    kind: monaco.languages.CompletionItemKind.Field,
+                                    insertText: `${f}:`
+                                }))
+                            };
+                        }
+
+                        // ✅ FILTER_NAV (top-level)
+                        if (currentType === 'FILTER_NAV' && !insideFilterBlock) {
+                            return {
+                                suggestions: [
+                                    {
+                                        label: 'applyBtnCss',
+                                        kind: monaco.languages.CompletionItemKind.Field,
+                                        insertText: 'applyBtnCss:',
+                                    }
+                                ]
+                            };
+                        }
+
+                        // ✅ Inside FILTER block
+                        if (insideFilterBlock) {
+                            return {
+                                suggestions: [
+                                    'querySelector',
+                                    'filterType',
+                                    'operation',
+                                    'value',
+                                    'valueSelector',
+                                    'logicalOperator'
+                                ].map(f => ({
+                                    label: f,
+                                    kind: monaco.languages.CompletionItemKind.Field,
+                                    insertText: `${f}:`
+                                }))
+                            };
+                        }
+
+                        // ✅ Normal scenarios
+                        if (currentType && TYPES[currentType]) {
+                            const fields = TYPES[currentType].fields || [];
+
+                            return {
+                                suggestions: fields.map(field => ({
+                                    label: field,
+                                    kind: monaco.languages.CompletionItemKind.Field,
+                                    insertText: `${field}:`,
+                                }))
+                            };
+                        }
+                    }
+
+                    // =========================================================
+                    // 🔹 VALUE SUGGESTION (after :)
+                    // =========================================================
+                    if (currentLine.includes(':')) {
+
+                        const [rawKey] = currentLine.split(':');
+                        const key = rawKey.replace('^', '').trim();  // 🔥 FIX
+
+                        // ✅ filterType suggestions
+                        if (key === 'filterType') {
+                            return {
+                                suggestions: Object.keys(FILTER_OPERATIONS).map(type => ({
+                                    label: type,
+                                    kind: monaco.languages.CompletionItemKind.Enum,
+                                    insertText: type
+                                }))
+                            };
+                        }
+
+                        // ✅ operation suggestions
+                        if (key === 'operation' && lastFilterType && FILTER_OPERATIONS[lastFilterType]) {
+                            return {
+                                suggestions: FILTER_OPERATIONS[lastFilterType].map(op => ({
+                                    label: op.value,
+                                    kind: monaco.languages.CompletionItemKind.Enum,
+                                    insertText: op.value,
+                                    detail: op.label
+                                }))
+                            };
+                        }
+                    }
+
+                    return { suggestions: [] };
+                }
+            });
+
+            monaco.editor.defineTheme('dlTheme', {
+                base: 'vs-dark',
+                inherit: true,
+                rules: [
+                    { token: 'keyword', foreground: '00ffcc', fontStyle: 'bold' },
+                    { token: 'type.identifier', foreground: 'ffcc00' },
+                    { token: 'attribute.name', foreground: '66ccff' }
+                ],
+                colors: {
+                    "editor.background": "#0f172a",
+                    "editor.foreground": "#e5e7eb"
+                }
+            });
+
+            const el = document.getElementById('dl-editor');
+
+            window.editor = monaco.editor.create(el, {
+                value: `@URL_NAV
+^url:https://example.com`,
+                language: 'dl',
+                theme: 'dlTheme',
+                fontSize: 13,
+                automaticLayout: true
+            });
+        });
     }
 
     // ── Breadcrumbs & back button ──────────────────────────────────────────
@@ -153,7 +452,7 @@
                 document.getElementById('crumb-proj').onclick = () =>
                     window.location.href = `/modules.html?projectId=${projectId}`;
                 // NEW RUN only
-                if (!runId && scenarios.length === 0) {
+                if (mode !== 'dl' && !runId && scenarios.length === 0) {
                     createDefaultLoginScenario(proj);
                 }
             } catch {}
@@ -167,18 +466,27 @@
                 sessionStorage.setItem('qa_moduleId', moduleId);
             } catch {}
         }
+        if (mode === 'dl') {
+            console.log("Inside mode ")
+            initDLEditorMode();
+        } else {
+            // Ensure sidebar is visible for manual mode
+            const sidebar = document.querySelector('.editor-sidebar');
+            const main = document.querySelector('.editor-main');
+            if (sidebar) sidebar.style.display = '';
+            if (main) main.style.width = '';
+        }
     })();
 
     function createDefaultLoginScenario(proj) {
-
-        if (!proj.loginUrl) return;
+        // Try multiple URL fields with fallback
+        let targetUrl = proj.loginUrl;
 
         scenarios.push({
             _key: ++scKey,
             id: undefined,
-
             type: 'URL',
-            url: proj.loginUrl || '',
+            url: targetUrl,
             cssSelector: '',
             value: '',
             clickEnabled: false,
@@ -190,9 +498,41 @@
         });
 
         scIdx = 0;
-
         renderSidebar();
         renderPanel();
+    }
+
+    function createDefaultDLScenario(proj) {
+        let targetUrl = proj.loginUrl;
+
+        scenarios.push({
+            _key: ++scKey,
+            id: undefined,
+            type: 'URL',
+            url: targetUrl,
+            cssSelector: '',
+            value: '',
+            clickEnabled: false,
+            clickCss: '',
+            csv: proj.loginCredS3Path || '',
+            manualTestCases: [],
+            assertions: [],
+            filters: []
+        });
+        // Create a default DL scenario with URL_NAV type
+        // scenarios.push({
+        //     _key: ++scKey,
+        //     id: undefined,
+        //     type: 'DL',
+        //     dlScript: `@URL_NAV
+        //         ^url:${proj.loginUrl}`,
+        //     csv: proj.loginCredS3Path || '',
+        //     assertions: [],
+        //     filters: []
+        // });
+        //
+        // scIdx = 0;
+        console.log("Default DL scenario created");
     }
 
     // ── Load existing run (edit mode) ──────────────────────────────────────
@@ -949,6 +1289,17 @@
         const name = document.getElementById('f-runName').value.trim();
         if (!name) { toast('Run name is required', 'warning'); return false; }
 
+        if (mode === 'dl') {
+            const script = window.editor?.getValue();
+
+            if (!script || !script.trim()) {
+                toast('DL script cannot be empty', 'warning');
+                return false;
+            }
+
+            return true;
+        }
+
         if (!scenarios.length) {
             toast('Add at least one scenario', 'warning');
             return false;
@@ -1034,78 +1385,12 @@
         return `${start} to ${end}`;
     }
 
-    // ── Build payload ──────────────────────────────────────────────────────
-    function buildPayload() {
-        console.log("All scenarios before payload:", JSON.stringify(scenarios, null, 2));
-
-        // Debug ASSERT scenarios specifically
-        const assertScenarios = scenarios.filter(s => s.type === 'ASSERT');
-        console.log("ASSERT scenarios:", JSON.stringify(assertScenarios, null, 2));
-
-        return {
-            runName:         document.getElementById('f-runName').value.trim(),
-            runType:         document.getElementById('f-runType').value.trim(),
-            tags:            document.getElementById('f-tags').value
-                .split(',').map(t => t.trim()).filter(Boolean),
-            resultStatement: document.getElementById('f-resultStatement').value.trim(),
-            createdBy:       user.id || user._id || '',
-
-            scenariosList: scenarios.map((s, i) => ({
-                id:              s.id    || undefined,
-                type:            s.type,
-                sequenceNo:      i + 1,
-                url:             s.url         || null,
-                cssOpener:       s.cssSelector || null,
-                value:           s.value       || null,
-                clickCss:        s.clickCss    || null,   // Add clickCss field
-                csv:             s.csv         || null,
-                scenarioBasePath:s.scenarioBasePath || null,
-
-                // 🔥 ADD THIS
-                assertions: s.type === 'ASSERT' ? (s.assertions || []).map(a => ({
-                    type: a.type || null,
-                    locator: a.locator || null,
-                    expected: a.expected || null,
-                    tableId: a.tableId || null,
-                    columnName: a.columnName || null,
-                    order: a.order || null,
-                    rowsBtn: a.rowsBtn || null,
-                    prompt: a.promptAi || null
-                })) : undefined,
-                filters: s.type === 'FILTER_NAV'
-                    ? (s.filters || []).map(f => {
-
-                        let finalValue = f.value;
-
-                        if (f.operation === 'RANGE') {
-                            const start = f.value?.start;
-                            const end = f.value?.end;
-
-                            if (start && end) {
-                                finalValue = formatRange(start, end, f.filterType);
-                            }
-                        }
-
-                        return {
-                            querySelector: f.querySelectorOfColName,
-                            filterType: f.filterType,
-                            operation: f.operation,
-                            value: finalValue,
-                            valueSelector: f.searchCssSelector || null,
-                            logicalOperator : f.logicalOperatorSelector || null
-                        };
-                    })
-                    : undefined,
-                applyFilterBtn: s.type === 'FILTER_NAV' ? s.applyBtnCss : undefined,
-            })),
-        };
-    }
 
     // ── Save to DB ─────────────────────────────────────────────────────────
     async function saveRun() {
         // 🔥 ADD HERE
         console.log("SCENARIOS BEFORE SAVE:", JSON.stringify(scenarios, null, 2));
-        const data = buildPayload();
+        const data = buildPayload(mode, toast, user, scenarios,projectData);
         // optional (very useful)
         console.log("PAYLOAD:", JSON.stringify(data, null, 2));
         if (runId) {

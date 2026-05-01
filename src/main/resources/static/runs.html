@@ -62,7 +62,7 @@
 
     import { esc, statusBadge, timeAgo, toast,
         requireLogin, logout, initTheme, toggleTheme,
-        buildSidebar, paginationHTML, debounce } from './js/utils.js';
+        buildSidebar, paginationHTML, debounce, openModal, closeModal } from './js/utils.js';
 
     window.toggleTheme = toggleTheme;
 
@@ -256,7 +256,7 @@
               <button class="btn btn-ghost btn-xs" onclick="editRun('${rid}')"  title="Edit">✏️</button>
               <button class="btn btn-ghost btn-xs" onclick="cloneRun('${rid}')" title="Clone">📋</button>
               <button class="btn btn-amber btn-xs" onclick="runNow('${rid}')"   title="Run">▶</button>
-              <button class="btn btn-danger btn-xs"onclick="deleteRun('${rid}')" title="Delete">🗑️</button>
+              <button class="btn btn-danger btn-xs" onclick="deleteRun('${rid}')" title="Delete">🗑️</button>
             </div>
           </td>
         </tr>`;
@@ -284,7 +284,48 @@
     }
 
     // ── Navigation helpers now operate only on UI state ───────────────────────
-    window.newRun    = () => window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}`;
+    window.newRun = function() {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🚀 Create New Run</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+          <button class="btn btn-primary btn-lg" 
+                  onclick="createManualRun()" 
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">✏️</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Manual Run Creation</div>
+              <div style="font-size:12px;opacity:0.7">Create test scenarios manually using the visual editor</div>
+            </div>
+          </button>
+          <button class="btn btn-secondary btn-lg" 
+                  onclick="createDLRun()" 
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">📝</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">DL (Defined Language) Run Creation</div>
+              <div style="font-size:12px;opacity:0.7">Create tests using Defined Language syntax</div>
+            </div>
+          </button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>`);
+    };
+    
+    window.createManualRun = function() {
+        closeModal();
+        window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}`;
+    };
+    
+    window.createDLRun = function() {
+        closeModal();
+        window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&mode=dl`;
+    };
     window.viewRun   = id => window.location.href = `/run-detail.html?runId=${id}`;
     window.editRun   = id => window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}`;
     window.goPage    = p  => { filter.page = p; renderFiltered(); };
