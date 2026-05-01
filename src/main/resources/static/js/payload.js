@@ -3,8 +3,11 @@ import { validateDL, parseDLToPayload } from './dlUtils.js';
 export function buildPayload(mode, toast, user, scenarios,projectData) {
 
     console.log("mode "+ mode);
+    const isDLMode =
+        mode === 'dl' ||
+        new URLSearchParams(window.location.search).get('editMode') === 'dl';
 
-    if (mode === 'dl') {
+    if (isDLMode) {
         const script = window.editor?.getValue();
 
         console.log("DL Script:", script);
@@ -23,17 +26,27 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
 
         // 🔥 2. Convert DL → scenarios
         const parsed = parseDLToPayload(script);
+        console.log("parsed : "+JSON.stringify(parsed))
+
+        // ❌ Remove login-like scenarios from parsed list
+        const filtered = parsed.scenariosList.filter(s =>
+            !(s.type === 'URL' && s.url === projectData.loginUrl)
+        );
+        console.log("filtered : "+JSON.stringify(filtered))
 
         // 🔥 3. Inject LOGIN SCENARIO (FIRST POSITION)
         const loginScenario = buildLoginScenario(projectData);
+        console.log("loginScenario : "+JSON.stringify(loginScenario))
 
         const finalScenarios = [
             loginScenario,
-            ...parsed.scenariosList.map((s, i) => ({
+            ...filtered.map((s, i) => ({
                 ...s,
                 sequenceNo: i + 2 // shift because login is #1
             }))
         ];
+
+        console.log("finalScenarios : "+JSON.stringify(finalScenarios))
 
         // 🔥 4. Return SAME structure as manual mode
         return {

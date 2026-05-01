@@ -327,7 +327,44 @@
         window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&mode=dl`;
     };
     window.viewRun   = id => window.location.href = `/run-detail.html?runId=${id}`;
-    window.editRun   = id => window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}`;
+    // window.editRun   = id => window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}`;
+    window.editRun = function (id) {
+        console.log("Clicked on edit btn");
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>Edit Run</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+
+          <button class="btn btn-primary"
+              onclick="editManual('${id}')">
+            ✏️ Manual Mode
+          </button>
+
+          <button class="btn btn-secondary"
+              onclick="editDL('${id}')">
+            📝 DL Mode
+          </button>
+
+        </div>
+      </div>
+    `);
+    };
+
+    window.editManual = function(id) {
+        closeModal();
+        window.location.href =
+            `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}`;
+    };
+
+    window.editDL = function(id) {
+        closeModal();
+        window.location.href =
+            `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}&editMode=dl`;
+    };
     window.goPage    = p  => { filter.page = p; renderFiltered(); };
 
     // ── Mutating actions: call server, then invalidate cache and reload ───────
