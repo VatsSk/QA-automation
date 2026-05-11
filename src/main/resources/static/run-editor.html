@@ -188,33 +188,304 @@
         }
     }
 
+    // function initMonacoEditor() {
+    //
+    //     return new Promise((resolve)=>{
+    //         require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+    //
+    //         require(['vs/editor/editor.main'], function () {
+    //
+    //             monaco.languages.register({ id: 'dl' });
+    //
+    //             monaco.languages.setMonarchTokensProvider('dl', {
+    //                 tokenizer: {
+    //                     root: [
+    //                         // Step keyword (@URL_NAV)
+    //                         [/^\s*@\w+/, 'keyword'],
+    //
+    //                         // Attribute key (^url)
+    //                         [/^\s*\^\w+/, 'attribute.name'],
+    //
+    //                         // Colon
+    //                         [/:/, 'delimiter'],
+    //
+    //                         // URL / value
+    //                         [/https?:\/\/[^\s]+/, 'string']
+    //                     ]
+    //                 }
+    //             });
+    //
+    //             monaco.languages.registerCompletionItemProvider('dl', {
+    //                 triggerCharacters: ['@', '^', '!', ':'],
+    //
+    //                 provideCompletionItems: function (model, position) {
+    //
+    //                     const textUntilPosition = model.getValueInRange({
+    //                         startLineNumber: 1,
+    //                         startColumn: 1,
+    //                         endLineNumber: position.lineNumber,
+    //                         endColumn: position.column
+    //                     });
+    //
+    //                     const lines = textUntilPosition.split('\n');
+    //                     const currentLine = lines[lines.length - 1].trim();
+    //
+    //                     // 🔥 Detect current scenario
+    //                     let currentType = null;
+    //                     let insideFilterBlock = false;
+    //                     let lastFilterType = null;
+    //
+    //                     for (let i = lines.length - 1; i >= 0; i--) {
+    //                         const line = lines[i].trim();
+    //
+    //                         if (line.startsWith('@') && !currentType) {
+    //                             currentType = line.substring(1).trim();
+    //                         }
+    //
+    //                         if (line.startsWith('!FILTER')) {
+    //                             insideFilterBlock = true;
+    //                         }
+    //
+    //                         if (line.startsWith('^filterType:')) {
+    //                             lastFilterType = line.split(':')[1]?.trim();
+    //                         }
+    //
+    //                         if (currentType && insideFilterBlock) break;
+    //                     }
+    //
+    //                     // =========================================================
+    //                     // 🔹 SCENARIO SUGGESTION (@)
+    //                     // =========================================================
+    //                     if (currentLine.startsWith('@')) {
+    //                         return {
+    //                             suggestions: Object.keys(TYPES).map(type => ({
+    //                                 label: type,
+    //                                 kind: monaco.languages.CompletionItemKind.Keyword,
+    //                                 insertText: type,
+    //                                 detail: TYPES[type].hint || '',
+    //                             }))
+    //                         };
+    //                     }
+    //
+    //                     // =========================================================
+    //                     // 🔹 BLOCK SUGGESTION (!)
+    //                     // =========================================================
+    //                     if (currentLine.startsWith('!')) {
+    //
+    //                         if (currentType === 'FILTER_NAV') {
+    //                             return {
+    //                                 suggestions: [{
+    //                                     label: 'FILTER',
+    //                                     kind: monaco.languages.CompletionItemKind.Struct,
+    //                                     insertText: 'FILTER',
+    //                                     detail: 'Start filter block'
+    //                                 }]
+    //                             };
+    //                         }
+    //                     }
+    //
+    //                     // =========================================================
+    //                     // 🔹 FIELD SUGGESTION (^)
+    //                     // =========================================================
+    //                     if (currentLine.startsWith('^')) {
+    //                         // =========================================
+    //                         // 🔹 ASSERT HANDLING (ADD THIS FIRST)
+    //                         // =========================================
+    //                         //
+    //                         if (currentType === 'ASSERT') {
+    //
+    //                             const typedKey = currentLine.replace('^', '').split(':')[0].trim();
+    //
+    //                             // 🔥 STEP 1: find last selected assert type FIRST
+    //                             let lastAssertType = null;
+    //
+    //                             for (let i = lines.length - 1; i >= 0; i--) {
+    //                                 const line = lines[i].trim();
+    //                                 if (line.startsWith('^type:')) {
+    //                                     lastAssertType = line.split(':')[1]?.trim();
+    //                                     break;
+    //                                 }
+    //                             }
+    //
+    //                             // =====================================================
+    //                             // ✅ STEP 2: Suggest ASSERT TYPES (only for type field)
+    //                             // =====================================================
+    //                             if (typedKey === 'type') {
+    //                                 return {
+    //                                     suggestions: Object.keys(ASSERT_TYPES).map(type => ({
+    //                                         label: type,
+    //                                         kind: monaco.languages.CompletionItemKind.Enum,
+    //                                         insertText: type,
+    //                                         detail: ASSERT_TYPES[type].label
+    //                                     }))
+    //                                 };
+    //                             }
+    //
+    //                             // =====================================================
+    //                             // ✅ STEP 3: If assertType selected → show ONLY its fields
+    //                             // =====================================================
+    //                             if (lastAssertType && ASSERT_TYPES[lastAssertType]) {
+    //                                 const fields = ASSERT_TYPES[lastAssertType].fields;
+    //
+    //                                 return {
+    //                                     suggestions: fields.map(f => ({
+    //                                         label: f,
+    //                                         kind: monaco.languages.CompletionItemKind.Field,
+    //                                         insertText: `${f}:`
+    //                                     }))
+    //                                 };
+    //                             }
+    //
+    //                             // =====================================================
+    //                             // ✅ STEP 4: fallback (no type selected yet)
+    //                             // =====================================================
+    //                             return {
+    //                                 suggestions: TYPES['ASSERT'].fields.map(f => ({
+    //                                     label: f,
+    //                                     kind: monaco.languages.CompletionItemKind.Field,
+    //                                     insertText: `${f}:`
+    //                                 }))
+    //                             };
+    //                         }
+    //
+    //                         // ✅ FILTER_NAV (top-level)
+    //                         if (currentType === 'FILTER_NAV' && !insideFilterBlock) {
+    //                             return {
+    //                                 suggestions: [
+    //                                     {
+    //                                         label: 'applyBtnCss',
+    //                                         kind: monaco.languages.CompletionItemKind.Field,
+    //                                         insertText: 'applyBtnCss:',
+    //                                     }
+    //                                 ]
+    //                             };
+    //                         }
+    //
+    //                         // ✅ Inside FILTER block
+    //                         if (insideFilterBlock) {
+    //                             return {
+    //                                 suggestions: [
+    //                                     'querySelector',
+    //                                     'filterType',
+    //                                     'operation',
+    //                                     'value',
+    //                                     'valueSelector',
+    //                                     'logicalOperator'
+    //                                 ].map(f => ({
+    //                                     label: f,
+    //                                     kind: monaco.languages.CompletionItemKind.Field,
+    //                                     insertText: `${f}:`
+    //                                 }))
+    //                             };
+    //                         }
+    //
+    //                         // ✅ Normal scenarios
+    //                         if (currentType && TYPES[currentType]) {
+    //                             const fields = TYPES[currentType].fields || [];
+    //
+    //                             return {
+    //                                 suggestions: fields.map(field => ({
+    //                                     label: field,
+    //                                     kind: monaco.languages.CompletionItemKind.Field,
+    //                                     insertText: `${field}:`,
+    //                                 }))
+    //                             };
+    //                         }
+    //                     }
+    //
+    //                     // =========================================================
+    //                     // 🔹 VALUE SUGGESTION (after :)
+    //                     // =========================================================
+    //                     if (currentLine.includes(':')) {
+    //
+    //                         const [rawKey] = currentLine.split(':');
+    //                         const key = rawKey.replace('^', '').trim();  // 🔥 FIX
+    //
+    //                         // ✅ filterType suggestions
+    //                         if (key === 'filterType') {
+    //                             return {
+    //                                 suggestions: Object.keys(FILTER_OPERATIONS).map(type => ({
+    //                                     label: type,
+    //                                     kind: monaco.languages.CompletionItemKind.Enum,
+    //                                     insertText: type
+    //                                 }))
+    //                             };
+    //                         }
+    //
+    //                         // ✅ operation suggestions
+    //                         if (key === 'operation' && lastFilterType && FILTER_OPERATIONS[lastFilterType]) {
+    //                             return {
+    //                                 suggestions: FILTER_OPERATIONS[lastFilterType].map(op => ({
+    //                                     label: op.value,
+    //                                     kind: monaco.languages.CompletionItemKind.Enum,
+    //                                     insertText: op.value,
+    //                                     detail: op.label
+    //                                 }))
+    //                             };
+    //                         }
+    //                     }
+    //
+    //                     return { suggestions: [] };
+    //                 }
+    //             });
+    //
+    //             monaco.editor.defineTheme('dlTheme', {
+    //                 base: 'vs-dark',
+    //                 inherit: true,
+    //                 rules: [
+    //                     { token: 'keyword', foreground: '00ffcc', fontStyle: 'bold' },
+    //                     { token: 'type.identifier', foreground: 'ffcc00' },
+    //                     { token: 'attribute.name', foreground: '66ccff' }
+    //                 ],
+    //                 colors: {
+    //                     "editor.background": "#0f172a",
+    //                     "editor.foreground": "#e5e7eb"
+    //                 }
+    //             });
+    //
+    //             const el = document.getElementById('dl-editor');
+    //
+    //             window.editor = monaco.editor.create(el, {
+    //                 value: `@URL_NAV
+    // ^url:https://example.com`,
+    //                 language: 'dl',
+    //                 theme: 'dlTheme',
+    //                 fontSize: 13,
+    //                 automaticLayout: true
+    //             });
+    //             console.log("✅ Editor initialized");
+    //             resolve(window.editor);
+    //         });
+    //     });
+    // }
+
     function initMonacoEditor() {
 
-        return new Promise((resolve)=>{
+        return new Promise((resolve) => {
+
             require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
 
             require(['vs/editor/editor.main'], function () {
 
                 monaco.languages.register({ id: 'dl' });
 
+                // =========================
+                // 🔹 TOKENIZER
+                // =========================
                 monaco.languages.setMonarchTokensProvider('dl', {
                     tokenizer: {
                         root: [
-                            // Step keyword (@URL_NAV)
                             [/^\s*@\w+/, 'keyword'],
-
-                            // Attribute key (^url)
                             [/^\s*\^\w+/, 'attribute.name'],
-
-                            // Colon
                             [/:/, 'delimiter'],
-
-                            // URL / value
                             [/https?:\/\/[^\s]+/, 'string']
                         ]
                     }
                 });
 
+                // =========================
+                // 🔹 AUTOCOMPLETE
+                // =========================
                 monaco.languages.registerCompletionItemProvider('dl', {
                     triggerCharacters: ['@', '^', '!', ':'],
 
@@ -230,7 +501,9 @@
                         const lines = textUntilPosition.split('\n');
                         const currentLine = lines[lines.length - 1].trim();
 
-                        // 🔥 Detect current scenario
+                        // =========================
+                        // 🔥 CONTEXT DETECTION
+                        // =========================
                         let currentType = null;
                         let insideFilterBlock = false;
                         let lastFilterType = null;
@@ -244,18 +517,22 @@
 
                             if (line.startsWith('!FILTER')) {
                                 insideFilterBlock = true;
+                                continue;
+                            }
+
+                            if (line.startsWith('@') && insideFilterBlock) {
+                                break;
                             }
 
                             if (line.startsWith('^filterType:')) {
-                                lastFilterType = line.split(':')[1]?.trim();
+                                const val = line.split(':')[1];
+                                if (val) lastFilterType = val.trim();
                             }
-
-                            if (currentType && insideFilterBlock) break;
                         }
 
-                        // =========================================================
-                        // 🔹 SCENARIO SUGGESTION (@)
-                        // =========================================================
+                        // =========================
+                        // 🔹 @ STEP
+                        // =========================
                         if (currentLine.startsWith('@')) {
                             return {
                                 suggestions: Object.keys(TYPES).map(type => ({
@@ -267,11 +544,10 @@
                             };
                         }
 
-                        // =========================================================
-                        // 🔹 BLOCK SUGGESTION (!)
-                        // =========================================================
+                        // =========================
+                        // 🔹 ! BLOCK
+                        // =========================
                         if (currentLine.startsWith('!')) {
-
                             if (currentType === 'FILTER_NAV') {
                                 return {
                                     suggestions: [{
@@ -284,125 +560,17 @@
                             }
                         }
 
-                        // =========================================================
-                        // 🔹 FIELD SUGGESTION (^)
-                        // =========================================================
+                        // =========================
+                        // 🔹 VALUE SUGGESTIONS FIRST (🔥 KEY FIX)
+                        // =========================
                         if (currentLine.startsWith('^')) {
-                            // =========================================
-                            // 🔹 ASSERT HANDLING (ADD THIS FIRST)
-                            // =========================================
-                            //
-                            if (currentType === 'ASSERT') {
 
-                                const typedKey = currentLine.replace('^', '').split(':')[0].trim();
+                            const parts = currentLine.split(':');
+                            const key = (parts[0] || '').replace('^', '').trim();
 
-                                // 🔥 STEP 1: find last selected assert type FIRST
-                                let lastAssertType = null;
-
-                                for (let i = lines.length - 1; i >= 0; i--) {
-                                    const line = lines[i].trim();
-                                    if (line.startsWith('^type:')) {
-                                        lastAssertType = line.split(':')[1]?.trim();
-                                        break;
-                                    }
-                                }
-
-                                // =====================================================
-                                // ✅ STEP 2: Suggest ASSERT TYPES (only for type field)
-                                // =====================================================
-                                if (typedKey === 'type') {
-                                    return {
-                                        suggestions: Object.keys(ASSERT_TYPES).map(type => ({
-                                            label: type,
-                                            kind: monaco.languages.CompletionItemKind.Enum,
-                                            insertText: type,
-                                            detail: ASSERT_TYPES[type].label
-                                        }))
-                                    };
-                                }
-
-                                // =====================================================
-                                // ✅ STEP 3: If assertType selected → show ONLY its fields
-                                // =====================================================
-                                if (lastAssertType && ASSERT_TYPES[lastAssertType]) {
-                                    const fields = ASSERT_TYPES[lastAssertType].fields;
-
-                                    return {
-                                        suggestions: fields.map(f => ({
-                                            label: f,
-                                            kind: monaco.languages.CompletionItemKind.Field,
-                                            insertText: `${f}:`
-                                        }))
-                                    };
-                                }
-
-                                // =====================================================
-                                // ✅ STEP 4: fallback (no type selected yet)
-                                // =====================================================
-                                return {
-                                    suggestions: TYPES['ASSERT'].fields.map(f => ({
-                                        label: f,
-                                        kind: monaco.languages.CompletionItemKind.Field,
-                                        insertText: `${f}:`
-                                    }))
-                                };
-                            }
-
-                            // ✅ FILTER_NAV (top-level)
-                            if (currentType === 'FILTER_NAV' && !insideFilterBlock) {
-                                return {
-                                    suggestions: [
-                                        {
-                                            label: 'applyBtnCss',
-                                            kind: monaco.languages.CompletionItemKind.Field,
-                                            insertText: 'applyBtnCss:',
-                                        }
-                                    ]
-                                };
-                            }
-
-                            // ✅ Inside FILTER block
-                            if (insideFilterBlock) {
-                                return {
-                                    suggestions: [
-                                        'querySelector',
-                                        'filterType',
-                                        'operation',
-                                        'value',
-                                        'valueSelector',
-                                        'logicalOperator'
-                                    ].map(f => ({
-                                        label: f,
-                                        kind: monaco.languages.CompletionItemKind.Field,
-                                        insertText: `${f}:`
-                                    }))
-                                };
-                            }
-
-                            // ✅ Normal scenarios
-                            if (currentType && TYPES[currentType]) {
-                                const fields = TYPES[currentType].fields || [];
-
-                                return {
-                                    suggestions: fields.map(field => ({
-                                        label: field,
-                                        kind: monaco.languages.CompletionItemKind.Field,
-                                        insertText: `${field}:`,
-                                    }))
-                                };
-                            }
-                        }
-
-                        // =========================================================
-                        // 🔹 VALUE SUGGESTION (after :)
-                        // =========================================================
-                        if (currentLine.includes(':')) {
-
-                            const [rawKey] = currentLine.split(':');
-                            const key = rawKey.replace('^', '').trim();  // 🔥 FIX
-
-                            // ✅ filterType suggestions
+                            // 🔥 filterType values
                             if (key === 'filterType') {
+                                console.log("🔥 filterType suggestion triggered");
                                 return {
                                     suggestions: Object.keys(FILTER_OPERATIONS).map(type => ({
                                         label: type,
@@ -412,16 +580,116 @@
                                 };
                             }
 
-                            // ✅ operation suggestions
-                            if (key === 'operation' && lastFilterType && FILTER_OPERATIONS[lastFilterType]) {
-                                return {
-                                    suggestions: FILTER_OPERATIONS[lastFilterType].map(op => ({
-                                        label: op.value,
-                                        kind: monaco.languages.CompletionItemKind.Enum,
-                                        insertText: op.value,
-                                        detail: op.label
-                                    }))
-                                };
+                            // 🔥 operation values
+                            if (key === 'operation') {
+                                console.log("🔥 operation suggestion triggered", lastFilterType);
+
+                                if (lastFilterType && FILTER_OPERATIONS[lastFilterType]) {
+                                    return {
+                                        suggestions: FILTER_OPERATIONS[lastFilterType].map(op => ({
+                                            label: op.value,
+                                            kind: monaco.languages.CompletionItemKind.Enum,
+                                            insertText: op.value,
+                                            detail: op.label
+                                        }))
+                                    };
+                                }
+                            }
+                        }
+
+                        // =========================
+                        // 🔹 FIELD SUGGESTIONS
+                        // =========================
+                        if (currentLine.startsWith('^')) {
+
+                            const isValueContext = currentLine.includes(':');
+
+                            if (!isValueContext) {
+
+                                // ===== ASSERT =====
+                                if (currentType === 'ASSERT') {
+
+                                    const typedKey = currentLine.replace('^', '').trim();
+
+                                    let lastAssertType = null;
+
+                                    for (let i = lines.length - 1; i >= 0; i--) {
+                                        const line = lines[i].trim();
+                                        if (line.startsWith('^type:')) {
+                                            lastAssertType = line.split(':')[1]?.trim();
+                                            break;
+                                        }
+                                    }
+
+                                    if (typedKey === 'type') {
+                                        return {
+                                            suggestions: Object.keys(ASSERT_TYPES).map(type => ({
+                                                label: type,
+                                                kind: monaco.languages.CompletionItemKind.Enum,
+                                                insertText: type,
+                                                detail: ASSERT_TYPES[type].label
+                                            }))
+                                        };
+                                    }
+
+                                    if (lastAssertType && ASSERT_TYPES[lastAssertType]) {
+                                        return {
+                                            suggestions: ASSERT_TYPES[lastAssertType].fields.map(f => ({
+                                                label: f,
+                                                kind: monaco.languages.CompletionItemKind.Field,
+                                                insertText: `${f}:`
+                                            }))
+                                        };
+                                    }
+
+                                    return {
+                                        suggestions: TYPES['ASSERT'].fields.map(f => ({
+                                            label: f,
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: `${f}:`
+                                        }))
+                                    };
+                                }
+
+                                // ===== FILTER_NAV =====
+                                if (currentType === 'FILTER_NAV' && !insideFilterBlock) {
+                                    return {
+                                        suggestions: [{
+                                            label: 'applyBtnCss',
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: 'applyBtnCss:',
+                                        }]
+                                    };
+                                }
+
+                                // ===== FILTER BLOCK =====
+                                if (insideFilterBlock) {
+                                    return {
+                                        suggestions: [
+                                            'querySelector',
+                                            'filterType',
+                                            'operation',
+                                            'value',
+                                            'valueSelector',
+                                            'logicalOperator'
+                                        ].map(f => ({
+                                            label: f,
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: `${f}:`
+                                        }))
+                                    };
+                                }
+
+                                // ===== NORMAL =====
+                                if (currentType && TYPES[currentType]) {
+                                    return {
+                                        suggestions: TYPES[currentType].fields.map(f => ({
+                                            label: f,
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: `${f}:`,
+                                        }))
+                                    };
+                                }
                             }
                         }
 
@@ -429,12 +697,139 @@
                     }
                 });
 
+                // =========================
+                // 🔹 HOVER
+                // =========================
+                monaco.languages.registerHoverProvider('dl', {
+                    provideHover: function (model, position) {
+
+                        const line = model.getLineContent(position.lineNumber);
+
+                        const wordInfo = model.getWordAtPosition(position);
+                        if (!wordInfo) return;
+
+                        const word = wordInfo.word;
+
+                        // Detect prefix
+                        const start = wordInfo.startColumn - 1;
+                        const charBefore = line[start - 1];
+
+                        let fullWord = word;
+
+                        if (charBefore === '@') {
+                            fullWord = '@' + word;
+                        }
+
+                        // =========================
+                        // 🔥 AUTO-GENERATE DOCS
+                        // =========================
+                        const docs = {};
+
+                        // =========================
+                        // 🔹 SCENARIOS (TYPES)
+                        // =========================
+                        Object.entries(TYPES).forEach(([key, val]) => {
+                            docs['@' + key] = {
+                                title: `${val.icon || ''} ${val.label}`,
+                                desc: val.hint,
+                                fields: val.fields?.map(f => `^${f}`) || []
+                            };
+                        });
+
+                        // =========================
+                        // 🔹 ASSERT TYPES
+                        // =========================
+                        Object.entries(ASSERT_TYPES).forEach(([key, val]) => {
+                            docs[key] = {
+                                title: val.label,
+                                desc: `Required: ${val.required.join(', ')}`,
+                                fields: val.fields.map(f => `^${f}`)
+                            };
+                        });
+
+                        // =========================
+                        // 🔹 FILTER TYPES
+                        // =========================
+                        FILTER_TYPES.forEach(f => {
+                            docs[f.value] = {
+                                title: f.label,
+                                desc: `Filter type: ${f.value}`
+                            };
+                        });
+
+                        // =========================
+                        // 🔹 FILTER OPERATIONS
+                        // =========================
+                        Object.entries(FILTER_OPERATIONS).forEach(([type, ops]) => {
+                            ops.forEach(op => {
+                                docs[op.value] = {
+                                    title: op.label,
+                                    desc: `Operation for ${type}`
+                                };
+                            });
+                        });
+
+                        // =========================
+                        // 🔹 FIELD DESCRIPTIONS
+                        // =========================
+                        const FIELD_DOCS = {
+                            url: 'URL to navigate',
+                            csv: 'CSV file for test data',
+                            cssSelector: 'CSS selector of element',
+                            value: 'Value to input or match',
+                            clickCss: 'Selector to click after action',
+                            applyBtnCss: 'Apply filter button selector',
+
+                            querySelector: 'Selector for filter field',
+                            filterType: 'TEXT | DATE | DATE_TIME | NUMBER',
+                            operation: 'Depends on filterType',
+                            valueSelector: 'Selector for dropdown/input',
+                            logicalOperator: 'AND / OR condition Selector',
+
+                            type: 'Assertion type',
+                            tableId: 'Table selector',
+                            locator: 'Element selector',
+                            expected: 'Expected value',
+                            columnName: 'Column name',
+                            rangeId: 'Range selector',
+                            rowsBtn: 'Pagination control',
+                            promptAi: 'AI validation prompt'
+                        };
+
+                        Object.entries(FIELD_DOCS).forEach(([key, desc]) => {
+                            docs[key] = {
+                                title: key,
+                                desc: desc
+                            };
+                        });
+
+                        // =========================
+                        // 🔍 RESOLVE DOC
+                        // =========================
+                        const doc = docs[fullWord] || docs[word];
+
+                        if (!doc) return;
+
+                        return {
+                            contents: [
+                                { value: `### ${doc.title}` },
+                                { value: doc.desc || '' },
+                                ...(doc.fields
+                                    ? [{ value: `\n**Fields:**\n- ${doc.fields.join('\n- ')}` }]
+                                    : [])
+                            ]
+                        };
+                    }
+                });
+
+                // =========================
+                // 🔹 THEME
+                // =========================
                 monaco.editor.defineTheme('dlTheme', {
                     base: 'vs-dark',
                     inherit: true,
                     rules: [
                         { token: 'keyword', foreground: '00ffcc', fontStyle: 'bold' },
-                        { token: 'type.identifier', foreground: 'ffcc00' },
                         { token: 'attribute.name', foreground: '66ccff' }
                     ],
                     colors: {
@@ -453,12 +848,17 @@
                     fontSize: 13,
                     automaticLayout: true
                 });
+
+                // 🔥 Force suggestions
+                window.editor.onDidChangeModelContent(() => {
+                    window.editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+                });
+
                 console.log("✅ Editor initialized");
                 resolve(window.editor);
             });
         });
     }
-
     // ── Breadcrumbs & back button ──────────────────────────────────────────
     const backUrl = projectId && moduleId
         ? `/runs.html?projectId=${projectId}&moduleId=${moduleId}`
