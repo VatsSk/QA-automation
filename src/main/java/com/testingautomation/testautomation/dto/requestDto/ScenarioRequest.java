@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.dto.requestDto;
 
 import com.testingautomation.testautomation.dto.AssertionDto;
+import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import jakarta.validation.constraints.NotNull;
@@ -36,4 +37,5 @@ public class ScenarioRequest {
     private List<FilterScenarioDto> filters;
     private String applyFilterBtn;
     private String clickCss;
+    private DateRangeNavDto dateRange;
 }

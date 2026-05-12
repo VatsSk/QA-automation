@@ -439,27 +439,37 @@ public class ScenarioOrchestratorService {
                         // wait for filtering
                         Thread.sleep(500);
 
-                        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-                                By.xpath("//*[@data-title='" + value + "']//input")
-                        ));
+                        try{
+                            WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                    By.xpath("//*[@data-title='" + value + "']//input")
+                            ));
 
-                        option.click();
-
-                        logger.info("Clicked checkbox for option: {}", value);
-                        // 📸 Step 2 → after selecting option
-                        screenshotService.takeScreenshot(
-                                driver,
-                                (modalFormTcIdx +1)+"",
-                                "step passed",
-                                navigationScreenshotDir,
-                                scenarioPrefix
-                        );
-
-                        // close dropdown to apply filter
+                            option.click();
+                            logger.info("Clicked checkbox for option: {}", value);
+                            // 📸 Step 2 → after selecting option
+                            screenshotService.takeScreenshot(
+                                    driver,
+                                    (modalFormTcIdx +1)+"",
+                                    "step passed",
+                                    navigationScreenshotDir,
+                                    scenarioPrefix
+                            );
+                            // close dropdown to apply filter
 //                        opener.sendKeys(Keys.TAB);
 //                        logger.info("Closed dropdown using TAB");
-                        driver.findElement(By.tagName("body")).click();
-                        logger.info("Closed dropdown using body click fallback");
+                            driver.findElement(By.tagName("body")).click();
+                            logger.info("Closed dropdown using body click fallback");
+                        }catch(Exception e){
+                            logger.info("Failed to click checkbox for option: {}", value, e);
+//                            WebElement profileSearch = driver.findElement(By.cssSelector(""));
+                        }
+
+
+
+
+
+
+
                         // 📸 Step 3 → after closing dropdown
                         screenshotService.takeScreenshot(
                                 driver,
@@ -641,12 +651,29 @@ public class ScenarioOrchestratorService {
                         try {
 
                             String value = filter.getOperation().toString();
+                            logger.info("operation selection {}", value);
 
-                            WebElement radio = driver.findElement(
+                            // query selector element
+                            WebElement queryElement = wait.until(
+                                    ExpectedConditions.presenceOfElementLocated(queryBy)
+                            );
+
+                            // move to parent/sibling container
+                            // adjust ../.. if needed based on DOM depth
+                            WebElement filterContainer = queryElement.findElement(
+                                    By.xpath("../..")
+                            );
+
+                            logger.info("Filter container located");
+
+                            // find radio ONLY inside this container
+                            WebElement radio = filterContainer.findElement(
                                     By.cssSelector("input[type='radio'][value='" + value + "']")
                             );
 
-                            // 🔥 BEST → JS click (reliable)
+                            logger.info("Radio found inside current filter block");
+
+                            // JS click
                             ((JavascriptExecutor) driver).executeScript(
                                     "arguments[0].click();",
                                     radio
@@ -656,7 +683,12 @@ public class ScenarioOrchestratorService {
 
                         } catch (Exception e) {
 
-                            throw new RuntimeException("Operation handling failed: " + filter.getOperation(), e);
+                            logger.error("Operation handling failed", e);
+
+                            throw new RuntimeException(
+                                    "Operation handling failed: " + filter.getOperation(),
+                                    e
+                            );
                         }
 
                         // =========================
@@ -677,6 +709,7 @@ public class ScenarioOrchestratorService {
                         String classes = valueEl.getAttribute("class");
 
                         if (tag.equalsIgnoreCase("input") || tag.equalsIgnoreCase("textarea")) {
+                            logger.info("considered input or textarea");
 
                             // ✅ NORMAL INPUT
                             valueEl = wait.until(ExpectedConditions.elementToBeClickable(valueEl));
@@ -688,6 +721,7 @@ public class ScenarioOrchestratorService {
 
                         }
                         else if (id != null && id.startsWith("select2-")) {
+                            logger.info("id starts with select2-");
 
                             // ✅ SELECT2 UI (your span case)
                             handleSelect2Dropdown(driver, valueSelector, filter.getValue());
@@ -698,7 +732,7 @@ public class ScenarioOrchestratorService {
                         else if (tag.equalsIgnoreCase("select")
                                 && classes != null
                                 && classes.contains("select2-hidden-accessible")) {
-
+                            logger.info("Handling as Select2 hidden select");
                             // ✅ SELECT2 HIDDEN SELECT
                             selectSelect2(driver, valueSelector, filter.getValue());
 
@@ -708,12 +742,14 @@ public class ScenarioOrchestratorService {
                         else if (tag.equalsIgnoreCase("select")
                                 && classes != null
                                 && classes.contains("selectpicker")) {
-
+                            logger.info("Handling as Bootstrap Select dropdown");
                             handleBootstrapSelect(driver, valueSelector, filter.getValue());
 
                             logger.info("Handled as Bootstrap Select dropdown");
                         }
                         else {
+                            logger.info("Handling as generic dropdown");
+
 
                             // ✅ GENERIC DROPDOWN
                             safeClick(driver, By.cssSelector(valueSelector));
@@ -745,7 +781,7 @@ public class ScenarioOrchestratorService {
                                 String operatorId = filter.getLogicalOperator(); // e.g. "name-operator"
 
                                 WebElement toggle = driver.findElement(
-                                        By.cssSelector("#" + operatorId)
+                                        By.cssSelector(operatorId)
                                 );
 
                                 // 🔥 BEST → JS click
@@ -1462,28 +1498,82 @@ public class ScenarioOrchestratorService {
             throw new RuntimeException("Select2 handling failed for value: " + value, e);
         }
     }
+//    public void handleBootstrapSelect(WebDriver driver,
+//                                      String selector,
+//                                      String value) {
+//
+//        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+//
+//        WebElement select = driver.findElement(By.cssSelector(selector));
+//
+//        String id = select.getAttribute("id");
+//
+//        // Click generated button
+//        WebElement button = wait.until(ExpectedConditions.elementToBeClickable(
+//                By.cssSelector("button[data-id='" + id + "']")
+//        ));
+//
+//        button.click();
+//
+//        // Search if search box exists
+//        try {
+//            WebElement search = wait.until(ExpectedConditions.visibilityOfElementLocated(
+//                    By.cssSelector(".bs-searchbox input")
+//            ));
+//
+//            search.clear();
+//            search.sendKeys(value);
+//
+//        } catch (Exception ignored) {}
+//
+//        // Click option
+//        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+//                By.xpath("//span[@class='text' and normalize-space()='" + value + "']")
+//        ));
+//
+//        option.click();
+//    }
+
     public void handleBootstrapSelect(WebDriver driver,
                                       String selector,
                                       String value) {
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        JavascriptExecutor js = (JavascriptExecutor) driver;
 
         WebElement select = driver.findElement(By.cssSelector(selector));
 
         String id = select.getAttribute("id");
 
-        // Click generated button
-        WebElement button = wait.until(ExpectedConditions.elementToBeClickable(
+        // Generated bootstrap-select button
+        WebElement button = wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.cssSelector("button[data-id='" + id + "']")
         ));
 
-        button.click();
+        // scroll first
+        js.executeScript(
+                "arguments[0].scrollIntoView({block:'center'});",
+                button
+        );
 
-        // Search if search box exists
+        // safer click
         try {
-            WebElement search = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                    By.cssSelector(".bs-searchbox input")
-            ));
+            wait.until(ExpectedConditions.elementToBeClickable(button));
+            button.click();
+
+        } catch (Exception e) {
+
+            js.executeScript("arguments[0].click();", button);
+        }
+
+        // Search box if exists
+        try {
+
+            WebElement search = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                            By.cssSelector(".bs-searchbox input")
+                    )
+            );
 
             search.clear();
             search.sendKeys(value);
@@ -1491,11 +1581,33 @@ public class ScenarioOrchestratorService {
         } catch (Exception ignored) {}
 
         // Click option
-        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//span[@class='text' and normalize-space()='" + value + "']")
-        ));
+//        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+//                By.xpath("//span[@class='text' and normalize-space()='" + value + "']")
+//        ));
+//
+//        try {
+//            option.click();
+//        } catch (Exception e) {
+//            js.executeScript("arguments[0].click();", option);
+//        }
+        By optionLocator = By.xpath(
+                "//div[contains(@class,'bootstrap-select')]" +
+                        "[.//button[@data-id='" + id + "']]" +
+                        "//div[contains(@class,'dropdown-menu') and contains(@class,'show')]" +
+                        "//span[@class='text' and normalize-space()='" + value + "']"
+        );
 
-        option.click();
+        WebElement option = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(optionLocator)
+        );
+
+        js.executeScript("arguments[0].scrollIntoView({block:'center'});", option);
+
+        try {
+            option.click();
+        } catch (Exception e) {
+            js.executeScript("arguments[0].click();", option);
+        }
     }
 
 }
