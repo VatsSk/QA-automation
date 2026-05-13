@@ -37,5 +37,5 @@ public class ScenarioRequest {
     private List<FilterScenarioDto> filters;
     private String applyFilterBtn;
     private String clickCss;
-    private DateRangeNavDto dateRange;
+    private DateRangeNavDto dateRangeNavDto;
 }

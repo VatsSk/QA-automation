@@ -2,9 +2,12 @@ package com.testingautomation.testautomation.dto;
 
 import com.testingautomation.testautomation.enums.DatePresetType;
 import com.testingautomation.testautomation.enums.DateSelectionType;
+import lombok.Data;
 
+@Data
 public class DateRangeNavDto {
     private String inputSelector;
+
     private DateSelectionType selectionType;
 
     // preset mode
@@ -19,6 +22,11 @@ public class DateRangeNavDto {
     private String endTime;
 
     private String applyButtonSelector;
+
     private String calendarContainerSelector;
+
     private String dateFormat;
+
+    private Boolean autoApply;
+
 }
