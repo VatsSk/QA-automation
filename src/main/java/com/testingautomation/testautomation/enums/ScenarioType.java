@@ -15,5 +15,6 @@ public enum ScenarioType {
     ASSERT,
     VERIFY_PAGE,
     AI_ASSERT,
-    FILTER_NAV
+    FILTER_NAV,
+    DATE_RANGE_NAV
 }

@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.services.orchestratorService;
 
 
 import com.testingautomation.testautomation.dto.*;
+import com.testingautomation.testautomation.enums.DateSelectionType;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
@@ -31,6 +32,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -805,6 +809,156 @@ public class ScenarioOrchestratorService {
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
                 }
+                else if (currScenario.getType() == ScenarioType.DATE_RANGE_NAV) {
+
+                    DateRangeNavDto dateRange = currScenario.getDateRangeNavDto();
+
+                    if (dateRange == null) {
+                        throw new GlobalExceptionHandler.ResourceNotFoundException("DateRange configuration is missing");
+                    }
+
+                    // =========================
+                    // Open Calendar
+                    // =========================
+                    WebElement inputElement = wait.until(
+                            ExpectedConditions.elementToBeClickable(
+                                    By.cssSelector(dateRange.getInputSelector())
+                            )
+                    );
+
+                    inputElement.click();
+                    screenshotService.takeScreenshot(
+                            driver,
+                            1+"",
+                            "step passed",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    // =========================
+                    // Wait for Calendar Container
+                    // =========================
+                    String containerSelector =
+                            dateRange.getCalendarContainerSelector() != null
+                                    ? dateRange.getCalendarContainerSelector()
+                                    : ".daterangepicker";
+
+                    wait.until(
+                            ExpectedConditions.visibilityOfElementLocated(
+                                    By.cssSelector(containerSelector)
+                            )
+                    );
+
+                    // =========================
+                    // PRESET MODE
+                    // =========================
+                    if (dateRange.getSelectionType() == DateSelectionType.PRESET) {
+
+                        if (dateRange.getPreset() == null) {
+
+                            throw new GlobalExceptionHandler.ResourceNotFoundException(
+                                    "Preset value is required for PRESET selection type"
+                            );
+                        }
+
+                        String presetSelector =
+                                "[data-range-key=\"" + dateRange.getPreset() + "\"]";
+
+                        WebElement presetElement = wait.until(
+                                ExpectedConditions.elementToBeClickable(
+                                        By.cssSelector(presetSelector)
+                                )
+                        );
+
+                        presetElement.click();
+                        screenshotService.takeScreenshot(
+                                driver,
+                                2+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+                    }
+
+                    // =========================
+                    // CUSTOM MODE
+                    // =========================
+                    else if (dateRange.getSelectionType()
+                            == DateSelectionType.CUSTOM) {
+
+                        if (dateRange.getStartDate() == null
+                                || dateRange.getEndDate() == null) {
+
+                            throw new GlobalExceptionHandler.ResourceNotFoundException(
+                                    "StartDate and EndDate are required for CUSTOM mode"
+                            );
+                        }
+
+                        DateTimeFormatter formatter =
+                                DateTimeFormatter.ofPattern(
+                                        dateRange.getDateFormat() != null
+                                                ? dateRange.getDateFormat()
+                                                : "dd/MM/yyyy HH:mm"
+                                );
+
+                        LocalDateTime startDateTime =
+                                LocalDateTime.parse(
+                                        dateRange.getStartDate(),
+                                        formatter
+                                );
+
+                        LocalDateTime endDateTime =
+                                LocalDateTime.parse(
+                                        dateRange.getEndDate(),
+                                        formatter
+                                );
+
+                        selectDate(driver, wait, containerSelector, startDateTime.toLocalDate());
+                        screenshotService.takeScreenshot(
+                                driver,
+                                3+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+
+                        selectDate(driver, wait, containerSelector, endDateTime.toLocalDate());
+                        screenshotService.takeScreenshot(
+                                driver,
+                                4+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+                    }
+
+                    // =========================
+                    // APPLY BUTTON
+                    // =========================
+                    Boolean autoApply = dateRange.getAutoApply();
+
+                    if (autoApply == null || !autoApply) {
+
+                        String applySelector =
+                                dateRange.getApplyButtonSelector() != null
+                                        ? dateRange.getApplyButtonSelector()
+                                        : ".applyBtn";
+
+                        WebElement applyBtn = wait.until(
+                                ExpectedConditions.elementToBeClickable(
+                                        By.cssSelector(applySelector)
+                                )
+                        );
+
+                        applyBtn.click();
+                        screenshotService.takeScreenshot(
+                                driver,
+                                5+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+                    }
+                }
 
                 Thread.sleep(1000);
 
@@ -853,6 +1007,41 @@ public class ScenarioOrchestratorService {
         logger.info("Navigation phase completed. Final index {}", currIdx);
 
         return currIdx;
+    }
+    private void selectDate(
+            WebDriver driver,
+            WebDriverWait wait,
+            String containerSelector,
+            LocalDate targetDate
+    ) {
+
+        String targetDay = String.valueOf(targetDate.getDayOfMonth());
+
+        List<WebElement> availableDates = wait.until(
+                ExpectedConditions.presenceOfAllElementsLocatedBy(
+                        By.cssSelector(
+                                containerSelector + " td.available"
+                        )
+                )
+        );
+
+        for (WebElement dateCell : availableDates) {
+
+            String classes = dateCell.getAttribute("class");
+
+            if (dateCell.getText().trim().equals(targetDay)
+                    && !classes.contains("off")
+                    && !classes.contains("disabled")) {
+
+                dateCell.click();
+
+                return;
+            }
+        }
+
+        throw new GlobalExceptionHandler.ResourceNotFoundException(
+                "Unable to select date: " + targetDate
+        );
     }
     public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
                                             , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {

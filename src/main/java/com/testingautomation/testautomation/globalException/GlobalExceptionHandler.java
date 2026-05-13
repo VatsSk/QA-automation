@@ -42,6 +42,7 @@ public class GlobalExceptionHandler {
         public StorageException(String msg, Throwable cause) { super(msg, cause); }
     }
 
+
     // ── Handlers ──────────────────────────────────────────────────────
 
     @ExceptionHandler(NoResourceFoundException.class)
