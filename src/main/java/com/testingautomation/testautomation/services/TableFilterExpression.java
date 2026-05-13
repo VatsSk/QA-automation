@@ -3,6 +3,7 @@ package com.testingautomation.testautomation.services;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.enums.DataType;
 import com.testingautomation.testautomation.enums.Operator;
+import com.testingautomation.testautomation.utils.TextExtractor;
 import org.springframework.stereotype.Service;
 import tech.tablesaw.api.*;
 import tech.tablesaw.api.Table;
@@ -44,9 +45,9 @@ public final class TableFilterExpression {
     }
 
     public static TableFilterExpression compile(String scenarioPrefix,
-                                                Table table,
-                                                List<FilterScenarioDto> scenarios) {
-        if (table == null) {
+                                                Table extractedTable,
+                                                List<FilterScenarioDto> filterScenarios) {
+        if (extractedTable == null) {
             throw new IllegalArgumentException("Table cannot be null");
         }
 
@@ -54,21 +55,21 @@ public final class TableFilterExpression {
             scenarioPrefix = "FILTER";
         }
 
-        if (scenarios == null || scenarios.isEmpty()) {
+        if (filterScenarios == null || filterScenarios.isEmpty()) {
             log.info("[{}] No filter scenarios provided. Compiled expression will be empty.", scenarioPrefix);
-            return new TableFilterExpression(scenarioPrefix, table, new ArrayList<>(), "");
+            return new TableFilterExpression(scenarioPrefix, extractedTable, new ArrayList<>(), "");
         }
 
         List<List<PreparedCondition>> groups = new ArrayList<>();
         List<PreparedCondition> currentAndGroup = new ArrayList<>();
 
-        for (int i = 0; i < scenarios.size(); i++) {
-            FilterScenarioDto scenario = scenarios.get(i);
-            PreparedCondition condition = PreparedCondition.from(table, scenario, scenarioPrefix, i + 1);
+        for (int i = 0; i < filterScenarios.size(); i++) {
+            FilterScenarioDto filterScenario = filterScenarios.get(i);
+            PreparedCondition condition = PreparedCondition.from(extractedTable, filterScenario, scenarioPrefix, i + 1);
 
             currentAndGroup.add(condition);
 
-            String connector = normalizeLogicalOperator(scenario.getLogicalOperator());
+            String connector = normalizeLogicalOperator(filterScenario.getLogicalOperator());
 
             // logicalOperator belongs to current scenario and tells how it connects to the next one
             if ("OR".equals(connector)) {
@@ -92,7 +93,7 @@ public final class TableFilterExpression {
         log.info("[{}] Compiled table filter expression: {}", scenarioPrefix, debugExpression);
         log.debug("[{}] OR groups: {}", scenarioPrefix, groups.size());
 
-        return new TableFilterExpression(scenarioPrefix, table, groups, debugExpression);
+        return new TableFilterExpression(scenarioPrefix, extractedTable, groups, debugExpression);
     }
 
     public boolean matchesRow(int rowIndex) {
@@ -547,41 +548,45 @@ public final class TableFilterExpression {
             this.expectedValue = expectedValue;
         }
 
-        static PreparedCondition from(Table table,
-                                      FilterScenarioDto scenario,
-                                      String prefix,
+        static PreparedCondition from(Table extractedTable,
+                                      FilterScenarioDto filterScenario,
+                                      String scenarioPrefix,
                                       int scenarioNumber) {
-            if (scenario == null) {
+            if (filterScenario == null) {
                 throw new IllegalArgumentException("Scenario cannot be null");
             }
 
-            String columnName = scenario.getColumnName();
+            String columnName = filterScenario.getColumnName()==null||filterScenario.getColumnName().trim().isEmpty()?
+                                TextExtractor.extractColumnName(filterScenario.getQuerySelector()):
+                    filterScenario.getColumnName();
+
+
             if (columnName == null || columnName.trim().isEmpty()) {
-                throw new IllegalArgumentException("Column name cannot be empty for scenario #" + scenarioNumber);
+                    throw new IllegalArgumentException("Column name cannot be empty for scenario #" + scenarioNumber);
             }
 
-            Operator operator = scenario.getOperation();
+            Operator operator = filterScenario.getOperation();
             if (operator == null) {
                 throw new IllegalArgumentException("Operator cannot be null for column: " + columnName);
             }
 
-            DataType dataType = scenario.getFilterType();
+            DataType dataType = filterScenario.getFilterType();
             if (dataType == null) {
                 throw new IllegalArgumentException("DataType cannot be null for column: " + columnName);
             }
 
-            String expectedValue = scenario.getValue() == null ? "" : scenario.getValue().trim();
+            String expectedValue = filterScenario.getValue() == null ? "" : filterScenario.getValue().trim();
 
             Column<?> column;
             try {
-                column = table.column(columnName);
+                column = extractedTable.column(columnName);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Column not found in table: " + columnName, e);
             }
 
             PreparedCondition condition = new PreparedCondition(columnName, column, operator, dataType, expectedValue);
 
-            log.debug("[{}] Prepared condition #{} -> {}", prefix, scenarioNumber, condition.describe());
+            log.debug("[{}] Prepared condition #{} -> {}", scenarioPrefix, scenarioNumber, condition.describe());
             return condition;
         }
 

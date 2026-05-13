@@ -206,11 +206,13 @@ public class ScenarioOrchestratorService {
                         scenarioPrefix
                 );
                 logger.info("Failure screenshot taken: {}", failScreenshot);
+                throw new GlobalExceptionHandler.TimeoutException("Elelemnt not found");
             }
 
         } catch (Exception e) {
             logger.error("VERIFY_PAGE scenario failed with unexpected error", e);
             verifyResult.setResult("Failed - " + e.getMessage());
+            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed with unexpected error", e);
         }
         testCases.add(verifyResult);
         scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
@@ -376,7 +378,7 @@ public class ScenarioOrchestratorService {
                             clicked = true;
                             logger.info("Modal opened using smartClick");
                         } catch (Exception smartEx) {
-                            throw new RuntimeException("Both safeClick and smartClick failed for modal opener", smartEx);
+                            throw new GlobalExceptionHandler.ResourceNotFoundException("Both safeClick and smartClick failed for modal opener "+smartEx.getMessage());
                         }
                     }
 
@@ -633,6 +635,7 @@ public class ScenarioOrchestratorService {
 
                         } catch (Exception e) {
                             logger.warn("Failed to extract column name");
+                            throw new GlobalExceptionHandler.ResourceNotFoundException("Failed to extract column name");
                         }
 
                         // =========================
@@ -656,7 +659,7 @@ public class ScenarioOrchestratorService {
 
                         } catch (Exception e) {
 
-                            throw new RuntimeException("Operation handling failed: " + filter.getOperation(), e);
+                            throw new GlobalExceptionHandler.ResourceNotFoundException("Operation handling failed: " + filter.getOperation());
                         }
 
                         // =========================
@@ -761,6 +764,7 @@ public class ScenarioOrchestratorService {
 
                         } catch (Exception e) {
                             logger.warn("Logical operator toggle failed", e);
+                            throw new GlobalExceptionHandler.ResourceNotFoundException("Logical operator toggle failed");
                         }
                     }
 
@@ -800,6 +804,7 @@ public class ScenarioOrchestratorService {
 
                     } catch (Exception e) {
                         logger.warn("Apply filter button click failed", e);
+                        throw new GlobalExceptionHandler.ResourceNotFoundException("Apply filter button click failed");
                     }
 
                     scenario.setScenarioStatus(RunStatus.PASSED);
@@ -829,7 +834,7 @@ public class ScenarioOrchestratorService {
                         currIdx,
                         currScenario.getType(),
                         e);
-                throw e;
+                throw new GlobalExceptionHandler.ResourceNotFoundException("Error - " + e.getMessage());
             }
             try {
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
@@ -843,6 +848,7 @@ public class ScenarioOrchestratorService {
 
             } catch (Exception e) {
                 logger.error("Failed to store testcase result in scenarioResultsMap for scenario at index {}", currIdx, e);
+
             }
 
             run.getScenariosList().set(currIdx, scenario);
@@ -921,6 +927,7 @@ public class ScenarioOrchestratorService {
         }
         catch (Exception e) {
             logger.error("[{}] failed to open modal or execute tests: {}",scenarioPrefix, e.getMessage());
+            throw new GlobalExceptionHandler.ResourceNotFoundException("Failed to open modal");
         }
         // store modal scenario testcases in memory grouped by scenarioPrefix
         scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
@@ -1016,7 +1023,8 @@ public class ScenarioOrchestratorService {
 
 
         } catch (Exception e) {
-            System.out.println("exception encountered "+ e.getMessage());
+            logger.error("exception encountered "+ e.getMessage());
+            throw new GlobalExceptionHandler.RunnerIntegrationException(e.getMessage(),e);
         }
     }
 
@@ -1305,6 +1313,7 @@ public class ScenarioOrchestratorService {
             ((JavascriptExecutor) driver).executeScript(
                     "arguments[0].click();", element
             );
+
         }
     }
     private String extractValue(String locatorString) {
@@ -1321,7 +1330,7 @@ public class ScenarioOrchestratorService {
             return matcher.group(1);
         }
 
-        throw new IllegalArgumentException(
+        throw new GlobalExceptionHandler.ResourceNotFoundException(
                 "Could not extract value from locator: " + locatorString
         );
     }
@@ -1459,7 +1468,7 @@ public class ScenarioOrchestratorService {
             }
 
         } catch (Exception e) {
-            throw new RuntimeException("Select2 handling failed for value: " + value, e);
+            throw new GlobalExceptionHandler.ResourceNotFoundException("Select2 handling failed for value: " + value);
         }
     }
     public void handleBootstrapSelect(WebDriver driver,

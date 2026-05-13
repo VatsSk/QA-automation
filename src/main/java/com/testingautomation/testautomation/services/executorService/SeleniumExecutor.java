@@ -758,7 +758,8 @@ public class SeleniumExecutor {
                 .filter(scenario -> scenario.getType() == ScenarioType.FILTER_NAV)
                 .findFirst()
                 .map(Scenario::getFilters)
-                .orElseThrow(() -> new GlobalExceptionHandler.BadRequestException("No FILTER_NAV scenario found"));        assertTableFilter(driver,wait,step,scenarioPrefix,filters);
+                .orElseThrow(() -> new GlobalExceptionHandler.BadRequestException("No FILTER_NAV scenario found"));
+        assertTableFilter(driver,wait,step,scenarioPrefix,filters);
     }
 
     private void assertTableFilter(WebDriver driver,

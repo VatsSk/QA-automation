@@ -6,17 +6,17 @@ spring:
 
   #EC2 Mongo
 
-#  data:
-#    mongodb:
-#      uri: mongodb://3.7.136.248:27017/qadb
-#      database: qadb
-
   data:
     mongodb:
-      uri: mongodb://localhost:27017/qadb
-      # Atlas: mongodb+srv://<user>:<pass>@cluster.mongodb.net/testforge?retryWrites=true&w=majority
+      uri: mongodb://3.7.136.248:27017/qadb
+      database: qadb
 
-  jackson:
+#  data:
+#    mongodb:
+#      uri: mongodb://localhost:27017/qadb
+#      # Atlas: mongodb+srv://<user>:<pass>@cluster.mongodb.net/testforge?retryWrites=true&w=majority
+#
+#  jackson:
     serialization:
       write-dates-as-timestamps: false
     time-zone: UTC
