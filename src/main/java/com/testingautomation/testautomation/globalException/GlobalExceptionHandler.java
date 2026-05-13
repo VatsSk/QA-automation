@@ -38,6 +38,10 @@ public class GlobalExceptionHandler {
         public InvalidCountException(String msg) { super(msg); }
     }
 
+    public static class TimeoutException extends RuntimeException {
+        public TimeoutException(String msg) { super(msg); }
+    }
+
     public static class StorageException extends RuntimeException {
         public StorageException(String msg, Throwable cause) { super(msg, cause); }
     }
