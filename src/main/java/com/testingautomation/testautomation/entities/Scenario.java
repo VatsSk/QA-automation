@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.entities;
 
 
 import com.testingautomation.testautomation.dto.AssertionDto;
+import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioStatus;
@@ -70,4 +71,5 @@ public class Scenario {
     private Instant updatedAt;
     private String clickCss;
     private String scenarioBasePath;
+    private DateRangeNavDto dateRangeNavDto;
 }

@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.services.orchestratorService;
 
 
 import com.testingautomation.testautomation.dto.*;
+import com.testingautomation.testautomation.enums.DateSelectionType;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
@@ -31,6 +32,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -206,13 +210,11 @@ public class ScenarioOrchestratorService {
                         scenarioPrefix
                 );
                 logger.info("Failure screenshot taken: {}", failScreenshot);
-                throw new GlobalExceptionHandler.TimeoutException("Elelemnt not found");
             }
 
         } catch (Exception e) {
             logger.error("VERIFY_PAGE scenario failed with unexpected error", e);
             verifyResult.setResult("Failed - " + e.getMessage());
-            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed with unexpected error", e);
         }
         testCases.add(verifyResult);
         scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
@@ -441,27 +443,37 @@ public class ScenarioOrchestratorService {
                         // wait for filtering
                         Thread.sleep(500);
 
-                        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-                                By.xpath("//*[@data-title='" + value + "']//input")
-                        ));
+                        try{
+                            WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                    By.xpath("//*[@data-title='" + value + "']//input")
+                            ));
 
-                        option.click();
-
-                        logger.info("Clicked checkbox for option: {}", value);
-                        // 📸 Step 2 → after selecting option
-                        screenshotService.takeScreenshot(
-                                driver,
-                                (modalFormTcIdx +1)+"",
-                                "step passed",
-                                navigationScreenshotDir,
-                                scenarioPrefix
-                        );
-
-                        // close dropdown to apply filter
+                            option.click();
+                            logger.info("Clicked checkbox for option: {}", value);
+                            // 📸 Step 2 → after selecting option
+                            screenshotService.takeScreenshot(
+                                    driver,
+                                    (modalFormTcIdx +1)+"",
+                                    "step passed",
+                                    navigationScreenshotDir,
+                                    scenarioPrefix
+                            );
+                            // close dropdown to apply filter
 //                        opener.sendKeys(Keys.TAB);
 //                        logger.info("Closed dropdown using TAB");
-                        driver.findElement(By.tagName("body")).click();
-                        logger.info("Closed dropdown using body click fallback");
+                            driver.findElement(By.tagName("body")).click();
+                            logger.info("Closed dropdown using body click fallback");
+                        }catch(Exception e){
+                            logger.info("Failed to click checkbox for option: {}", value, e);
+//                            WebElement profileSearch = driver.findElement(By.cssSelector(""));
+                        }
+
+
+
+
+
+
+
                         // 📸 Step 3 → after closing dropdown
                         screenshotService.takeScreenshot(
                                 driver,
@@ -644,8 +656,23 @@ public class ScenarioOrchestratorService {
                         try {
 
                             String value = filter.getOperation().toString();
+                            logger.info("operation selection {}", value);
 
-                            WebElement radio = driver.findElement(
+                            // query selector element
+                            WebElement queryElement = wait.until(
+                                    ExpectedConditions.presenceOfElementLocated(queryBy)
+                            );
+
+                            // move to parent/sibling container
+                            // adjust ../.. if needed based on DOM depth
+                            WebElement filterContainer = queryElement.findElement(
+                                    By.xpath("../..")
+                            );
+
+                            logger.info("Filter container located");
+
+                            // find radio ONLY inside this container
+                            WebElement radio = filterContainer.findElement(
                                     By.cssSelector("input[type='radio'][value='" + value + "']")
                             );
 
@@ -680,6 +707,7 @@ public class ScenarioOrchestratorService {
                         String classes = valueEl.getAttribute("class");
 
                         if (tag.equalsIgnoreCase("input") || tag.equalsIgnoreCase("textarea")) {
+                            logger.info("considered input or textarea");
 
                             // ✅ NORMAL INPUT
                             valueEl = wait.until(ExpectedConditions.elementToBeClickable(valueEl));
@@ -691,6 +719,7 @@ public class ScenarioOrchestratorService {
 
                         }
                         else if (id != null && id.startsWith("select2-")) {
+                            logger.info("id starts with select2-");
 
                             // ✅ SELECT2 UI (your span case)
                             handleSelect2Dropdown(driver, valueSelector, filter.getValue());
@@ -701,7 +730,7 @@ public class ScenarioOrchestratorService {
                         else if (tag.equalsIgnoreCase("select")
                                 && classes != null
                                 && classes.contains("select2-hidden-accessible")) {
-
+                            logger.info("Handling as Select2 hidden select");
                             // ✅ SELECT2 HIDDEN SELECT
                             selectSelect2(driver, valueSelector, filter.getValue());
 
@@ -711,12 +740,14 @@ public class ScenarioOrchestratorService {
                         else if (tag.equalsIgnoreCase("select")
                                 && classes != null
                                 && classes.contains("selectpicker")) {
-
+                            logger.info("Handling as Bootstrap Select dropdown");
                             handleBootstrapSelect(driver, valueSelector, filter.getValue());
 
                             logger.info("Handled as Bootstrap Select dropdown");
                         }
                         else {
+                            logger.info("Handling as generic dropdown");
+
 
                             // ✅ GENERIC DROPDOWN
                             safeClick(driver, By.cssSelector(valueSelector));
@@ -748,7 +779,7 @@ public class ScenarioOrchestratorService {
                                 String operatorId = filter.getLogicalOperator(); // e.g. "name-operator"
 
                                 WebElement toggle = driver.findElement(
-                                        By.cssSelector("#" + operatorId)
+                                        By.cssSelector(operatorId)
                                 );
 
                                 // 🔥 BEST → JS click
@@ -810,6 +841,156 @@ public class ScenarioOrchestratorService {
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
                 }
+                else if (currScenario.getType() == ScenarioType.DATE_RANGE_NAV) {
+
+                    DateRangeNavDto dateRange = currScenario.getDateRangeNavDto();
+
+                    if (dateRange == null) {
+                        throw new GlobalExceptionHandler.ResourceNotFoundException("DateRange configuration is missing");
+                    }
+
+                    // =========================
+                    // Open Calendar
+                    // =========================
+                    WebElement inputElement = wait.until(
+                            ExpectedConditions.elementToBeClickable(
+                                    By.cssSelector(dateRange.getInputSelector())
+                            )
+                    );
+
+                    inputElement.click();
+                    screenshotService.takeScreenshot(
+                            driver,
+                            1+"",
+                            "step passed",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    // =========================
+                    // Wait for Calendar Container
+                    // =========================
+                    String containerSelector =
+                            dateRange.getCalendarContainerSelector() != null
+                                    ? dateRange.getCalendarContainerSelector()
+                                    : ".daterangepicker";
+
+                    wait.until(
+                            ExpectedConditions.visibilityOfElementLocated(
+                                    By.cssSelector(containerSelector)
+                            )
+                    );
+
+                    // =========================
+                    // PRESET MODE
+                    // =========================
+                    if (dateRange.getSelectionType() == DateSelectionType.PRESET) {
+
+                        if (dateRange.getPreset() == null) {
+
+                            throw new GlobalExceptionHandler.ResourceNotFoundException(
+                                    "Preset value is required for PRESET selection type"
+                            );
+                        }
+
+                        String presetSelector =
+                                "[data-range-key=\"" + dateRange.getPreset() + "\"]";
+
+                        WebElement presetElement = wait.until(
+                                ExpectedConditions.elementToBeClickable(
+                                        By.cssSelector(presetSelector)
+                                )
+                        );
+
+                        presetElement.click();
+                        screenshotService.takeScreenshot(
+                                driver,
+                                2+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+                    }
+
+                    // =========================
+                    // CUSTOM MODE
+                    // =========================
+                    else if (dateRange.getSelectionType()
+                            == DateSelectionType.CUSTOM) {
+
+                        if (dateRange.getStartDate() == null
+                                || dateRange.getEndDate() == null) {
+
+                            throw new GlobalExceptionHandler.ResourceNotFoundException(
+                                    "StartDate and EndDate are required for CUSTOM mode"
+                            );
+                        }
+
+                        DateTimeFormatter formatter =
+                                DateTimeFormatter.ofPattern(
+                                        dateRange.getDateFormat() != null
+                                                ? dateRange.getDateFormat()
+                                                : "dd/MM/yyyy HH:mm"
+                                );
+
+                        LocalDateTime startDateTime =
+                                LocalDateTime.parse(
+                                        dateRange.getStartDate(),
+                                        formatter
+                                );
+
+                        LocalDateTime endDateTime =
+                                LocalDateTime.parse(
+                                        dateRange.getEndDate(),
+                                        formatter
+                                );
+
+                        selectDate(driver, wait, containerSelector, startDateTime.toLocalDate());
+                        screenshotService.takeScreenshot(
+                                driver,
+                                3+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+
+                        selectDate(driver, wait, containerSelector, endDateTime.toLocalDate());
+                        screenshotService.takeScreenshot(
+                                driver,
+                                4+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+                    }
+
+                    // =========================
+                    // APPLY BUTTON
+                    // =========================
+                    Boolean autoApply = dateRange.getAutoApply();
+
+                    if (autoApply == null || !autoApply) {
+
+                        String applySelector =
+                                dateRange.getApplyButtonSelector() != null
+                                        ? dateRange.getApplyButtonSelector()
+                                        : ".applyBtn";
+
+                        WebElement applyBtn = wait.until(
+                                ExpectedConditions.elementToBeClickable(
+                                        By.cssSelector(applySelector)
+                                )
+                        );
+
+                        applyBtn.click();
+                        screenshotService.takeScreenshot(
+                                driver,
+                                5+"",
+                                "step passed",
+                                navigationScreenshotDir,
+                                scenarioPrefix
+                        );
+                    }
+                }
 
                 Thread.sleep(1000);
 
@@ -859,6 +1040,41 @@ public class ScenarioOrchestratorService {
         logger.info("Navigation phase completed. Final index {}", currIdx);
 
         return currIdx;
+    }
+    private void selectDate(
+            WebDriver driver,
+            WebDriverWait wait,
+            String containerSelector,
+            LocalDate targetDate
+    ) {
+
+        String targetDay = String.valueOf(targetDate.getDayOfMonth());
+
+        List<WebElement> availableDates = wait.until(
+                ExpectedConditions.presenceOfAllElementsLocatedBy(
+                        By.cssSelector(
+                                containerSelector + " td.available"
+                        )
+                )
+        );
+
+        for (WebElement dateCell : availableDates) {
+
+            String classes = dateCell.getAttribute("class");
+
+            if (dateCell.getText().trim().equals(targetDay)
+                    && !classes.contains("off")
+                    && !classes.contains("disabled")) {
+
+                dateCell.click();
+
+                return;
+            }
+        }
+
+        throw new GlobalExceptionHandler.ResourceNotFoundException(
+                "Unable to select date: " + targetDate
+        );
     }
     public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
                                             , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
@@ -1313,7 +1529,6 @@ public class ScenarioOrchestratorService {
             ((JavascriptExecutor) driver).executeScript(
                     "arguments[0].click();", element
             );
-
         }
     }
     private String extractValue(String locatorString) {
@@ -1471,28 +1686,82 @@ public class ScenarioOrchestratorService {
             throw new GlobalExceptionHandler.ResourceNotFoundException("Select2 handling failed for value: " + value);
         }
     }
+//    public void handleBootstrapSelect(WebDriver driver,
+//                                      String selector,
+//                                      String value) {
+//
+//        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+//
+//        WebElement select = driver.findElement(By.cssSelector(selector));
+//
+//        String id = select.getAttribute("id");
+//
+//        // Click generated button
+//        WebElement button = wait.until(ExpectedConditions.elementToBeClickable(
+//                By.cssSelector("button[data-id='" + id + "']")
+//        ));
+//
+//        button.click();
+//
+//        // Search if search box exists
+//        try {
+//            WebElement search = wait.until(ExpectedConditions.visibilityOfElementLocated(
+//                    By.cssSelector(".bs-searchbox input")
+//            ));
+//
+//            search.clear();
+//            search.sendKeys(value);
+//
+//        } catch (Exception ignored) {}
+//
+//        // Click option
+//        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+//                By.xpath("//span[@class='text' and normalize-space()='" + value + "']")
+//        ));
+//
+//        option.click();
+//    }
+
     public void handleBootstrapSelect(WebDriver driver,
                                       String selector,
                                       String value) {
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        JavascriptExecutor js = (JavascriptExecutor) driver;
 
         WebElement select = driver.findElement(By.cssSelector(selector));
 
         String id = select.getAttribute("id");
 
-        // Click generated button
-        WebElement button = wait.until(ExpectedConditions.elementToBeClickable(
+        // Generated bootstrap-select button
+        WebElement button = wait.until(ExpectedConditions.presenceOfElementLocated(
                 By.cssSelector("button[data-id='" + id + "']")
         ));
 
-        button.click();
+        // scroll first
+        js.executeScript(
+                "arguments[0].scrollIntoView({block:'center'});",
+                button
+        );
 
-        // Search if search box exists
+        // safer click
         try {
-            WebElement search = wait.until(ExpectedConditions.visibilityOfElementLocated(
-                    By.cssSelector(".bs-searchbox input")
-            ));
+            wait.until(ExpectedConditions.elementToBeClickable(button));
+            button.click();
+
+        } catch (Exception e) {
+
+            js.executeScript("arguments[0].click();", button);
+        }
+
+        // Search box if exists
+        try {
+
+            WebElement search = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                            By.cssSelector(".bs-searchbox input")
+                    )
+            );
 
             search.clear();
             search.sendKeys(value);
@@ -1500,11 +1769,33 @@ public class ScenarioOrchestratorService {
         } catch (Exception ignored) {}
 
         // Click option
-        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-                By.xpath("//span[@class='text' and normalize-space()='" + value + "']")
-        ));
+//        WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+//                By.xpath("//span[@class='text' and normalize-space()='" + value + "']")
+//        ));
+//
+//        try {
+//            option.click();
+//        } catch (Exception e) {
+//            js.executeScript("arguments[0].click();", option);
+//        }
+        By optionLocator = By.xpath(
+                "//div[contains(@class,'bootstrap-select')]" +
+                        "[.//button[@data-id='" + id + "']]" +
+                        "//div[contains(@class,'dropdown-menu') and contains(@class,'show')]" +
+                        "//span[@class='text' and normalize-space()='" + value + "']"
+        );
 
-        option.click();
+        WebElement option = wait.until(
+                ExpectedConditions.visibilityOfElementLocated(optionLocator)
+        );
+
+        js.executeScript("arguments[0].scrollIntoView({block:'center'});", option);
+
+        try {
+            option.click();
+        } catch (Exception e) {
+            js.executeScript("arguments[0].click();", option);
+        }
     }
 
 }
