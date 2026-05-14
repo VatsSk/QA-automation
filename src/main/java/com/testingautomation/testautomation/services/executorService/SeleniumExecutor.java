@@ -1,14 +1,13 @@
 package com.testingautomation.testautomation.services.executorService;
 
-import com.testingautomation.testautomation.dto.FilterScenarioDto;
-import com.testingautomation.testautomation.dto.ResultRun;
-import com.testingautomation.testautomation.dto.StepAction;
+import com.ibm.icu.impl.Assert;
+import com.testingautomation.testautomation.dto.*;
 import com.testingautomation.testautomation.entities.Scenario;
 import com.testingautomation.testautomation.enums.DataType;
+import com.testingautomation.testautomation.enums.ManageColumnAction;
 import com.testingautomation.testautomation.enums.Operator;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
-import com.testingautomation.testautomation.dto.AIValidationResult;
 import com.testingautomation.testautomation.services.TableFilterExpression;
 import com.testingautomation.testautomation.services.TableSawService;
 import com.testingautomation.testautomation.utils.TableColumnValidator;
@@ -736,6 +735,9 @@ public class SeleniumExecutor {
                     case ASSERT_FILTER:
                         assertFilters(driver,wait,step,scenarioPrefix,scenarios);
                         break;
+                    case ASSERT_MANAGE_COLUMN:
+                        assertManageColumn(driver,wait,step,scenarioPrefix,scenarios);
+                        break;
 
 
                     default:
@@ -754,6 +756,237 @@ public class SeleniumExecutor {
             String screenshotPath = screenshotService.takeScreenshot(driver, String.valueOf(tcIdx),"assert",scenarioDir,scenarioPrefix);
             tcIdx++;
         }
+    }
+//    private void assertManageColumn(
+//            WebDriver driver,
+//            WebDriverWait wait,
+//            StepAction step,
+//            String scenarioPrefix,
+//            List<Scenario> scenarios
+//    ) throws  Exception{
+//        logger.info("Executing assertManageColumn");
+//
+//        waitForPageStable(driver);
+//
+//        List<ManageColumnItemDto> manageColumnItems = scenarios.stream()
+//                .filter(scenario -> scenario.getType() == ScenarioType.MANAGE_COL_NAV)
+//                .findFirst()
+//                .map(Scenario::getColumns)
+//                .orElseThrow(() ->
+//                        new GlobalExceptionHandler.BadRequestException(
+//                                "No MANAGE_COLUMN scenario found"
+//                        ));
+//
+//        waitForPageStable(driver);
+//
+//        Table currTable = tableSawService.extractDataTableToTablesaw(driver, step);
+//
+//        // Extract actual visible column names from table
+//        List<String> actualColumns = currTable.columnNames();
+//
+//        logger.info("Actual table columns: {}", actualColumns);
+//
+//        for (ManageColumnItemDto item : manageColumnItems) {
+//
+//            String expectedColumn =
+//                    item.getExtractedName() != null
+//                            ? item.getExtractedName()
+//                            : item.getColumnName();
+//
+//            boolean exists = actualColumns.contains(expectedColumn);
+//
+//            // SHOW => column must exist
+//            if (item.getAction() == ManageColumnAction.SHOW) {
+//
+//                if(!exists){
+//                    throw new Exception("Column is not visible");
+//                }
+//
+//                // Validate order if position provided
+//                if (item.getPosition() != null) {
+//
+//                    int actualPosition = actualColumns.indexOf(expectedColumn) + 1;
+//
+//                    if(actualPosition != item.getPosition()){
+//                        throw new Exception("Column position mismatch for: " + expectedColumn);
+//                    }
+//                }
+//            }
+//
+//            // HIDE => column must NOT exist
+//            else if (item.getAction() == ManageColumnAction.HIDE) {
+//
+//                if(exists){
+//                    throw new Exception("Column is visible");
+//                }
+//            }
+//        }
+//
+//        logger.info("Manage column assertion completed successfully");
+//    }
+
+    private void assertManageColumn(
+            WebDriver driver,
+            WebDriverWait wait,
+            StepAction step,
+            String scenarioPrefix,
+            List<Scenario> scenarios
+    ) throws Exception {
+
+        logger.info("===== START : assertManageColumn =====");
+
+        waitForPageStable(driver);
+
+        List<ManageColumnItemDto> manageColumnItems = scenarios.stream()
+                .filter(scenario -> scenario.getType() == ScenarioType.MANAGE_COL_NAV)
+                .findFirst()
+                .map(Scenario::getColumns)
+                .orElseThrow(() ->
+                        new GlobalExceptionHandler.BadRequestException(
+                                "No MANAGE_COLUMN scenario found"
+                        ));
+
+        logger.info("Fetched manage column items: {}", manageColumnItems);
+
+        waitForPageStable(driver);
+
+        Table currTable = tableSawService.extractDataTableToTablesaw(driver, step);
+
+        // Extract actual visible column names from table
+        List<String> actualColumns = currTable.columnNames();
+
+        logger.info("Actual visible table columns: {}", actualColumns);
+
+        for (ManageColumnItemDto item : manageColumnItems) {
+
+            logger.info("------------------------------------------------");
+
+            logger.info("Validating manage column item: {}", item);
+
+            String expectedColumn =
+                    item.getExtractedName() != null
+                            ? item.getExtractedName()
+                            : item.getColumnName();
+
+            logger.info("Expected column name resolved to: {}", expectedColumn);
+
+            boolean exists = actualColumns.contains(expectedColumn);
+
+            logger.info(
+                    "Column [{}] exists in table: {}",
+                    expectedColumn,
+                    exists
+            );
+
+            /*
+             * =========================
+             * SHOW VALIDATION
+             * =========================
+             */
+            if (item.getAction() == ManageColumnAction.SHOW) {
+
+                logger.info(
+                        "Validating SHOW action for column [{}]",
+                        expectedColumn
+                );
+
+                if (!exists) {
+
+                    logger.error(
+                            "SHOW validation failed. Column [{}] not found in visible table columns",
+                            expectedColumn
+                    );
+
+                    throw new Exception(
+                            "Column is not visible: " + expectedColumn
+                    );
+                }
+
+                logger.info(
+                        "SHOW validation passed for column [{}]",
+                        expectedColumn
+                );
+
+                /*
+                 * POSITION VALIDATION
+                 */
+                if (item.getPosition() != null) {
+
+                    int actualPosition =
+                            actualColumns.indexOf(expectedColumn) + 1;
+
+                    logger.info(
+                            "Expected position for column [{}] => {}",
+                            expectedColumn,
+                            item.getPosition()
+                    );
+
+                    logger.info(
+                            "Actual position for column [{}] => {}",
+                            expectedColumn,
+                            actualPosition
+                    );
+
+                    if (actualPosition != item.getPosition()) {
+
+                        logger.error(
+                                "Position validation failed for column [{}]. Expected={}, Actual={}",
+                                expectedColumn,
+                                item.getPosition(),
+                                actualPosition
+                        );
+
+                        throw new Exception(
+                                "Column position mismatch for: "
+                                        + expectedColumn
+                                        + " | Expected="
+                                        + item.getPosition()
+                                        + " | Actual="
+                                        + actualPosition
+                        );
+                    }
+
+                    logger.info(
+                            "Position validation passed for column [{}]",
+                            expectedColumn
+                    );
+                }
+            }
+
+            /*
+             * =========================
+             * HIDE VALIDATION
+             * =========================
+             */
+            else if (item.getAction() == ManageColumnAction.HIDE) {
+
+                logger.info(
+                        "Validating HIDE action for column [{}]",
+                        expectedColumn
+                );
+
+                if (exists) {
+
+                    logger.error(
+                            "HIDE validation failed. Column [{}] is still visible",
+                            expectedColumn
+                    );
+
+                    throw new Exception(
+                            "Column is visible: " + expectedColumn
+                    );
+                }
+
+                logger.info(
+                        "HIDE validation passed for column [{}]",
+                        expectedColumn
+                );
+            }
+        }
+
+        logger.info("All manage column assertions passed successfully");
+
+        logger.info("===== END : assertManageColumn =====");
     }
     private void assertFilters(WebDriver driver,
                                WebDriverWait wait,

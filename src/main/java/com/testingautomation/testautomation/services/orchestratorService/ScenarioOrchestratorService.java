@@ -3,6 +3,8 @@ package com.testingautomation.testautomation.services.orchestratorService;
 
 import com.testingautomation.testautomation.dto.*;
 import com.testingautomation.testautomation.enums.DateSelectionType;
+import com.testingautomation.testautomation.enums.DateSelectionType;
+import com.testingautomation.testautomation.enums.ManageColumnAction;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
@@ -38,6 +40,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
 
@@ -714,7 +717,9 @@ public class ScenarioOrchestratorService {
                                     By.cssSelector("input[type='radio'][value='" + value + "']")
                             );
 
-                            // 🔥 BEST → JS click (reliable)
+                            logger.info("Radio found inside current filter block");
+
+                            // JS click
                             ((JavascriptExecutor) driver).executeScript(
                                     "arguments[0].click();",
                                     radio
@@ -1568,6 +1573,7 @@ public class ScenarioOrchestratorService {
             ((JavascriptExecutor) driver).executeScript(
                     "arguments[0].click();", element
             );
+
         }
     }
     private String extractValue(String locatorString) {

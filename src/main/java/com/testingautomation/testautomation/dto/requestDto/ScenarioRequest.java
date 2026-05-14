@@ -3,6 +3,7 @@ package com.testingautomation.testautomation.dto.requestDto;
 import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
+import com.testingautomation.testautomation.dto.ManageColumnItemDto;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -38,4 +39,6 @@ public class ScenarioRequest {
     private String applyFilterBtn;
     private String clickCss;
     private DateRangeNavDto dateRangeNavDto;
+    private String saveBtnCss;
+    private List<ManageColumnItemDto> columns;
 }

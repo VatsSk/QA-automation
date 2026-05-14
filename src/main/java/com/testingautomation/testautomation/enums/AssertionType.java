@@ -23,5 +23,6 @@ public enum AssertionType {
     ASSERT_API_CALLED,
     ASSERT_ATTRIBUTE,
     ASSERT_AI,
-    ASSERT_FILTER
+    ASSERT_FILTER,
+    ASSERT_MANAGE_COLUMN
 }

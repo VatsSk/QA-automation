@@ -4,6 +4,7 @@ package com.testingautomation.testautomation.entities;
 import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
+import com.testingautomation.testautomation.dto.ManageColumnItemDto;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
@@ -72,4 +73,6 @@ public class Scenario {
     private String clickCss;
     private String scenarioBasePath;
     private DateRangeNavDto dateRangeNavDto;
+    private String saveBtnCss;
+    private List<ManageColumnItemDto> columns;
 }

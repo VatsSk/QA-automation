@@ -47,25 +47,6 @@ public class AssertionStepGenerator {
         return steps;
     }
 
-    /**
-     * Map AssertionType → StepAction.ActionType
-     */
-//    private StepAction.ActionType mapToActionType(AssertionType type) {
-//
-//        return switch (type) {
-//            case ASSERT_VISIBLE -> StepAction.ActionType.ASSERT_VISIBLE;
-//            case ASSERT_NOT_VISIBLE -> StepAction.ActionType.ASSERT_NOT_VISIBLE;
-//            case ASSERT_ELEMENT_PRESENT -> StepAction.ActionType.ASSERT_ELEMENT_PRESENT;
-//            case ASSERT_TEXT_EQUALS -> StepAction.ActionType.ASSERT_TEXT_EQUALS;
-//            case ASSERT_TEXT_CONTAINS -> StepAction.ActionType.ASSERT_TEXT_CONTAINS;
-//            case ASSERT_COLUMN_PRESENT -> StepAction.ActionType.ASSERT_COLUMN_PRESENT;
-//            case ASSERT_SORT_ORDER -> StepAction.ActionType.ASSERT_SORT_ORDER;
-//            case ASSERT_COUNT -> StepAction.ActionType.ASSERT_COUNT;
-//            case ASSERT_API_CALLED -> StepAction.ActionType.ASSERT_API_CALLED;
-//            case ASSERT_ATTRIBUTE -> StepAction.ActionType.ASSERT_ATTRIBUTE;
-//        };
-
-//    }
     private StepAction.ActionType mapToActionType(AssertionType type) {
 
         switch (type) {
@@ -103,6 +84,8 @@ public class AssertionStepGenerator {
                 return StepAction.ActionType.ASSERT_AI;
             case ASSERT_FILTER:
                 return StepAction.ActionType.ASSERT_FILTER;
+            case ASSERT_MANAGE_COLUMN:
+                return StepAction.ActionType.ASSERT_MANAGE_COLUMN;
 
             default:
                 throw new GlobalExceptionHandler.BadRequestException(
