@@ -21,7 +21,7 @@ public class ProjectController {
     @GetMapping
     public ResponseEntity<List<ProjectResponse>> getProjects(
             @RequestParam(required = false) String createdBy) {
-        System.out.println("created by : "+ createdBy);
+//        System.out.println("created by : "+ createdBy);
         List<ProjectResponse> projects = projectService.getProjects(createdBy);
         return ResponseEntity.ok(projects != null ? projects : List.of());
     }

@@ -160,7 +160,7 @@ public class ScenarioOrchestratorService {
             String navScreenshot = screenshotService.takeScreenshot(
                     driver,
                     "1",
-                    "step "+TimestampUtil.generateTimestamp(),
+                    "step "+1,
                     scenarioDir,
                     scenarioPrefix
             );
@@ -183,7 +183,7 @@ public class ScenarioOrchestratorService {
                 String verifyScreenshot = screenshotService.takeScreenshot(
                         driver,
                         "1",
-                        "step "+TimestampUtil.generateTimestamp(),
+                        "step "+2,
                         scenarioDir,
                         scenarioPrefix
                 );
@@ -205,7 +205,7 @@ public class ScenarioOrchestratorService {
                 String failScreenshot = screenshotService.takeScreenshot(
                         driver,
                         "1",
-                        "step "+ TimestampUtil.generateTimestamp(),
+                        "step "+ 3,
                         scenarioDir,
                         scenarioPrefix
                 );
@@ -411,8 +411,7 @@ public class ScenarioOrchestratorService {
                     logger.info("Search element located: tag={}", opener.getTagName());
 
                     // CASE 1 — search input field
-                    if (opener.getTagName().equalsIgnoreCase("input") ||
-                            "true".equals(opener.getAttribute("contenteditable"))) {
+                    if (opener.getTagName().equalsIgnoreCase("input") || "true".equals(opener.getAttribute("contenteditable"))) {
 
                         logger.info("Detected input search field");
 
@@ -425,6 +424,24 @@ public class ScenarioOrchestratorService {
                             }
                         } catch (Exception ignored) {
                             logger.info("No tree selector opener found, continuing normal search");
+                            logger.info("No .treeSelector-input-box found, trying employee dropdown fallback");
+
+                            try {
+
+                                WebElement dropdownBtn = wait.until(
+                                        ExpectedConditions.elementToBeClickable(
+                                                By.cssSelector("#employee-dropdown-btn")
+                                        )
+                                );
+
+                                dropdownBtn.click();
+
+                                logger.info("Opened employee dropdown using fallback");
+
+                            } catch (Exception fallbackEx) {
+
+                                logger.warn("Employee dropdown fallback also failed", fallbackEx);
+                            }
                         }
 
                         opener.clear();
@@ -444,11 +461,32 @@ public class ScenarioOrchestratorService {
                         Thread.sleep(500);
 
                         try{
-                            WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-                                    By.xpath("//*[@data-title='" + value + "']//input")
-                            ));
+                            try {
+                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
+                                        By.xpath("//*[@data-title='" + value + "']//input")
+                                ));
+                                option.click();
+                            }catch (Exception e){
+                                logger.info("Fallback to span");
+//                                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
-                            option.click();
+                                WebElement option = wait.until(
+                                        ExpectedConditions.presenceOfElementLocated(
+                                                By.xpath("//span[contains(@class,'tittle-list') and contains(text(),'" + value + "')]/preceding-sibling::input[@type='checkbox']")
+                                        )
+                                );
+
+                                ((JavascriptExecutor) driver)
+                                        .executeScript("arguments[0].click();", option);
+
+                                WebElement applyButton = wait.until(
+                                        ExpectedConditions.elementToBeClickable(
+                                                By.id("apply-button")
+                                        )
+                                );
+
+                                applyButton.click();
+                            }
                             logger.info("Clicked checkbox for option: {}", value);
                             // 📸 Step 2 → after selecting option
                             screenshotService.takeScreenshot(
@@ -1041,6 +1079,7 @@ public class ScenarioOrchestratorService {
 
         return currIdx;
     }
+
     private void selectDate(
             WebDriver driver,
             WebDriverWait wait,
