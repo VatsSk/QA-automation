@@ -3,6 +3,7 @@ package com.testingautomation.testautomation.services.orchestratorService;
 
 import com.testingautomation.testautomation.dto.*;
 import com.testingautomation.testautomation.enums.DateSelectionType;
+import com.testingautomation.testautomation.enums.ManageColumnAction;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
@@ -38,6 +39,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
 
@@ -994,6 +996,9 @@ public class ScenarioOrchestratorService {
                         );
                     }
                 }
+                else if(currScenario.getType()== ScenarioType.MANAGE_COL_NAV){
+                    handleManageColumnScenario(driver, wait, currScenario);
+                }
 
                 Thread.sleep(1000);
 
@@ -1043,6 +1048,585 @@ public class ScenarioOrchestratorService {
         logger.info("Navigation phase completed. Final index {}", currIdx);
 
         return currIdx;
+    }
+//    private void handleManageColumnScenario(
+//            WebDriver driver,
+//            WebDriverWait wait,
+//            Scenario currScenario
+//    ) throws InterruptedException {
+//
+//        logger.info("===== START : handleManageColumnScenario =====");
+//
+//        List<ManageColumnItemDto> targetColumns = currScenario.getColumns();
+//
+//        logger.info("Fetched target columns from scenario: {}", targetColumns);
+//
+//        if(targetColumns == null || targetColumns.isEmpty()){
+//            logger.info("No target columns found. Exiting method.");
+//            return;
+//        }
+//
+//        /*
+//         * Step 1:
+//         * Create lookup set for target visible columns
+//         */
+//        logger.info("Step 1: Preparing target visible columns set.");
+//
+//        Set<String> targetVisibleColumns = targetColumns.stream()
+//                .map(ManageColumnItemDto::getColumnName)
+//                .collect(Collectors.toSet());
+//
+//        logger.info("Target visible columns: {}", targetVisibleColumns);
+//
+//        /*
+//         * Step 2:
+//         * Fetch all checkboxes from modal
+//         */
+//        logger.info("Step 2: Fetching all manage column checkboxes.");
+//
+//        List<WebElement> allCheckboxes = driver.findElements(
+//                By.cssSelector(".manage-column-checkbox")
+//        );
+//
+//        logger.info("Total checkboxes found: {}", allCheckboxes.size());
+//
+//        /*
+//         * Step 3:
+//         * Hide / Unhide columns
+//         */
+//        logger.info("Step 3: Processing visibility of columns.");
+//
+//        for(WebElement checkbox : allCheckboxes){
+//
+//            String checkboxId = checkbox.getAttribute("id");
+//
+//            logger.info("Processing checkbox with id: {}", checkboxId);
+//
+//            if(checkboxId == null || !checkboxId.startsWith("column-item-")){
+//                logger.info("Skipping invalid checkbox id: {}", checkboxId);
+//                continue;
+//            }
+//
+//            String columnName = checkboxId
+//                    .replace("column-item-", "")
+//                    .trim();
+//
+//            logger.info("Resolved column name: {}", columnName);
+//
+//            boolean shouldBeVisible =
+//                    targetVisibleColumns.contains(columnName);
+//
+//            boolean currentlyVisible =
+//                    checkbox.isSelected();
+//
+//            logger.info(
+//                    "Column [{}] => shouldBeVisible={}, currentlyVisible={}",
+//                    columnName,
+//                    shouldBeVisible,
+//                    currentlyVisible
+//            );
+//
+//            /*
+//             * If should be visible but hidden -> click
+//             */
+//            if(shouldBeVisible && !currentlyVisible){
+//
+//                logger.info(
+//                        "Making column visible: {}",
+//                        columnName
+//                );
+//
+//                ((JavascriptExecutor) driver)
+//                        .executeScript("arguments[0].click();", checkbox);
+//
+//                logger.info(
+//                        "Column visibility enabled successfully: {}",
+//                        columnName
+//                );
+//            }
+//
+//            /*
+//             * If should NOT be visible but visible -> click
+//             */
+//            else if(!shouldBeVisible && currentlyVisible){
+//
+//                logger.info(
+//                        "Hiding column: {}",
+//                        columnName
+//                );
+//
+//                ((JavascriptExecutor) driver)
+//                        .executeScript("arguments[0].click();", checkbox);
+//
+//                logger.info(
+//                        "Column hidden successfully: {}",
+//                        columnName
+//                );
+//            } else {
+//
+//                logger.info(
+//                        "No visibility change required for column: {}",
+//                        columnName
+//                );
+//            }
+//        }
+//
+//        /*
+//         * Step 4:
+//         * Move only visible columns having position
+//         */
+//        logger.info("Step 4: Preparing ordered columns for movement.");
+//
+//        List<ManageColumnItemDto> orderedColumns = targetColumns.stream()
+//                .filter(col -> col.getPosition() != null)
+//                .sorted(Comparator.comparingInt(
+//                        ManageColumnItemDto::getPosition
+//                ))
+//                .toList();
+//
+//        logger.info("Ordered columns for movement: {}", orderedColumns);
+//
+//        for(ManageColumnItemDto column : orderedColumns){
+//
+//            logger.info(
+//                    "Moving column [{}] to position [{}]",
+//                    column.getColumnName(),
+//                    column.getPosition()
+//            );
+//
+//            moveManageColumn(
+//                    driver,
+//                    column.getColumnName(),
+//                    column.getPosition()
+//            );
+//
+//            logger.info(
+//                    "Column moved successfully [{}]",
+//                    column.getColumnName()
+//            );
+//        }
+//
+//        /*
+//         * Step 5:
+//         * Capture final visible column sequence for assertion
+//         */
+//        logger.info("Step 5: Fetching final visible columns sequence.");
+//
+//        String expectedVisibleColumns = fetchVisibleColumns(driver);
+//
+//        logger.info(
+//                "Final visible columns sequence: {}",
+//                expectedVisibleColumns
+//        );
+//
+//        /*
+//         * Store expected cols in scenario value
+//         */
+//        currScenario.setValue(expectedVisibleColumns);
+//
+//        logger.info(
+//                "Stored expected visible columns in scenario value."
+//        );
+//
+//        /*
+//         * Step 6:
+//         * Click save
+//         */
+//        logger.info("Step 6: Clicking save button.");
+//
+//        WebElement saveBtn = wait.until(
+//                ExpectedConditions.elementToBeClickable(
+//                        By.cssSelector(currScenario.getSaveBtnCss())
+//                )
+//        );
+//
+//        logger.info("Save button became clickable.");
+//
+//        ((JavascriptExecutor) driver)
+//                .executeScript("arguments[0].click();", saveBtn);
+//
+//        logger.info("Save button clicked successfully.");
+//
+//        Thread.sleep(1500);
+//
+//        logger.info("Wait completed after save operation.");
+//
+//        logger.info("===== END : handleManageColumnScenario =====");
+//    }
+
+//    private void handleManageColumnScenario(
+//            WebDriver driver,
+//            WebDriverWait wait,
+//            Scenario currScenario
+//    ) throws InterruptedException {
+//
+//        logger.info("===== START : handleManageColumnScenario =====");
+//
+//        List<ManageColumnItemDto> targetColumns =
+//                currScenario.getColumns();
+//
+//        logger.info(
+//                "Fetched target columns from scenario: {}",
+//                targetColumns
+//        );
+//
+//        if(targetColumns == null || targetColumns.isEmpty()){
+//
+//            logger.info(
+//                    "No target columns found. Exiting method."
+//            );
+//
+//            return;
+//        }
+//
+//        /*
+//         * Step 1:
+//         * Process only user passed selectors
+//         */
+//        for(ManageColumnItemDto column : targetColumns){
+//
+//            String columnSelector =
+//                    column.getColumnName();
+//
+//            Integer position =
+//                    column.getPosition();
+//
+//            logger.info(
+//                    "Processing columnSelector={}, position={}",
+//                    columnSelector,
+//                    position
+//            );
+//
+//            WebElement label = wait.until(
+//                    ExpectedConditions.presenceOfElementLocated(
+//                            By.cssSelector(columnSelector)
+//                    )
+//            );
+//
+//            String forAttr = label.getAttribute("for");
+//
+//            logger.info(
+//                    "Resolved for attribute: {}",
+//                    forAttr
+//            );
+//
+//            WebElement checkbox = driver.findElement(
+//                    By.id(forAttr)
+//            );
+//
+//            /*
+//             * Unhide if hidden
+//             */
+//            if(!checkbox.isSelected()){
+//
+//                logger.info(
+//                        "Column hidden. Clicking checkbox to unhide."
+//                );
+//
+//                ((JavascriptExecutor) driver)
+//                        .executeScript(
+//                                "arguments[0].click();",
+//                                checkbox
+//                        );
+//
+//                Thread.sleep(500);
+//
+//                logger.info(
+//                        "Column unhidden successfully."
+//                );
+//            }
+//
+//            /*
+//             * Move only if position exists
+//             */
+//            if(position != null){
+//
+//                String columnTitle =
+//                        label.getText().trim();
+//
+//                logger.info(
+//                        "Moving column [{}] to position [{}]",
+//                        columnTitle,
+//                        position
+//                );
+//
+//                moveManageColumn(
+//                        driver,
+//                        columnTitle,
+//                        position
+//                );
+//            }
+//        }
+//
+//        /*
+//         * Step 2:
+//         * Capture visible column order
+//         */
+//        String expectedVisibleColumns =
+//                fetchVisibleColumns(driver);
+//
+//        logger.info(
+//                "Captured visible columns: {}",
+//                expectedVisibleColumns
+//        );
+//
+//        currScenario.setValue(expectedVisibleColumns);
+//
+//        /*
+//         * Step 3:
+//         * Save
+//         */
+//        logger.info(
+//                "Clicking save button: {}",
+//                currScenario.getSaveBtnCss()
+//        );
+//
+//        WebElement saveBtn = wait.until(
+//                ExpectedConditions.elementToBeClickable(
+//                        By.cssSelector(
+//                                currScenario.getSaveBtnCss()
+//                        )
+//                )
+//        );
+//
+//        ((JavascriptExecutor) driver)
+//                .executeScript(
+//                        "arguments[0].click();",
+//                        saveBtn
+//                );
+//
+//        Thread.sleep(1500);
+//
+//        logger.info("===== END : handleManageColumnScenario =====");
+//    }
+private void handleManageColumnScenario(
+        WebDriver driver,
+        WebDriverWait wait,
+        Scenario currScenario
+) throws InterruptedException {
+
+    logger.info("===== START : handleManageColumnScenario =====");
+
+    List<ManageColumnItemDto> targetColumns =
+            currScenario.getColumns();
+
+    logger.info("Fetched target columns: {}", targetColumns);
+
+    if (targetColumns == null || targetColumns.isEmpty()) {
+        logger.info("No target columns found. Exiting.");
+        return;
+    }
+
+    for (ManageColumnItemDto column : targetColumns) {
+
+        String columnSelector = column.getColumnName();
+        Integer position = column.getPosition();
+        ManageColumnAction action = column.getAction();
+
+        logger.info(
+                "Processing columnSelector={}, action={}, position={}",
+                columnSelector, action, position
+        );
+
+        WebElement label = wait.until(
+                ExpectedConditions.presenceOfElementLocated(
+                        By.cssSelector(columnSelector)
+                )
+        );
+
+        String forAttr = label.getAttribute("for");
+
+        WebElement checkbox = driver.findElement(By.id(forAttr));
+
+        boolean isSelected = checkbox.isSelected();
+
+        /*
+         * =========================
+         * HANDLE ACTION
+         * =========================
+         */
+        if (action == ManageColumnAction.HIDE) {
+
+            if (isSelected) {
+
+                logger.info("Hiding column: {}", columnSelector);
+
+                ((JavascriptExecutor) driver)
+                        .executeScript("arguments[0].click();", checkbox);
+
+                Thread.sleep(300);
+            }
+
+            continue; // no move allowed for hidden columns
+        }
+
+        /*
+         * SHOW or NULL => ensure visible
+         */
+        if (!isSelected) {
+
+            logger.info("Ensuring column is visible: {}", columnSelector);
+
+            ((JavascriptExecutor) driver)
+                    .executeScript("arguments[0].click();", checkbox);
+
+            Thread.sleep(300);
+        }
+
+        /*
+         * =========================
+         * HANDLE POSITION (MOVE)
+         * =========================
+         */
+        if (position != null) {
+
+            String columnTitle = label.getText().trim();
+
+            logger.info(
+                    "Moving column [{}] to position [{}]",
+                    columnTitle,
+                    position
+            );
+
+            moveManageColumn(driver, columnTitle, position);
+        }
+    }
+
+    /*
+     * Capture final visible order
+     */
+//    String expectedVisibleColumns = fetchVisibleColumns(driver);
+//
+//    logger.info("Final visible columns: {}", expectedVisibleColumns);
+//
+//    currScenario.setValue(expectedVisibleColumns);
+
+    /*
+     * Click save
+     */
+    WebElement saveBtn = wait.until(
+            ExpectedConditions.elementToBeClickable(
+                    By.cssSelector(currScenario.getSaveBtnCss())
+            )
+    );
+
+    ((JavascriptExecutor) driver)
+            .executeScript("arguments[0].click();", saveBtn);
+
+    Thread.sleep(1500);
+
+    logger.info("===== END : handleManageColumnScenario =====");
+}
+    private void moveManageColumn(
+            WebDriver driver,
+            String columnName,
+            Integer position
+    ){
+
+        logger.info(
+                "===== START : moveManageColumn | columnName={}, position={} =====",
+                columnName,
+                position
+        );
+
+        if(position == null){
+            logger.info(
+                    "Position is null for column [{}]. Skipping move operation.",
+                    columnName
+            );
+            return;
+        }
+
+        String js = """
+        const columnName = arguments[0];
+        const position = arguments[1];
+
+        const list = document.getElementById(
+            "manage-column-sortable-list"
+        );
+
+        if(!list){
+            return;
+        }
+
+        const items = [...list.children];
+
+        const item = items.find(li =>li.querySelector(".column-title")?.textContent?.trim() === columnName);
+
+        if (!item) return;
+        
+
+        /*
+         * Move only if visible
+         */
+        const checkbox = item.querySelector(
+            ".manage-column-checkbox"
+        );
+
+        if(!checkbox || !checkbox.checked){
+            return;
+        }
+
+        item.remove();
+
+        list.insertBefore(
+            item,
+            list.children[position]
+        );
+        """;
+
+        logger.info(
+                "Executing JavaScript for moving column [{}] to position [{}]",
+                columnName,
+                position
+        );
+
+        ((JavascriptExecutor) driver)
+                .executeScript(
+                        js,
+                        columnName,
+                        position - 1 // convert to 0-based
+                );
+
+        logger.info(
+                "Successfully executed move operation for column [{}]",
+                columnName
+        );
+
+        logger.info("===== END : moveManageColumn =====");
+    }
+
+    private String fetchVisibleColumns(WebDriver driver){
+
+        logger.info("===== START : fetchVisibleColumns =====");
+
+        String js = """
+        return [...document.querySelectorAll(
+            '#manage-column-sortable-list li'
+        )]
+        .map(li =>
+            li.querySelector('.column-title')
+                ?.textContent
+                ?.trim()
+        )
+        .filter(Boolean)
+        .join('|');
+        """;
+
+        logger.info("Executing JavaScript to fetch visible columns.");
+
+        String visibleColumns = (String)
+                ((JavascriptExecutor) driver)
+                        .executeScript(js);
+
+        logger.info(
+                "Fetched visible columns sequence: {}",
+                visibleColumns
+        );
+
+        logger.info("===== END : fetchVisibleColumns =====");
+
+        return visibleColumns;
     }
     private void selectDate(
             WebDriver driver,
