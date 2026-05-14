@@ -7,6 +7,8 @@ import lombok.Data;
 public class ManageColumnItemDto {
     private String columnName;
 
+    private String extractedName;
+
     //SHOW,HIDE
     private ManageColumnAction action;
 
