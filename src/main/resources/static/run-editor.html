@@ -99,7 +99,7 @@
 <script type="module">
     import * as api      from './js/api.js';
     import * as assrtFunc      from './js/assertions_functions.js';
-    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES } from './js/config.js';
+    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES,DATE_SELECTION_TYPES,DATE_PRESET_TYPES } from './js/config.js';
     import { esc, toast, openModal, closeModal,
         requireLogin, initTheme, toggleTheme } from './js/utils.js';
     import {buildPayload} from './js/payload.js';
@@ -1004,7 +1004,15 @@
                         logicalOperatorSelector: f.logicalOperator || ''
                     })),
 
-                    applyBtnCss: s.applyFilterBtn || ''
+                    applyBtnCss: s.applyFilterBtn || '',
+                    inputSelector: s.dateRangeNavDto?.inputSelector || '',
+                    selectionType: s.dateRangeNavDto?.selectionType || 'PRESET',
+                    preset: s.dateRangeNavDto?.preset || 'LAST_MONTH',
+                    startDate: s.dateRangeNavDto?.startDate || '',
+                    endDate: s.dateRangeNavDto?.endDate || '',
+                    applyButtonSelector: s.dateRangeNavDto?.applyButtonSelector || '',
+                    calendarContainerSelector: s.dateRangeNavDto?.calendarContainerSelector || '',
+                    dateFormat: s.dateRangeNavDto?.dateFormat || ''
                 }));
                 renderSidebar();
                 renderPanel();
@@ -1215,9 +1223,150 @@
         ${s.type === 'ASSERT' ? assrtFunc.renderAssertionsSection(scIdx, s) : ''}
 
         ${s.type === 'FILTER_NAV' ? renderFiltersSection(scIdx, s) : ''}
+        ${s.type === 'DATE_RANGE_NAV'?renderDateSection(scIdx,s):''}
 
       </div>
     </div>`;
+    }
+
+    function renderDateSection(idx, s) {
+
+        return `
+    <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r)">
+
+        <!-- Input Selector -->
+        <div class="field">
+            <label class="lbl">Input Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.inputSelector || '')}"
+                placeholder="#date-range-input"
+                oninput="updateField(${idx}, 'inputSelector', this.value)">
+        </div>
+
+        <!-- Calendar Container Selector -->
+        <div class="field">
+            <label class="lbl">Calendar Container Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.calendarContainerSelector || '')}"
+                placeholder=".calendar-container"
+                oninput="updateField(${idx}, 'calendarContainerSelector', this.value)">
+        </div>
+
+        <!-- Apply Button Selector -->
+        <div class="field">
+            <label class="lbl">Apply Button Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.applyButtonSelector || '')}"
+                placeholder=".apply-btn"
+                oninput="updateField(${idx}, 'applyButtonSelector', this.value)">
+        </div>
+
+        <!-- Selection Type -->
+        <div class="field">
+            <label class="lbl">Selection Type *</label>
+
+            <select
+                class="inp"
+                onchange="updateScenarioAndRender(${idx}, 'selectionType', this.value)">
+
+                ${DATE_SELECTION_TYPES.map(t => `
+                    <option
+                        value="${t.value}"
+                        ${s.selectionType === t.value ? 'selected' : ''}>
+                        ${t.label}
+                    </option>
+                `).join('')}
+
+            </select>
+        </div>
+
+        ${
+            s.selectionType === 'PRESET'
+                ? `
+                    <!-- PRESET DROPDOWN -->
+                    <div class="field">
+                        <label class="lbl">Preset *</label>
+
+                        <select
+                            class="inp"
+                            onchange="updateField(${idx}, 'preset', this.value)">
+
+                            ${DATE_PRESET_TYPES.map(p => `
+                                <option
+                                    value="${p.value}"
+                                    ${s.preset === p.value ? 'selected' : ''}>
+                                    ${p.label}
+                                </option>
+                            `).join('')}
+
+                        </select>
+                    </div>
+                `
+                : ''
+        }
+
+        ${
+            s.selectionType === 'CUSTOM'
+                ? `
+                    <!-- START DATE -->
+                    <div class="field">
+                        <label class="lbl">Start Date *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.startDate || '')}"
+                            placeholder="01/01/2026 00:00"
+                            oninput="updateField(${idx}, 'startDate', this.value)">
+                    </div>
+
+                    <!-- END DATE -->
+                    <div class="field">
+                        <label class="lbl">End Date *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.endDate || '')}"
+                            placeholder="31/01/2026 23:59"
+                            oninput="updateField(${idx}, 'endDate', this.value)">
+                    </div>
+
+                    <!-- DATE FORMAT -->
+                    <div class="field">
+                        <label class="lbl">Date Format *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.dateFormat || '')}"
+                            placeholder="dd/MM/yyyy HH:mm"
+                            oninput="updateField(${idx}, 'dateFormat', this.value)">
+                    </div>
+                `
+                : ''
+        }
+
+    </div>
+    `;
+    }
+
+    window.updateScenarioAndRender = function(idx, key, value) {
+        if (!scenarios[idx]) return;
+        scenarios[idx][key] = value;
+
+        if (key === 'selectionType') {
+            if (value === 'PRESET') {
+                scenarios[idx].preset = scenarios[idx].preset || 'LAST_MONTH';
+                scenarios[idx].startDate = '';
+                scenarios[idx].endDate = '';
+                scenarios[idx].dateFormat = '';
+            } else if (value === 'CUSTOM') {
+                scenarios[idx].preset = '';
+            }
+        }
+
+        renderPanel();
     }
 
     function renderFiltersSection(idx, s) {
@@ -1703,6 +1852,19 @@
             newScenario.filters = [];
             newScenario.applyBtnCss = '';
         }
+        if (type === 'DATE_RANGE_NAV') {
+
+            newScenario.inputSelector = '';
+            newScenario.selectionType = 'PRESET';
+            // preset mode
+            newScenario.preset = 'LAST_MONTH';
+            // custom mode
+            newScenario.startDate = '';
+            newScenario.endDate = '';
+            newScenario.applyButtonSelector = '';
+            newScenario.calendarContainerSelector = '';
+            newScenario.dateFormat = '';
+        }
 
         console.log(type+"choosen!")
 
@@ -1802,6 +1964,91 @@
                     selectScenario(i);
                     return false;
                 }
+            }
+            else if (s.type === 'DATE_RANGE_NAV'){
+                if (!validateDateRangeNavScenario(s, i)) return false;
+            }
+
+        }
+
+        return true;
+    }
+
+    function validateDateRangeNavScenario(s, index) {
+
+        // always required
+        const requiredFields = [
+            'inputSelector',
+            'calendarContainerSelector',
+            'applyButtonSelector',
+            'selectionType'
+        ];
+
+        for (const field of requiredFields) {
+
+            const val = s[field];
+
+            if (!val || (typeof val === 'string' && !val.trim())) {
+
+                toast(
+                    `Scenario #${index + 1}: "${field}" is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+        }
+
+        // PRESET validation
+        if (s.selectionType === 'PRESET') {
+
+            if (!s.preset || !s.preset.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Preset is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+        }
+
+        // CUSTOM validation
+        if (s.selectionType === 'CUSTOM') {
+
+            if (!s.startDate?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Start Date is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+
+            if (!s.endDate?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: End Date is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+
+            if (!s.dateFormat?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Date Format is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
             }
         }
 

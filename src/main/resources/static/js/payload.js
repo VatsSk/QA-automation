@@ -120,6 +120,18 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
                 : undefined,
 
             applyFilterBtn: s.type === 'FILTER_NAV' ? s.applyBtnCss : undefined,
+            dateRangeNavDto: s.type === 'DATE_RANGE_NAV'
+                ? {
+                    inputSelector: s.inputSelector || null,
+                    calendarContainerSelector: s.calendarContainerSelector || null,
+                    applyButtonSelector: s.applyButtonSelector || null,
+                    selectionType: s.selectionType || null,
+                    preset: s.preset || null,
+                    startDate: s.startDate || null,
+                    endDate: s.endDate || null,
+                    dateFormat: s.dateFormat || null
+                }
+                : undefined,
         }))
     };
 }

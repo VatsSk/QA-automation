@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.dto.responseDto;
 
 import com.testingautomation.testautomation.dto.AssertionDto;
+import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioStatus;
@@ -33,6 +34,7 @@ public class ScenarioResponse {
     private List<AssertionDto> assertions;
     private List<FilterScenarioDto> filters;
     private String applyFilterBtn;
+    private DateRangeNavDto dateRangeNavDto;
     private List<ManualTestCaseResponse> manualTestCases;
     private String resultCsv;
     private List<String> screenshots;

@@ -35,6 +35,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -888,29 +889,96 @@ public class ScenarioOrchestratorService {
                     // =========================
                     // PRESET MODE
                     // =========================
+//                    if (dateRange.getSelectionType() == DateSelectionType.PRESET) {
+//
+//                        if (dateRange.getPreset() == null) {
+//
+//                            throw new GlobalExceptionHandler.ResourceNotFoundException(
+//                                    "Preset value is required for PRESET selection type"
+//                            );
+//                        }
+//                        String preset = Arrays.stream(
+//                                        dateRange.getPreset().toString()
+//                                                .replace("_", " ")
+//                                                .toLowerCase()
+//                                                .split(" "))
+//                                .map(word -> Character.toUpperCase(word.charAt(0)) + word.substring(1))
+//                                .collect(Collectors.joining(" "));
+//
+//
+//                        String presetSelector =
+//                                "[data-range-key=\"" + preset + "\"]";
+//
+//                        WebElement presetElement = wait.until(
+//                                ExpectedConditions.elementToBeClickable(
+//                                        By.cssSelector(presetSelector)
+//                                )
+//                        );
+//
+//                        presetElement.click();
+//                        screenshotService.takeScreenshot(
+//                                driver,
+//                                2+"",
+//                                "step passed",
+//                                navigationScreenshotDir,
+//                                scenarioPrefix
+//                        );
+//                    }
                     if (dateRange.getSelectionType() == DateSelectionType.PRESET) {
 
                         if (dateRange.getPreset() == null) {
-
                             throw new GlobalExceptionHandler.ResourceNotFoundException(
                                     "Preset value is required for PRESET selection type"
                             );
                         }
 
-                        String presetSelector =
-                                "[data-range-key=\"" + dateRange.getPreset() + "\"]";
+                        String preset = Arrays.stream(
+                                        dateRange.getPreset().toString()
+                                                .replace("_", " ")
+                                                .toLowerCase()
+                                                .split(" "))
+                                .map(word -> Character.toUpperCase(word.charAt(0)) + word.substring(1))
+                                .collect(Collectors.joining(" "));
+
+                        logger.info("Preset value = {}", preset);
+
+                        // Scope to visible daterangepicker
+                        String presetXpath =
+                                "//div[contains(@class,'daterangepicker') and contains(@style,'display: block')]"
+                                        + "//li[@data-range-key='" + preset + "']";
 
                         WebElement presetElement = wait.until(
-                                ExpectedConditions.elementToBeClickable(
-                                        By.cssSelector(presetSelector)
+                                ExpectedConditions.visibilityOfElementLocated(
+                                        By.xpath(presetXpath)
                                 )
                         );
 
-                        presetElement.click();
+                        // Scroll into view
+                        ((JavascriptExecutor) driver).executeScript(
+                                "arguments[0].scrollIntoView(true);",
+                                presetElement
+                        );
+
+                        // Wait small moment for animation
+                        Thread.sleep(300);
+
+                        try {
+                            wait.until(ExpectedConditions.elementToBeClickable(presetElement));
+                            presetElement.click();
+                        } catch (Exception e) {
+
+                            logger.info("Normal click failed. Using JS click.");
+
+                            ((JavascriptExecutor) driver).executeScript(
+                                    "arguments[0].click();",
+                                    presetElement
+                            );
+                        }
+
                         screenshotService.takeScreenshot(
                                 driver,
-                                2+"",
-                                "step passed",
+                                "2",
+                                "preset selected",
                                 navigationScreenshotDir,
                                 scenarioPrefix
                         );
@@ -949,23 +1017,42 @@ public class ScenarioOrchestratorService {
                                         formatter
                                 );
 
-                        selectDate(driver, wait, containerSelector, startDateTime.toLocalDate());
+                        // =========================
+                        // SELECT START DATE
+                        // =========================
+                        selectDate(
+                                driver,
+                                wait,
+                                containerSelector,
+                                startDateTime.toLocalDate()
+                        );
+
                         screenshotService.takeScreenshot(
                                 driver,
-                                3+"",
-                                "step passed",
+                                "3",
+                                "start date selected",
                                 navigationScreenshotDir,
                                 scenarioPrefix
                         );
 
-                        selectDate(driver, wait, containerSelector, endDateTime.toLocalDate());
+                        // =========================
+                        // SELECT END DATE
+                        // =========================
+                        selectDate(
+                                driver,
+                                wait,
+                                containerSelector,
+                                endDateTime.toLocalDate()
+                        );
+
                         screenshotService.takeScreenshot(
                                 driver,
-                                4+"",
-                                "step passed",
+                                "4",
+                                "end date selected",
                                 navigationScreenshotDir,
                                 scenarioPrefix
                         );
+
                     }
 
                     // =========================
@@ -1037,7 +1124,7 @@ public class ScenarioOrchestratorService {
 
             } catch (Exception e) {
                 logger.error("Failed to store testcase result in scenarioResultsMap for scenario at index {}", currIdx, e);
-
+                throw new GlobalExceptionHandler.ResourceNotFoundException("Failed to store testcase result in scenarioResultsMap for scenario at index " + currIdx);
             }
 
             run.getScenariosList().set(currIdx, scenario);
@@ -1274,6 +1361,7 @@ private void handleManageColumnScenario(
 
         return visibleColumns;
     }
+
     private void selectDate(
             WebDriver driver,
             WebDriverWait wait,
@@ -1281,34 +1369,133 @@ private void handleManageColumnScenario(
             LocalDate targetDate
     ) {
 
-        String targetDay = String.valueOf(targetDate.getDayOfMonth());
+        DateTimeFormatter monthFormatter =
+                DateTimeFormatter.ofPattern("MMM yyyy");
 
-        List<WebElement> availableDates = wait.until(
+        YearMonth targetMonth =
+                YearMonth.from(targetDate);
+
+        while (true) {
+
+            WebElement leftMonthElement = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                            By.cssSelector(
+                                    containerSelector
+                                            + " .drp-calendar.left th.month"
+                            )
+                    )
+            );
+
+            YearMonth leftMonth =
+                    YearMonth.parse(
+                            leftMonthElement.getText().trim(),
+                            monthFormatter
+                    );
+
+            WebElement rightMonthElement = wait.until(
+                    ExpectedConditions.visibilityOfElementLocated(
+                            By.cssSelector(
+                                    containerSelector
+                                            + " .drp-calendar.right th.month"
+                            )
+                    )
+            );
+
+            YearMonth rightMonth =
+                    YearMonth.parse(
+                            rightMonthElement.getText().trim(),
+                            monthFormatter
+                    );
+
+            // =========================
+            // LEFT CALENDAR
+            // =========================
+            if (targetMonth.equals(leftMonth)) {
+
+                clickDay(
+                        wait,
+                        containerSelector,
+                        "left",
+                        targetDate.getDayOfMonth()
+                );
+
+                return;
+            }
+
+            // =========================
+            // RIGHT CALENDAR
+            // =========================
+            if (targetMonth.equals(rightMonth)) {
+
+                clickDay(
+                        wait,
+                        containerSelector,
+                        "right",
+                        targetDate.getDayOfMonth()
+                );
+
+                return;
+            }
+
+            // =========================
+            // NEXT MONTH
+            // =========================
+            WebElement nextButton = wait.until(
+                    ExpectedConditions.elementToBeClickable(
+                            By.cssSelector(
+                                    containerSelector
+                                            + " .next.available"
+                            )
+                    )
+            );
+
+            nextButton.click();
+
+            wait.until(ExpectedConditions.stalenessOf(rightMonthElement));
+        }
+    }
+    private void clickDay(
+            WebDriverWait wait,
+            String containerSelector,
+            String side,
+            int day
+    ) {
+
+        List<WebElement> dates = wait.until(
                 ExpectedConditions.presenceOfAllElementsLocatedBy(
                         By.cssSelector(
-                                containerSelector + " td.available"
+                                containerSelector
+                                        + " .drp-calendar."
+                                        + side
+                                        + " td.available"
                         )
                 )
         );
 
-        for (WebElement dateCell : availableDates) {
+        for (WebElement date : dates) {
 
-            String classes = dateCell.getAttribute("class");
+            String classes = date.getAttribute("class");
 
-            if (dateCell.getText().trim().equals(targetDay)
+            if (date.getText().trim().equals(String.valueOf(day))
                     && !classes.contains("off")
                     && !classes.contains("disabled")) {
 
-                dateCell.click();
+                wait.until(
+                        ExpectedConditions.elementToBeClickable(date)
+                );
+
+                date.click();
 
                 return;
             }
         }
 
         throw new GlobalExceptionHandler.ResourceNotFoundException(
-                "Unable to select date: " + targetDate
+                "Unable to select day: " + day
         );
     }
+
+
     public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
                                             , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
         List<TestCaseDTO> testCases=null;
@@ -1317,7 +1504,7 @@ private void handleManageColumnScenario(
 
         try{
             currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run,scenarioResultsMap);
-        }catch (GlobalExceptionHandler.InvalidCountException ex){
+        }catch (Exception ex){
             throw ex;
         }
         String scenarioPrefix =
