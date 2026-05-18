@@ -119,7 +119,32 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
                 })
                 : undefined,
 
+            // MANAGE COLUMN
+            columns: s.type === 'MANAGE_COL_NAV'
+                ? (s.columns || []).map(c => ({
+                    columnName: c.columnName || null,
+                    action: c.action || null,
+                    position: c.position ?? null
+                }))
+                : undefined,
+
+            saveBtnCss: s.type === 'MANAGE_COL_NAV'
+                ? s.saveBtnCss || null
+                : undefined,
+
             applyFilterBtn: s.type === 'FILTER_NAV' ? s.applyBtnCss : undefined,
+            dateRangeNavDto: s.type === 'DATE_RANGE_NAV'
+                ? {
+                    inputSelector: s.inputSelector || null,
+                    calendarContainerSelector: s.calendarContainerSelector || null,
+                    applyButtonSelector: s.applyButtonSelector || null,
+                    selectionType: s.selectionType || null,
+                    preset: s.preset || null,
+                    startDate: s.startDate || null,
+                    endDate: s.endDate || null,
+                    dateFormat: s.dateFormat || null
+                }
+                : undefined,
         }))
     };
 }

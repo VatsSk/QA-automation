@@ -97,7 +97,52 @@ export const TYPES = {
         hasData: false,
         hint: 'Apply multiple filters and trigger search',
         dynamicFields: true,
-    }
+    },
+    DATE_RANGE_NAV: {
+        label:   'Date Range Nav',
+        icon:    '📅',
+        color:   'var(--pink)',
+        bg:      'var(--pink-d)',
+
+        fields: [
+            'inputSelector',
+            'selectionType',
+
+            // preset mode
+            'preset',
+
+            // custom mode
+            'startDate',
+            'endDate',
+
+            'applyButtonSelector',
+            'calendarContainerSelector',
+            'dateFormat'
+        ],
+
+        hasData: false,
+
+        hint: 'Select date range using preset or custom dates',
+
+        dynamicFields: true,
+    },
+    MANAGE_COL_NAV: {
+        label: 'Manage Columns',
+        icon: '📑',
+        color: 'var(--indigo)',
+        bg: 'var(--indigo-d)',
+
+        fields: [
+            'columns',
+            'saveBtnCss'
+        ],
+
+        hasData: false,
+
+        hint: 'Show, hide and reorder table columns',
+
+        dynamicFields: true,
+    },
 
 };
 
@@ -176,10 +221,19 @@ export const ASSERT_TYPES = {
         label :'Assert Table filter',
         fields : ['tableId'],
         required:['tableId']
+    },
+    ASSERT_MANAGE_COLUMN:{
+        label:'Assert Manage Column',
+        fields:['tableId'],
+        required:['tableId']
     }
 
 };
-
+export const MANAGE_COLUMN_ACTIONS = [
+    { value: '', label: 'Default' },   // null action
+    { value: 'SHOW', label: 'Show' },
+    { value: 'HIDE', label: 'Hide' }
+];
 export const FILTER_TYPES = [
     { value: 'TEXT', label: 'Text' },
     { value: 'DATE', label: 'Date' },
@@ -214,10 +268,29 @@ export const   FILTER_OPERATIONS = {
     ]
 };
 
+
 // Sort order options
 export const SORT_ORDER_OPTIONS = [
     { value: 'ascending', label: 'Ascending' },
     { value: 'descending', label: 'Descending' }
+];
+
+export const DATE_PRESET_TYPES = [
+    { value: 'TODAY', label: 'Today' },
+    { value: 'YESTERDAY', label: 'Yesterday' },
+
+    // { value: 'THIS_WEEK', label: 'This Week' },
+    // { value: 'LAST_WEEK', label: 'Last Week' },
+
+    { value: 'THIS_MONTH', label: 'This Month' },
+    { value: 'LAST_MONTH', label: 'Last Month' },
+
+    // { value: 'CUSTOM_RANGE', label: 'Custom Range' },
+];
+
+export const DATE_SELECTION_TYPES = [
+    { value: 'PRESET', label: 'Preset' },
+    { value: 'CUSTOM', label: 'Custom Range' }
 ];
 
 // Minimum required fields per type (used for validation before save)
@@ -231,4 +304,6 @@ export const REQUIRED = {
     FORM_MODAL:  ['cssSelector'],
     ASSERT:     [],
     FILTER_NAV: ['applyBtnCss'],
+    DATE_RANGE_NAV: ['inputSelector', 'selectionType', 'applyButtonSelector','calendarContainerSelector'],
+    MANAGE_COL_NAV: ['saveBtnCss'],
 };

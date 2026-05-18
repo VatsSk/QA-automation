@@ -99,7 +99,7 @@
 <script type="module">
     import * as api      from './js/api.js';
     import * as assrtFunc      from './js/assertions_functions.js';
-    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES } from './js/config.js';
+    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES,DATE_SELECTION_TYPES,DATE_PRESET_TYPES,MANAGE_COLUMN_ACTIONS} from './js/config.js';
     import { esc, toast, openModal, closeModal,
         requireLogin, initTheme, toggleTheme } from './js/utils.js';
     import {buildPayload} from './js/payload.js';
@@ -905,25 +905,39 @@
     })();
 
     function createDefaultLoginScenario(proj) {
+
         // Try multiple URL fields with fallback
         let targetUrl = proj.loginUrl;
 
         scenarios.push({
             _key: ++scKey,
             id: undefined,
+
             type: 'URL',
+
             url: targetUrl,
             cssSelector: '',
             value: '',
+
             clickEnabled: false,
             clickCss: '',
+
             csv: proj.loginCredS3Path || '',
+
             manualTestCases: [],
+
             assertions: [],
-            filters: []
+            filters: [],
+
+            // NEW
+            columns: [],
+
+            // manage column fields
+            saveBtnCss: ''
         });
 
         scIdx = 0;
+
         renderSidebar();
         renderPanel();
     }
@@ -1003,8 +1017,25 @@
                         searchCssSelector: f.valueSelector || '',
                         logicalOperatorSelector: f.logicalOperator || ''
                     })),
+                    // MANAGE COLUMN
+                    columns: (s.columns || []).map(c => ({
+                        columnName: c.columnName || '',
+                        extractedName: c.extractedName || '',
+                        action: c.action || '',
+                        position: c.position ?? null
+                    })),
 
-                    applyBtnCss: s.applyFilterBtn || ''
+                    saveBtnCss: s.saveBtnCss || '',
+
+                    applyBtnCss: s.applyFilterBtn || '',
+                    inputSelector: s.dateRangeNavDto?.inputSelector || '',
+                    selectionType: s.dateRangeNavDto?.selectionType || 'PRESET',
+                    preset: s.dateRangeNavDto?.preset || 'LAST_MONTH',
+                    startDate: s.dateRangeNavDto?.startDate || '',
+                    endDate: s.dateRangeNavDto?.endDate || '',
+                    applyButtonSelector: s.dateRangeNavDto?.applyButtonSelector || '',
+                    calendarContainerSelector: s.dateRangeNavDto?.calendarContainerSelector || '',
+                    dateFormat: s.dateRangeNavDto?.dateFormat || ''
                 }));
                 renderSidebar();
                 renderPanel();
@@ -1215,9 +1246,151 @@
         ${s.type === 'ASSERT' ? assrtFunc.renderAssertionsSection(scIdx, s) : ''}
 
         ${s.type === 'FILTER_NAV' ? renderFiltersSection(scIdx, s) : ''}
+        ${s.type === 'DATE_RANGE_NAV'?renderDateSection(scIdx,s):''}
+        ${s.type === 'MANAGE_COL_NAV'?renderManageColSection(scIdx,s):''}
 
       </div>
     </div>`;
+    }
+
+    function renderDateSection(idx, s) {
+
+        return `
+    <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r)">
+
+        <!-- Input Selector -->
+        <div class="field">
+            <label class="lbl">Input Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.inputSelector || '')}"
+                placeholder="#date-range-input"
+                oninput="updateField(${idx}, 'inputSelector', this.value)">
+        </div>
+
+        <!-- Calendar Container Selector -->
+        <div class="field">
+            <label class="lbl">Calendar Container Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.calendarContainerSelector || '')}"
+                placeholder=".calendar-container"
+                oninput="updateField(${idx}, 'calendarContainerSelector', this.value)">
+        </div>
+
+        <!-- Apply Button Selector -->
+        <div class="field">
+            <label class="lbl">Apply Button Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.applyButtonSelector || '')}"
+                placeholder=".apply-btn"
+                oninput="updateField(${idx}, 'applyButtonSelector', this.value)">
+        </div>
+
+        <!-- Selection Type -->
+        <div class="field">
+            <label class="lbl">Selection Type *</label>
+
+            <select
+                class="inp"
+                onchange="updateScenarioAndRender(${idx}, 'selectionType', this.value)">
+
+                ${DATE_SELECTION_TYPES.map(t => `
+                    <option
+                        value="${t.value}"
+                        ${s.selectionType === t.value ? 'selected' : ''}>
+                        ${t.label}
+                    </option>
+                `).join('')}
+
+            </select>
+        </div>
+
+        ${
+            s.selectionType === 'PRESET'
+                ? `
+                    <!-- PRESET DROPDOWN -->
+                    <div class="field">
+                        <label class="lbl">Preset *</label>
+
+                        <select
+                            class="inp"
+                            onchange="updateField(${idx}, 'preset', this.value)">
+
+                            ${DATE_PRESET_TYPES.map(p => `
+                                <option
+                                    value="${p.value}"
+                                    ${s.preset === p.value ? 'selected' : ''}>
+                                    ${p.label}
+                                </option>
+                            `).join('')}
+
+                        </select>
+                    </div>
+                `
+                : ''
+        }
+
+        ${
+            s.selectionType === 'CUSTOM'
+                ? `
+                    <!-- START DATE -->
+                    <div class="field">
+                        <label class="lbl">Start Date *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.startDate || '')}"
+                            placeholder="01/01/2026 00:00"
+                            oninput="updateField(${idx}, 'startDate', this.value)">
+                    </div>
+
+                    <!-- END DATE -->
+                    <div class="field">
+                        <label class="lbl">End Date *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.endDate || '')}"
+                            placeholder="31/01/2026 23:59"
+                            oninput="updateField(${idx}, 'endDate', this.value)">
+                    </div>
+
+                    <!-- DATE FORMAT -->
+                    <div class="field">
+                        <label class="lbl">Date Format *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.dateFormat || '')}"
+                            placeholder="dd/MM/yyyy HH:mm"
+                            oninput="updateField(${idx}, 'dateFormat', this.value)">
+                    </div>
+                `
+                : ''
+        }
+
+    </div>
+    `;
+    }
+
+    window.updateScenarioAndRender = function(idx, key, value) {
+        if (!scenarios[idx]) return;
+        scenarios[idx][key] = value;
+
+        if (key === 'selectionType') {
+            if (value === 'PRESET') {
+                scenarios[idx].preset = scenarios[idx].preset || 'LAST_MONTH';
+                scenarios[idx].startDate = '';
+                scenarios[idx].endDate = '';
+                scenarios[idx].dateFormat = '';
+            } else if (value === 'CUSTOM') {
+                scenarios[idx].preset = '';
+            }
+        }
+
+        renderPanel();
     }
 
     function renderFiltersSection(idx, s) {
@@ -1304,6 +1477,174 @@
         </div>
     </div>
     `;
+    }
+
+    function renderManageColSection(scIdx, s) {
+
+        const columns = s.columns || [];
+
+        return `
+        <div class="sc-section">Manage Columns</div>
+
+        <!-- Save Button Selector -->
+        <div class="field">
+            <label class="lbl">Save Button CSS *</label>
+
+            <input
+                class="inp inp-mono"
+                value="${esc(s.saveBtnCss || '')}"
+                placeholder="#save-manage-column-btn"
+                oninput="updateField(${scIdx}, 'saveBtnCss', this.value)"
+            >
+        </div>
+
+        <!-- Add Column Button -->
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+            <button
+                class="btn btn-primary btn-sm"
+                onclick="addManageColumn(${scIdx})"
+            >
+                + Add Column
+            </button>
+        </div>
+
+        ${
+            columns.length === 0
+                ? `
+                <div style="
+                    padding:16px;
+                    border:1px dashed var(--bd);
+                    border-radius:var(--rs);
+                    color:var(--tx2);
+                    font-size:13px;
+                    text-align:center;
+                ">
+                    No columns added
+                </div>
+                `
+                : ''
+        }
+
+        ${columns.map((col, idx) => `
+
+            <div style="
+                border:1px solid var(--bd);
+                border-radius:var(--rs);
+                padding:14px;
+                margin-bottom:12px;
+                background:var(--sur2);
+            ">
+
+                <!-- Header -->
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    margin-bottom:12px;
+                ">
+                    <div style="font-weight:600">
+                        Column #${idx + 1}
+                    </div>
+
+                    <button
+                        class="btn btn-danger btn-xs"
+                        onclick="removeManageColumn(${scIdx}, ${idx})"
+                    >
+                        Remove
+                    </button>
+                </div>
+
+                <!-- Column Selector -->
+                <div class="field">
+                    <label class="lbl">Column Selector *</label>
+
+                    <input
+                        class="inp inp-mono"
+                        value="${esc(col.columnName || '')}"
+                        placeholder='[for="column-item-Employee Email"]'
+                        oninput="updateManageColumnField(${scIdx}, ${idx}, 'columnName', this.value)"
+                    >
+                </div>
+
+                <!-- Action Dropdown -->
+                <div class="field">
+                    <label class="lbl">Action</label>
+
+                    <select
+                        class="inp"
+                        onchange="updateManageColumnField(${scIdx}, ${idx}, 'action', this.value)"
+                    >
+                        <option value=""
+                            ${(col.action || '') === '' ? 'selected' : ''}
+                        >
+                            Default
+                        </option>
+
+                        <option value="SHOW"
+                            ${col.action === 'SHOW' ? 'selected' : ''}
+                        >
+                            Show
+                        </option>
+
+                        <option value="HIDE"
+                            ${col.action === 'HIDE' ? 'selected' : ''}
+                        >
+                            Hide
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Position -->
+                <div class="field">
+                    <label class="lbl">Position</label>
+
+                    <input
+                        type="number"
+                        class="inp"
+                        min="1"
+                        value="${col.position ?? ''}"
+                        placeholder="1"
+                        ${col.action === 'HIDE' ? 'disabled' : ''}
+                        oninput="updateManageColumnField(${scIdx}, ${idx}, 'position', this.value)"
+                    >
+                </div>
+
+            </div>
+
+        `).join('')}
+    `;
+    }
+
+    window.addManageColumn=function(scIdx) {
+
+        scenarios[scIdx].columns ||= [];
+
+        scenarios[scIdx].columns.push({
+            columnName: '',
+            action: '',
+            position: null
+        });
+
+        renderPanel();
+    }
+
+   window.removeManageColumn= function(scIdx, colIdx) {
+
+        scenarios[scIdx].columns.splice(colIdx, 1);
+
+        renderPanel();
+    }
+     window.updateManageColumnField=function(scIdx, colIdx, field, value) {
+
+        const column = scenarios[scIdx].columns[colIdx];
+
+        if (field === 'position') {
+            column[field] = value === '' ? null : Number(value);
+        } else {
+            column[field] = value;
+        }
+
+        renderPanel();
     }
 
     function formatDateTime(val) {
@@ -1699,12 +2040,31 @@
         if (type === 'ASSERT') {
             newScenario.assertions = [];
         }
-        if (type === 'FILTER_NAV') {
+        else if (type === 'FILTER_NAV') {
             newScenario.filters = [];
             newScenario.applyBtnCss = '';
         }
+        else if (type === 'DATE_RANGE_NAV') {
 
-        console.log(type+"choosen!")
+            newScenario.inputSelector = '';
+            newScenario.selectionType = 'PRESET';
+            // preset mode
+            newScenario.preset = 'LAST_MONTH';
+            // custom mode
+            newScenario.startDate = '';
+            newScenario.endDate = '';
+            newScenario.applyButtonSelector = '';
+            newScenario.calendarContainerSelector = '';
+            newScenario.dateFormat = '';
+        }
+        else if (type === 'MANAGE_COL_NAV') {
+
+            newScenario.columns = [];
+
+            newScenario.saveBtnCss = '';
+        }
+
+        console.log(type+"chosen!")
 
         scenarios.push(newScenario);
         scIdx = scenarios.length - 1;
@@ -1802,6 +2162,161 @@
                     selectScenario(i);
                     return false;
                 }
+            }
+            else if (s.type === 'DATE_RANGE_NAV'){
+                if (!validateDateRangeNavScenario(s, i)) return false;
+            }
+            else if (s.type === 'MANAGE_COL_NAV') {
+                if (!validateManageColumnScenario(s, i)) return false;
+            }
+
+
+        }
+
+        return true;
+    }
+    function validateManageColumnScenario(s, i) {
+
+        // at least one column
+        if (!s.columns || s.columns.length === 0) {
+
+            toast(`Scenario #${i + 1}: Add at least one column`, 'warning');
+
+            selectScenario(i);
+
+            return false;
+        }
+
+        // save button selector
+        if (!s.saveBtnCss?.trim()) {
+
+            toast(`Scenario #${i + 1}: Save button selector required`, 'warning');
+
+            selectScenario(i);
+
+            return false;
+        }
+
+        // validate columns
+        for (let j = 0; j < s.columns.length; j++) {
+
+            const c = s.columns[j];
+
+            // column selector required
+            if (!c.columnName?.trim()) {
+
+                toast(
+                    `Scenario #${i + 1} → Column #${j + 1}: Column selector required`,
+                    'warning'
+                );
+
+                selectScenario(i);
+
+                return false;
+            }
+
+            // validate position only if not hidden
+            if (c.action !== 'HIDE') {
+
+                if (
+                    c.position !== null &&
+                    c.position !== undefined &&
+                    (
+                        isNaN(c.position) ||
+                        Number(c.position) <= 0
+                    )
+                ) {
+
+                    toast(
+                        `Scenario #${i + 1} → Column #${j + 1}: Position must be greater than 0`,
+                        'warning'
+                    );
+
+                    selectScenario(i);
+
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    function validateDateRangeNavScenario(s, index) {
+
+        // always required
+        const requiredFields = [
+            'inputSelector',
+            'calendarContainerSelector',
+            'applyButtonSelector',
+            'selectionType'
+        ];
+
+        for (const field of requiredFields) {
+
+            const val = s[field];
+
+            if (!val || (typeof val === 'string' && !val.trim())) {
+
+                toast(
+                    `Scenario #${index + 1}: "${field}" is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+        }
+
+        // PRESET validation
+        if (s.selectionType === 'PRESET') {
+
+            if (!s.preset || !s.preset.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Preset is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+        }
+
+        // CUSTOM validation
+        if (s.selectionType === 'CUSTOM') {
+
+            if (!s.startDate?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Start Date is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+
+            if (!s.endDate?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: End Date is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+
+            if (!s.dateFormat?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Date Format is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
             }
         }
 
