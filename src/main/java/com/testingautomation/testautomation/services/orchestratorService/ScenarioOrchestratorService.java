@@ -240,7 +240,7 @@ public class ScenarioOrchestratorService {
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
     public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
-                                        , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) throws Exception {
+            , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) throws Exception {
         List<FieldDescriptor> fields = scannerService.scanPage(current.getUrl(), driver);
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO>  testCases = csvLoader.loadFromS3(current.getCsv());
@@ -293,7 +293,7 @@ public class ScenarioOrchestratorService {
             current.setScenarioStatus(RunStatus.FAILED);
         }
         else {
-           current.setScenarioStatus(RunStatus.PARTIAL);
+            current.setScenarioStatus(RunStatus.PARTIAL);
 
         }
     }
@@ -402,239 +402,6 @@ public class ScenarioOrchestratorService {
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
                 }
-//                else if (currScenario.getType() == ScenarioType.SEARCH_NAV) {
-//                    logger.info("Executing NAV_SEARCH using selector: {} and value: {}",
-//                            currScenario.getCssOpener(), currScenario.getValue());
-//
-//                    WebElement opener = wait.until(ExpectedConditions.presenceOfElementLocated(
-//                            By.cssSelector(currScenario.getCssOpener())
-//                    ));
-//
-//                    String value = currScenario.getValue();
-//
-//                    logger.info("Search element located: tag={}", opener.getTagName());
-//
-//                    // CASE 1 — search input field
-//                    if (opener.getTagName().equalsIgnoreCase("input") || "true".equals(opener.getAttribute("contenteditable"))) {
-//
-//                        logger.info("Detected input search field");
-//
-//                        // open tree selector if present
-//                        try {
-//                            WebElement treeOpener = driver.findElement(By.cssSelector(".treeSelector-input-box"));
-//                            if (treeOpener.isDisplayed()) {
-//                                treeOpener.click();
-//                                logger.info("Opened tree selector dropdown");
-//                            }
-//                        } catch (Exception ignored) {
-//                            logger.info("No tree selector opener found, continuing normal search");
-//                            logger.info("No .treeSelector-input-box found, trying employee dropdown fallback");
-//
-//                            try {
-//
-//                                WebElement dropdownBtn = wait.until(
-//                                        ExpectedConditions.elementToBeClickable(
-//                                                By.cssSelector("#employee-dropdown-btn")
-//                                        )
-//                                );
-//
-//                                dropdownBtn.click();
-//
-//                                logger.info("Opened employee dropdown using fallback");
-//
-//                            } catch (Exception fallbackEx) {
-//
-//                                logger.warn("Employee dropdown fallback also failed", fallbackEx);
-//                            }
-//                        }
-//
-//                        opener.clear();
-//                        opener.sendKeys(value);
-//                        // 📸 Step 1 → after typing
-//                        screenshotService.takeScreenshot(
-//                                driver,
-//                                (modalFormTcIdx +1)+"",
-//                                "step passed",
-//                                navigationScreenshotDir,
-//                                scenarioPrefix
-//                        );
-//
-//                        logger.info("Typed search value: {}", value);
-//
-//                        // wait for filtering
-//                        Thread.sleep(500);
-//
-//                        try{
-//                            try {
-//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                        By.xpath("//*[@data-title='" + value + "']//input")
-//                                ));
-//                                option.click();
-//                            }catch (Exception e){
-//                                logger.info("Fallback to span");
-////                                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-//
-//                                WebElement option = wait.until(
-//                                        ExpectedConditions.presenceOfElementLocated(
-//                                                By.xpath("//span[contains(@class,'tittle-list') and contains(text(),'" + value + "')]/preceding-sibling::input[@type='checkbox']")
-//                                        )
-//                                );
-//
-//                                ((JavascriptExecutor) driver)
-//                                        .executeScript("arguments[0].click();", option);
-//
-//                                WebElement applyButton = wait.until(
-//                                        ExpectedConditions.elementToBeClickable(
-//                                                By.id("apply-button")
-//                                        )
-//                                );
-//
-//                                applyButton.click();
-//                            }
-//                            logger.info("Clicked checkbox for option: {}", value);
-//                            // 📸 Step 2 → after selecting option
-//                            screenshotService.takeScreenshot(
-//                                    driver,
-//                                    (modalFormTcIdx +1)+"",
-//                                    "step passed",
-//                                    navigationScreenshotDir,
-//                                    scenarioPrefix
-//                            );
-//                            // close dropdown to apply filter
-////                        opener.sendKeys(Keys.TAB);
-////                        logger.info("Closed dropdown using TAB");
-//                            driver.findElement(By.tagName("body")).click();
-//                            logger.info("Closed dropdown using body click fallback");
-//                        }catch(Exception e){
-//                            logger.info("Failed to click checkbox for option: {}", value, e);
-////                            WebElement profileSearch = driver.findElement(By.cssSelector(""));
-//                        }
-//
-//
-//
-//
-//
-//
-//
-//                        // 📸 Step 3 → after closing dropdown
-//                        screenshotService.takeScreenshot(
-//                                driver,
-//                                (modalFormTcIdx +1)+"",
-//                                "step passed",
-//                                navigationScreenshotDir,
-//                                scenarioPrefix
-//                        );
-//
-//                    }
-//
-//                    // CASE 2 — dropdown opener
-//                    else {
-//                        boolean isSelect2 =
-//                                driver.findElements(By.cssSelector(".select2-container--default")).size() > 0
-//                                        || driver.findElements(By.cssSelector(".select2-hidden-accessible")).size() > 0;
-//                        if (isSelect2) {
-//
-//                            logger.info("Detected Select2 dropdown");
-//
-//                            selectSelect2(driver, currScenario.getCssOpener(), value);
-//                            // 📸 screenshot after selection
-//                            screenshotService.takeScreenshot(
-//                                    driver,
-//                                    (modalFormTcIdx +1)+"",
-//                                    "step passed",
-//                                    navigationScreenshotDir,
-//                                    scenarioPrefix
-//                            );
-//
-//                            // ✅ IMPORTANT: STOP here
-//                            scenario.setScenarioStatus(RunStatus.PASSED);
-//                            resultTestCase.setResult("Passed");
-//                            currIdx++;
-//                            continue;   // 🔥 THIS IS THE FIX
-//                        }
-//
-//                        logger.info("Detected dropdown/tree selector opener");
-//
-//                        wait.until(ExpectedConditions.elementToBeClickable(opener)).click();
-//
-//                        try {
-//
-//                            logger.info("Trying checkbox selection using data-title");
-//
-//                            WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                    By.xpath("//*[@data-title='" + value + "']//input")
-//                            ));
-//
-//                            option.click();
-//
-//                            logger.info("Clicked checkbox for option: {}", value);
-//                            screenshotService.takeScreenshot(
-//                                    driver,
-//                                    (modalFormTcIdx +1)+"",
-//                                    "step passed",
-//                                    navigationScreenshotDir,
-//                                    scenarioPrefix
-//                            );
-//
-//                        }
-//                        catch (Exception ignored) {
-//
-//                            logger.info("data-title failed. Trying exact text");
-//
-//                            try {
-//
-//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                        By.xpath("//*[text()='" + value + "']")
-//                                ));
-//
-//                                option.click();
-//
-//                                logger.info("Option selected using exact text");
-//                                screenshotService.takeScreenshot(
-//                                        driver,
-//                                        (modalFormTcIdx +1)+"",
-//                                        "step passed",
-//                                        navigationScreenshotDir,
-//                                        scenarioPrefix
-//                                );
-//
-//                            }
-//                            catch (Exception ignored2) {
-//
-//                                logger.info("Exact text failed. Trying partial text");
-//
-//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                        By.xpath("//*[contains(text(),'" + value + "')]")
-//                                ));
-//
-//                                option.click();
-//
-//                                logger.info("Option selected using partial text");
-//                                screenshotService.takeScreenshot(
-//                                        driver,
-//                                        (modalFormTcIdx +1)+"",
-//                                        "step passed",
-//                                        navigationScreenshotDir,
-//                                        scenarioPrefix
-//                                );
-//                            }
-//                        }
-//                        driver.findElement(By.tagName("body")).click();
-//                        logger.info("Closed dropdown using body click fallback");
-//                        screenshotService.takeScreenshot(
-//                                driver,
-//                                (modalFormTcIdx +1)+"",
-//                                "step err" + TimestampUtil.generateTimestamp(),
-//                                navigationScreenshotDir,
-//                                scenarioPrefix
-//                        );
-//
-//                    }
-//
-//                    scenario.setScenarioStatus(RunStatus.PASSED);
-//                    resultTestCase.setResult("Passed");
-//                }
-//
                 else if(currScenario.getType() == ScenarioType.SEARCH_NAV){
                     currIdx = handleSearchNavScenario(
                             driver,
@@ -664,244 +431,6 @@ public class ScenarioOrchestratorService {
                     scenario.setScenarioStatus(RunStatus.PASSED);
                     resultTestCase.setResult("Passed");
                 }
-//                else if (currScenario.getType() == ScenarioType.FILTER_NAV) {
-//
-//                    logger.info("Executing FILTER_NAV scenario");
-//
-//                    List<FilterScenarioDto> filters = currScenario.getFilters();
-//
-//                    for (FilterScenarioDto filter : filters) {
-//
-//                        logger.info("Processing filter: {}", filter);
-//
-//                        By queryBy = By.cssSelector(filter.getQuerySelector());
-//
-//                        // =========================
-//                        // 1️⃣ CLICK QUERY SELECTOR
-//                        // =========================
-//                        try {
-//                            safeClick(driver, queryBy);
-//                            logger.info("Clicked query selector using safeClick");
-//                        } catch (Exception e) {
-//                            logger.warn("safeClick failed, using smartClick");
-//                            smartClick(driver, queryBy);
-//                        }
-//
-//                        // =========================
-//                        // 2️⃣ EXTRACT COLUMN NAME
-//                        // =========================
-//                        try {
-//                            WebElement el = wait.until(ExpectedConditions.presenceOfElementLocated(queryBy));
-//
-//                            String columnText = el.getText().trim();
-//
-//                            if (columnText.isEmpty()) {
-//                                columnText = el.getAttribute("innerText");
-//                            }
-//
-//                            filter.setColumnName(columnText);
-//
-//                            logger.info("Captured columnName: {}", columnText);
-//
-//                        } catch (Exception e) {
-//                            logger.warn("Failed to extract column name");
-//                            throw new GlobalExceptionHandler.ResourceNotFoundException("Failed to extract column name");
-//                        }
-//
-//                        // =========================
-//                        // 3️⃣ HANDLE OPERATION
-//                        // =========================
-//                        try {
-//
-//                            String value = filter.getOperation().toString();
-//                            logger.info("operation selection {}", value);
-//
-//                            // query selector element
-//                            WebElement queryElement = wait.until(
-//                                    ExpectedConditions.presenceOfElementLocated(queryBy)
-//                            );
-//
-//                            // move to parent/sibling container
-//                            // adjust ../.. if needed based on DOM depth
-//                            WebElement filterContainer = queryElement.findElement(
-//                                    By.xpath("../..")
-//                            );
-//
-//                            logger.info("Filter container located");
-//
-//                            // find radio ONLY inside this container
-//                            WebElement radio = filterContainer.findElement(
-//                                    By.cssSelector("input[type='radio'][value='" + value + "']")
-//                            );
-//
-//                            logger.info("Radio found inside current filter block");
-//
-//                            // JS click
-//                            ((JavascriptExecutor) driver).executeScript(
-//                                    "arguments[0].click();",
-//                                    radio
-//                            );
-//
-//                            logger.info("Operation selected via JS click: {}", value);
-//
-//                        } catch (Exception e) {
-//
-//                            throw new GlobalExceptionHandler.ResourceNotFoundException("Operation handling failed: " + filter.getOperation());
-//                        }
-//
-//                        // =========================
-//                        // 4️⃣ HANDLE VALUE INPUT
-//                        // =========================
-//                        String valueSelector = filter.getValueSelector();
-//                        if (valueSelector == null || valueSelector.isEmpty()) {
-//                            logger.warn("No valueSelector provided, skipping value input");
-//                            continue;
-//                        }
-//
-//                        WebElement valueEl = wait.until(
-//                                ExpectedConditions.presenceOfElementLocated(By.cssSelector(valueSelector))
-//                        );
-//
-//                        String tag = valueEl.getTagName();
-//                        String id = valueEl.getAttribute("id");
-//                        String classes = valueEl.getAttribute("class");
-//
-//                        if (tag.equalsIgnoreCase("input") || tag.equalsIgnoreCase("textarea")) {
-//                            logger.info("considered input or textarea");
-//
-//                            // ✅ NORMAL INPUT
-//                            valueEl = wait.until(ExpectedConditions.elementToBeClickable(valueEl));
-//
-//                            valueEl.clear();
-//                            valueEl.sendKeys(filter.getValue());
-//
-//                            logger.info("Handled as normal input");
-//
-//                        }
-//                        else if (id != null && id.startsWith("select2-")) {
-//                            logger.info("id starts with select2-");
-//
-//                            // ✅ SELECT2 UI (your span case)
-//                            handleSelect2Dropdown(driver, valueSelector, filter.getValue());
-//
-//                            logger.info("Handled as Select2 dropdown UI");
-//
-//                        }
-//                        else if (tag.equalsIgnoreCase("select")
-//                                && classes != null
-//                                && classes.contains("select2-hidden-accessible")) {
-//                            logger.info("Handling as Select2 hidden select");
-//                            // ✅ SELECT2 HIDDEN SELECT
-//                            selectSelect2(driver, valueSelector, filter.getValue());
-//
-//                            logger.info("Handled as Select2 hidden select");
-//
-//                        }
-//                        else if (tag.equalsIgnoreCase("select")
-//                                && classes != null
-//                                && classes.contains("selectpicker")) {
-//                            logger.info("Handling as Bootstrap Select dropdown");
-//                            handleBootstrapSelect(driver, valueSelector, filter.getValue());
-//
-//                            logger.info("Handled as Bootstrap Select dropdown");
-//                        }
-//                        else {
-//                            logger.info("Handling as generic dropdown");
-//
-//
-//                            // ✅ GENERIC DROPDOWN
-//                            safeClick(driver, By.cssSelector(valueSelector));
-//
-//                            try {
-//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                        By.xpath("//*[text()='" + filter.getValue() + "']")
-//                                ));
-//                                option.click();
-//                            } catch (Exception ignored) {
-//
-//                                WebElement option = wait.until(ExpectedConditions.elementToBeClickable(
-//                                        By.xpath("//*[contains(text(),'" + filter.getValue() + "')]")
-//                                ));
-//                                option.click();
-//                            }
-//
-//                            logger.info("Handled as generic dropdown");
-//                        }
-//
-//                        // =========================
-//                        // 4.5️⃣ HANDLE LOGICAL OPERATOR (AND/OR)
-//                        // =========================
-//                        try {
-//                            System.out.println("logical operator : "+filter.getLogicalOperator());
-//
-//                            if (filter.getLogicalOperator() != null) {
-//
-//                                String operatorId = filter.getLogicalOperator(); // e.g. "name-operator"
-//
-//                                WebElement toggle = driver.findElement(
-//                                        By.cssSelector(operatorId)
-//                                );
-//
-//                                // 🔥 BEST → JS click
-//                                ((JavascriptExecutor) driver).executeScript(
-//                                        "arguments[0].click();",
-//                                        toggle
-//                                );
-//
-//                                logger.info("Toggled logical operator: {}", operatorId);
-//                            }else{
-//                                logger.info("already And operator is chosen!");
-//                            }
-//
-//                        } catch (Exception e) {
-//                            logger.warn("Logical operator toggle failed", e);
-//                            throw new GlobalExceptionHandler.ResourceNotFoundException("Logical operator toggle failed");
-//                        }
-//                    }
-//
-//
-//                    // =========================
-//                    // 5️⃣ APPLY FILTER BUTTON
-//                    // =========================
-//                    try {
-//                        if (currScenario.getApplyFilterBtn() != null) {
-//
-//                            By applyBtn = By.cssSelector(currScenario.getApplyFilterBtn());
-//
-//                            WebDriverWait wait1 = new WebDriverWait(driver, Duration.ofSeconds(10));
-//
-//                            WebElement button = wait.until(
-//                                    ExpectedConditions.elementToBeClickable(applyBtn)
-//                            );
-//
-//                            // 🔥 scroll (important)
-//                            ((JavascriptExecutor) driver).executeScript(
-//                                    "arguments[0].scrollIntoView({block:'center'});",
-//                                    button
-//                            );
-//
-//                            try {
-//                                button.click();
-//                            } catch (Exception e) {
-//                                // 🔥 fallback JS click
-//                                ((JavascriptExecutor) driver).executeScript(
-//                                        "arguments[0].click();",
-//                                        button
-//                                );
-//                            }
-//
-//                            logger.info("Clicked Apply Filter button");
-//                        }
-//
-//                    } catch (Exception e) {
-//                        logger.warn("Apply filter button click failed", e);
-//                        throw new GlobalExceptionHandler.ResourceNotFoundException("Apply filter button click failed");
-//                    }
-//
-//                    scenario.setScenarioStatus(RunStatus.PASSED);
-//                    resultTestCase.setResult("Passed");
-//                }
-
                 else if (currScenario.getType() == ScenarioType.FILTER_NAV) {
                     handleFilterNavScenario(driver, wait, currScenario, scenario, resultTestCase);
                 }
@@ -1142,7 +671,7 @@ public class ScenarioOrchestratorService {
         );
     }
     public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
-                                            , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
+            , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
         List<TestCaseDTO> testCases=null;
 
         int currEle=-1;
@@ -1161,13 +690,13 @@ public class ScenarioOrchestratorService {
 
         Scenario currModal=scenarios.get(currEle);
         logger.info("Processing scenario at adjusted index {}: type={}, url={}",
-            currEle, currModal.getType(), currModal.getUrl());
+                currEle, currModal.getType(), currModal.getUrl());
 
 
 
         if(currModal.getType()==ScenarioType.ASSERT){
             logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
-            currEle, currModal.getType());
+                    currEle, currModal.getType());
             runAssertionGeneric(driver,currModal,baseS3Prefix,scenarios);
             return;
         }
@@ -1187,21 +716,21 @@ public class ScenarioOrchestratorService {
                 logger.info("[{}] scanned {} modal fields", scenarioPrefix, modalFields.size());
                 counterIdx++;
 
-                    List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
-                    logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-                    String expected = tc.getExpectedResult();
-                    ResultRun resultRun =executor.runOnRenderedPage(driver, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
-                    if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
-                        tc.setResult("Passed");
-                        totalPasses++;
-                    } else {
-                        tc.setResult(resultRun.getStatus());
-                        totalFails++;
-                    }
-                    tc.setUrls(resultRun.getScreenshots());
-                    if(counterIdx<testCases.size())
-                        handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run,scenarioResultsMap);
-                    logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
+                List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
+                logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
+                String expected = tc.getExpectedResult();
+                ResultRun resultRun =executor.runOnRenderedPage(driver, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
+                if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
+                    tc.setResult("Passed");
+                    totalPasses++;
+                } else {
+                    tc.setResult(resultRun.getStatus());
+                    totalFails++;
+                }
+                tc.setUrls(resultRun.getScreenshots());
+                if(counterIdx<testCases.size())
+                    handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run,scenarioResultsMap);
+                logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
 
             }
 
@@ -1911,12 +1440,32 @@ public class ScenarioOrchestratorService {
             FallbackExecutor.execute(
 
                     List.of(
-                            "TREE_SELECTOR",
                             "EMPLOYEE_DROPDOWN",
+                            "TREE_SELECTOR",
                             "NO_ACTION"
                     ),
 
                     List.of(
+                            () -> {
+
+                                WebElement dropdownBtn =
+                                        wait.until(
+                                                ExpectedConditions
+                                                        .elementToBeClickable(
+                                                                By.cssSelector(
+                                                                        ".dropdown-btn"
+                                                                )
+                                                        )
+                                        );
+
+                                dropdownBtn.click();
+
+                                logger.info(
+                                        "Opened employee dropdown"
+                                );
+
+                                return true;
+                            },
 
                             () -> {
 
@@ -1937,27 +1486,6 @@ public class ScenarioOrchestratorService {
 
                                 logger.info(
                                         "Opened tree selector dropdown"
-                                );
-
-                                return true;
-                            },
-
-                            () -> {
-
-                                WebElement dropdownBtn =
-                                        wait.until(
-                                                ExpectedConditions
-                                                        .elementToBeClickable(
-                                                                By.cssSelector(
-                                                                        "#employee-dropdown-btn"
-                                                                )
-                                                        )
-                                        );
-
-                                dropdownBtn.click();
-
-                                logger.info(
-                                        "Opened employee dropdown"
                                 );
 
                                 return true;
