@@ -119,6 +119,19 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
                 })
                 : undefined,
 
+            // MANAGE COLUMN
+            columns: s.type === 'MANAGE_COL_NAV'
+                ? (s.columns || []).map(c => ({
+                    columnName: c.columnName || null,
+                    action: c.action || null,
+                    position: c.position ?? null
+                }))
+                : undefined,
+
+            saveBtnCss: s.type === 'MANAGE_COL_NAV'
+                ? s.saveBtnCss || null
+                : undefined,
+
             applyFilterBtn: s.type === 'FILTER_NAV' ? s.applyBtnCss : undefined,
             dateRangeNavDto: s.type === 'DATE_RANGE_NAV'
                 ? {

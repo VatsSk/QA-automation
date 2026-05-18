@@ -126,6 +126,23 @@ export const TYPES = {
 
         dynamicFields: true,
     },
+    MANAGE_COL_NAV: {
+        label: 'Manage Columns',
+        icon: '📑',
+        color: 'var(--indigo)',
+        bg: 'var(--indigo-d)',
+
+        fields: [
+            'columns',
+            'saveBtnCss'
+        ],
+
+        hasData: false,
+
+        hint: 'Show, hide and reorder table columns',
+
+        dynamicFields: true,
+    },
 
 };
 
@@ -204,10 +221,19 @@ export const ASSERT_TYPES = {
         label :'Assert Table filter',
         fields : ['tableId'],
         required:['tableId']
+    },
+    ASSERT_MANAGE_COLUMN:{
+        label:'Assert Manage Column',
+        fields:['tableId'],
+        required:['tableId']
     }
 
 };
-
+export const MANAGE_COLUMN_ACTIONS = [
+    { value: '', label: 'Default' },   // null action
+    { value: 'SHOW', label: 'Show' },
+    { value: 'HIDE', label: 'Hide' }
+];
 export const FILTER_TYPES = [
     { value: 'TEXT', label: 'Text' },
     { value: 'DATE', label: 'Date' },
@@ -279,4 +305,5 @@ export const REQUIRED = {
     ASSERT:     [],
     FILTER_NAV: ['applyBtnCss'],
     DATE_RANGE_NAV: ['inputSelector', 'selectionType', 'applyButtonSelector','calendarContainerSelector'],
+    MANAGE_COL_NAV: ['saveBtnCss'],
 };

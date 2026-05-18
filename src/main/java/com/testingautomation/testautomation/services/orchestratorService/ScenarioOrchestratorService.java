@@ -1137,119 +1137,6 @@ public class ScenarioOrchestratorService {
         return currIdx;
     }
 
-private void handleManageColumnScenario(
-        WebDriver driver,
-        WebDriverWait wait,
-        Scenario currScenario
-) throws InterruptedException {
-
-    logger.info("===== START : handleManageColumnScenario =====");
-
-    List<ManageColumnItemDto> targetColumns =
-            currScenario.getColumns();
-
-    logger.info("Fetched target columns: {}", targetColumns);
-
-    if (targetColumns == null || targetColumns.isEmpty()) {
-        logger.info("No target columns found. Exiting.");
-        return;
-    }
-
-    for (ManageColumnItemDto column : targetColumns) {
-
-        String columnSelector = column.getColumnName();
-        Integer position = column.getPosition();
-        ManageColumnAction action = column.getAction();
-
-
-
-        logger.info(
-                "Processing columnSelector={}, action={}, position={}",
-                columnSelector, action, position
-        );
-
-        WebElement label = wait.until(
-                ExpectedConditions.presenceOfElementLocated(
-                        By.cssSelector(columnSelector)
-                )
-        );
-        String extractedColumn = label.getText().trim();
-        column.setExtractedName(extractedColumn);
-
-        logger.info("Extracted column name: {}", extractedColumn);
-
-        String forAttr = label.getAttribute("for");
-
-        WebElement checkbox = driver.findElement(By.id(forAttr));
-
-        boolean isSelected = checkbox.isSelected();
-
-        /*
-         * =========================
-         * HANDLE ACTION
-         * =========================
-         */
-        if (action == ManageColumnAction.HIDE) {
-
-            if (isSelected) {
-
-                logger.info("Hiding column: {}", columnSelector);
-
-                ((JavascriptExecutor) driver)
-                        .executeScript("arguments[0].click();", checkbox);
-
-                Thread.sleep(300);
-            }
-
-            continue; // no move allowed for hidden columns
-        }
-
-        /*
-         * SHOW or NULL => ensure visible
-         */
-        if (!isSelected) {
-
-            logger.info("Ensuring column is visible: {}", columnSelector);
-
-            ((JavascriptExecutor) driver)
-                    .executeScript("arguments[0].click();", checkbox);
-
-            Thread.sleep(300);
-        }
-
-        /*
-         * =========================
-         * HANDLE POSITION (MOVE)
-         * =========================
-         */
-        if (position != null) {
-
-            String columnTitle = label.getText().trim();
-
-            logger.info(
-                    "Moving column [{}] to position [{}]",
-                    columnTitle,
-                    position
-            );
-
-            moveManageColumn(driver, columnTitle, position);
-        }
-    }
-
-//     Click save
-    WebElement saveBtn = wait.until(
-            ExpectedConditions.elementToBeClickable(
-                    By.cssSelector(currScenario.getSaveBtnCss())
-            )
-    );
-
-    ((JavascriptExecutor) driver)
-            .executeScript("arguments[0].click();", saveBtn);
-
-    Thread.sleep(1500);
-
-    logger.info("===== END : handleManageColumnScenario =====");
-}
     private void moveManageColumn(
             WebDriver driver,
             String columnName,
@@ -1328,7 +1215,6 @@ private void handleManageColumnScenario(
 
         logger.info("===== END : moveManageColumn =====");
     }
-
     private String fetchVisibleColumns(WebDriver driver){
 
         logger.info("===== START : fetchVisibleColumns =====");
@@ -1454,6 +1340,7 @@ private void handleManageColumnScenario(
             wait.until(ExpectedConditions.stalenessOf(rightMonthElement));
         }
     }
+
     private void clickDay(
             WebDriverWait wait,
             String containerSelector,
@@ -1494,7 +1381,6 @@ private void handleManageColumnScenario(
                 "Unable to select day: " + day
         );
     }
-
 
     public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
                                             , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
@@ -1820,6 +1706,7 @@ private void handleManageColumnScenario(
 
         );
     }
+
     private void handleSelect2(WebDriver driver, WebElement selectElement, String value,int[]stepCounter,Path navigationScreenshotDir, String scenarioPrefix) {
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
@@ -1888,7 +1775,6 @@ private void handleManageColumnScenario(
                 scenarioPrefix
         );
     }
-
     private By resolveLocator(String selector) {
 
         // If it looks like ID but contains spaces or special chars → use By.id
@@ -1952,6 +1838,7 @@ private void handleManageColumnScenario(
 
         }
     }
+
     private String extractValue(String locatorString) {
 
         if (locatorString == null) {
@@ -1970,7 +1857,6 @@ private void handleManageColumnScenario(
                 "Could not extract value from locator: " + locatorString
         );
     }
-
     private String extractLabelText(WebDriver driver, String selector) {
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
@@ -1987,6 +1873,7 @@ private void handleManageColumnScenario(
 
         return text != null ? text.trim() : "";
     }
+
     private void smartClick(WebDriver driver, By locator) {
 
         String loc = locator.toString();
@@ -2012,7 +1899,6 @@ private void handleManageColumnScenario(
         WebElement el = driver.findElement(locator);
         ((JavascriptExecutor) driver).executeScript("arguments[0].click();", el);
     }
-
     public void selectSelect2(WebDriver driver, String openerCss, String value) {
 
         JavascriptExecutor js = (JavascriptExecutor) driver;
@@ -2041,6 +1927,120 @@ private void handleManageColumnScenario(
                         "$(select).trigger('change');";
 
         js.executeScript(script, selectId, value);
+    }
+
+    private void handleManageColumnScenario(
+            WebDriver driver,
+            WebDriverWait wait,
+            Scenario currScenario
+    ) throws InterruptedException {
+
+        logger.info("===== START : handleManageColumnScenario =====");
+
+        List<ManageColumnItemDto> targetColumns =
+                currScenario.getColumns();
+
+        logger.info("Fetched target columns: {}", targetColumns);
+
+        if (targetColumns == null || targetColumns.isEmpty()) {
+            logger.info("No target columns found. Exiting.");
+            return;
+        }
+
+        for (ManageColumnItemDto column : targetColumns) {
+
+            String columnSelector = column.getColumnName();
+            Integer position = column.getPosition();
+            ManageColumnAction action = column.getAction();
+
+
+
+            logger.info(
+                    "Processing columnSelector={}, action={}, position={}",
+                    columnSelector, action, position
+            );
+
+            WebElement label = wait.until(
+                    ExpectedConditions.presenceOfElementLocated(
+                            By.cssSelector(columnSelector)
+                    )
+            );
+            String extractedColumn = label.getText().trim();
+            column.setExtractedName(extractedColumn);
+
+            logger.info("Extracted column name: {}", extractedColumn);
+
+            String forAttr = label.getAttribute("for");
+
+            WebElement checkbox = driver.findElement(By.id(forAttr));
+
+            boolean isSelected = checkbox.isSelected();
+
+            /*
+             * =========================
+             * HANDLE ACTION
+             * =========================
+             */
+            if (action == ManageColumnAction.HIDE) {
+
+                if (isSelected) {
+
+                    logger.info("Hiding column: {}", columnSelector);
+
+                    ((JavascriptExecutor) driver)
+                            .executeScript("arguments[0].click();", checkbox);
+
+                    Thread.sleep(300);
+                }
+
+                continue; // no move allowed for hidden columns
+            }
+
+            /*
+             * SHOW or NULL => ensure visible
+             */
+            if (!isSelected) {
+
+                logger.info("Ensuring column is visible: {}", columnSelector);
+
+                ((JavascriptExecutor) driver)
+                        .executeScript("arguments[0].click();", checkbox);
+
+                Thread.sleep(300);
+            }
+
+            /*
+             * =========================
+             * HANDLE POSITION (MOVE)
+             * =========================
+             */
+            if (position != null) {
+
+                String columnTitle = label.getText().trim();
+
+                logger.info(
+                        "Moving column [{}] to position [{}]",
+                        columnTitle,
+                        position
+                );
+
+                moveManageColumn(driver, columnTitle, position);
+            }
+        }
+
+//     Click save
+        WebElement saveBtn = wait.until(
+                ExpectedConditions.elementToBeClickable(
+                        By.cssSelector(currScenario.getSaveBtnCss())
+                )
+        );
+
+        ((JavascriptExecutor) driver)
+                .executeScript("arguments[0].click();", saveBtn);
+
+        Thread.sleep(1500);
+
+        logger.info("===== END : handleManageColumnScenario =====");
     }
     public void handleSelect2Dropdown(WebDriver driver, String openerCss, String value) {
 
