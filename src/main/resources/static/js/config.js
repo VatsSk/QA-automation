@@ -238,7 +238,13 @@ export const ASSERT_TYPES = {
         label:'Assert Manage Column',
         fields:['tableId'],
         required:['tableId']
+    },
+    ASSERT_ROWS_COUNT:{
+        label :'Assert table rows',
+        fields: ['tableId'],
+        required: ['tableId']
     }
+
 
 };
 export const MANAGE_COLUMN_ACTIONS = [
