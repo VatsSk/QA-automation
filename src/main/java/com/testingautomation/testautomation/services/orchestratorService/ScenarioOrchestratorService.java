@@ -639,9 +639,63 @@ public class ScenarioOrchestratorService {
                 else if(currScenario.getType()== ScenarioType.MANAGE_COL_NAV){
                     handleManageColumnScenario(driver, wait, currScenario);
                 }
+                else if(currScenario.getType()== ScenarioType.ROW_COUNT) {
+                    logger.info("ROW count scenario reached {}", currIdx);
+                    By openerBy = By.cssSelector(currScenario.getCssOpener());
 
-                Thread.sleep(1000);
+                    boolean clicked = false;
 
+
+                    // 1️⃣ TRY SAFE CLICK FIRST
+                    try {
+                        safeClick(driver, openerBy);
+                        clicked = true;
+                        logger.info("Modal opened using safeClick");
+                    } catch (Exception safeEx) {
+                        logger.warn("safeClick failed, falling back to smartClick. Reason: {}", safeEx.getMessage());
+                    }
+
+                    // 2️⃣ FALLBACK TO SMART CLICK
+                    if (!clicked) {
+                        try {
+                            smartClick(driver, openerBy);
+                            clicked = true;
+                            logger.info("Modal opened using smartClick");
+                        } catch (Exception smartEx) {
+                            throw new GlobalExceptionHandler.ResourceNotFoundException("Both safeClick and smartClick failed for modal opener " + smartEx.getMessage());
+                        }
+                    }
+
+                    // 3️⃣ Screenshot AFTER success
+                    String url = screenshotService.takeScreenshot(
+                            driver,
+                            (modalFormTcIdx + 1) + "",
+                            "step passed",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+
+                    logger.info("Modal opener clicked successfully");
+
+//                    int rows = 50;
+                int rows=Integer.parseInt(currScenario.getValue());
+                    Thread.sleep(1000);
+//                driver.findElement(By.id("row-num-dd")).click();
+
+                    driver.findElement(
+                            By.xpath("//a[@data-value='" + rows + "']")
+                    ).click();
+                    logger.info("Clicked at data in dropdown values {}", rows);
+                    screenshotService.takeScreenshot(
+                            driver,
+                            (modalFormTcIdx + 1) + "",
+                            "step passed",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    currScenario.setScenarioStatus(RunStatus.PASSED);
+                    resultTestCase.setResult("Passed");
+                }
             }
             catch (GlobalExceptionHandler.InvalidCountException e) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
@@ -961,7 +1015,7 @@ public class ScenarioOrchestratorService {
 
         if(currModal.getType()==ScenarioType.ASSERT){
             logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
-                    currEle, currModal.getType());
+                    currEle,currModal.getUrl(), currModal.getType());
             runAssertionGeneric(driver,currModal,baseS3Prefix,scenarios);
             return;
         }

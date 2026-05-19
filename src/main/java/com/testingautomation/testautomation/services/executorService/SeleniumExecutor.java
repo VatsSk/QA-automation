@@ -739,6 +739,9 @@ public class SeleniumExecutor {
                         assertManageColumn(driver,wait,step,scenarioPrefix,scenarios);
                         break;
 
+                    case ASSERT_ROWS_COUNT:
+                        assertRowsCount(driver,wait,step,scenarioPrefix,scenarios);
+                        break;
 
                     default:
                         throw new IllegalArgumentException("Unsupported assertion: " + step.getType());
@@ -757,74 +760,32 @@ public class SeleniumExecutor {
             tcIdx++;
         }
     }
-//    private void assertManageColumn(
-//            WebDriver driver,
-//            WebDriverWait wait,
-//            StepAction step,
-//            String scenarioPrefix,
-//            List<Scenario> scenarios
-//    ) throws  Exception{
-//        logger.info("Executing assertManageColumn");
-//
-//        waitForPageStable(driver);
-//
-//        List<ManageColumnItemDto> manageColumnItems = scenarios.stream()
-//                .filter(scenario -> scenario.getType() == ScenarioType.MANAGE_COL_NAV)
-//                .findFirst()
-//                .map(Scenario::getColumns)
-//                .orElseThrow(() ->
-//                        new GlobalExceptionHandler.BadRequestException(
-//                                "No MANAGE_COLUMN scenario found"
-//                        ));
-//
-//        waitForPageStable(driver);
-//
-//        Table currTable = tableSawService.extractDataTableToTablesaw(driver, step);
-//
-//        // Extract actual visible column names from table
-//        List<String> actualColumns = currTable.columnNames();
-//
-//        logger.info("Actual table columns: {}", actualColumns);
-//
-//        for (ManageColumnItemDto item : manageColumnItems) {
-//
-//            String expectedColumn =
-//                    item.getExtractedName() != null
-//                            ? item.getExtractedName()
-//                            : item.getColumnName();
-//
-//            boolean exists = actualColumns.contains(expectedColumn);
-//
-//            // SHOW => column must exist
-//            if (item.getAction() == ManageColumnAction.SHOW) {
-//
-//                if(!exists){
-//                    throw new Exception("Column is not visible");
-//                }
-//
-//                // Validate order if position provided
-//                if (item.getPosition() != null) {
-//
-//                    int actualPosition = actualColumns.indexOf(expectedColumn) + 1;
-//
-//                    if(actualPosition != item.getPosition()){
-//                        throw new Exception("Column position mismatch for: " + expectedColumn);
-//                    }
-//                }
-//            }
-//
-//            // HIDE => column must NOT exist
-//            else if (item.getAction() == ManageColumnAction.HIDE) {
-//
-//                if(exists){
-//                    throw new Exception("Column is visible");
-//                }
-//            }
-//        }
-//
-//        logger.info("Manage column assertion completed successfully");
-//    }
+    private void assertRowsCount(
+            WebDriver driver,
+            WebDriverWait wait,
+            StepAction step,
+            String scenarioPrefix,
+            List<Scenario> scenarios
+    ) throws InterruptedException {
+        logger.info("In Assert rows count ");
+        int rowsCount=Integer.parseInt(
+                scenarios.stream()
+                .filter(scenario -> scenario.getType()==ScenarioType.ROW_COUNT)
+                .findFirst()
+                .get().getValue()
+        );
+        logger.info("fetched rows count "+rowsCount);
+        waitForPageStable(driver);
+        Table currTable = tableSawService.extractDataTableToTablesaw(driver, step);
+        if(rowsCount <= currTable.rowCount()){
+            logger.info("rows in table {} less than or equals to {}",rowsCount,currTable.rowCount());
+            step.getAssertion().setAssertResult("Passed");
+        }else {
+            logger.info("rows in table {} is greater than {}",rowsCount,currTable.rowCount());
+            throw new InterruptedException("Assertion failed");
+        }
 
+    }
     private void assertManageColumn(
             WebDriver driver,
             WebDriverWait wait,

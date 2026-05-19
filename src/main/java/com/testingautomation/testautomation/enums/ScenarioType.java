@@ -17,5 +17,6 @@ public enum ScenarioType {
     AI_ASSERT,
     FILTER_NAV,
     DATE_RANGE_NAV,
-    MANAGE_COL_NAV
+    MANAGE_COL_NAV,
+    ROW_COUNT
 }
