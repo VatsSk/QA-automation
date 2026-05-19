@@ -188,277 +188,6 @@
         }
     }
 
-    // function initMonacoEditor() {
-    //
-    //     return new Promise((resolve)=>{
-    //         require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
-    //
-    //         require(['vs/editor/editor.main'], function () {
-    //
-    //             monaco.languages.register({ id: 'dl' });
-    //
-    //             monaco.languages.setMonarchTokensProvider('dl', {
-    //                 tokenizer: {
-    //                     root: [
-    //                         // Step keyword (@URL_NAV)
-    //                         [/^\s*@\w+/, 'keyword'],
-    //
-    //                         // Attribute key (^url)
-    //                         [/^\s*\^\w+/, 'attribute.name'],
-    //
-    //                         // Colon
-    //                         [/:/, 'delimiter'],
-    //
-    //                         // URL / value
-    //                         [/https?:\/\/[^\s]+/, 'string']
-    //                     ]
-    //                 }
-    //             });
-    //
-    //             monaco.languages.registerCompletionItemProvider('dl', {
-    //                 triggerCharacters: ['@', '^', '!', ':'],
-    //
-    //                 provideCompletionItems: function (model, position) {
-    //
-    //                     const textUntilPosition = model.getValueInRange({
-    //                         startLineNumber: 1,
-    //                         startColumn: 1,
-    //                         endLineNumber: position.lineNumber,
-    //                         endColumn: position.column
-    //                     });
-    //
-    //                     const lines = textUntilPosition.split('\n');
-    //                     const currentLine = lines[lines.length - 1].trim();
-    //
-    //                     // 🔥 Detect current scenario
-    //                     let currentType = null;
-    //                     let insideFilterBlock = false;
-    //                     let lastFilterType = null;
-    //
-    //                     for (let i = lines.length - 1; i >= 0; i--) {
-    //                         const line = lines[i].trim();
-    //
-    //                         if (line.startsWith('@') && !currentType) {
-    //                             currentType = line.substring(1).trim();
-    //                         }
-    //
-    //                         if (line.startsWith('!FILTER')) {
-    //                             insideFilterBlock = true;
-    //                         }
-    //
-    //                         if (line.startsWith('^filterType:')) {
-    //                             lastFilterType = line.split(':')[1]?.trim();
-    //                         }
-    //
-    //                         if (currentType && insideFilterBlock) break;
-    //                     }
-    //
-    //                     // =========================================================
-    //                     // 🔹 SCENARIO SUGGESTION (@)
-    //                     // =========================================================
-    //                     if (currentLine.startsWith('@')) {
-    //                         return {
-    //                             suggestions: Object.keys(TYPES).map(type => ({
-    //                                 label: type,
-    //                                 kind: monaco.languages.CompletionItemKind.Keyword,
-    //                                 insertText: type,
-    //                                 detail: TYPES[type].hint || '',
-    //                             }))
-    //                         };
-    //                     }
-    //
-    //                     // =========================================================
-    //                     // 🔹 BLOCK SUGGESTION (!)
-    //                     // =========================================================
-    //                     if (currentLine.startsWith('!')) {
-    //
-    //                         if (currentType === 'FILTER_NAV') {
-    //                             return {
-    //                                 suggestions: [{
-    //                                     label: 'FILTER',
-    //                                     kind: monaco.languages.CompletionItemKind.Struct,
-    //                                     insertText: 'FILTER',
-    //                                     detail: 'Start filter block'
-    //                                 }]
-    //                             };
-    //                         }
-    //                     }
-    //
-    //                     // =========================================================
-    //                     // 🔹 FIELD SUGGESTION (^)
-    //                     // =========================================================
-    //                     if (currentLine.startsWith('^')) {
-    //                         // =========================================
-    //                         // 🔹 ASSERT HANDLING (ADD THIS FIRST)
-    //                         // =========================================
-    //                         //
-    //                         if (currentType === 'ASSERT') {
-    //
-    //                             const typedKey = currentLine.replace('^', '').split(':')[0].trim();
-    //
-    //                             // 🔥 STEP 1: find last selected assert type FIRST
-    //                             let lastAssertType = null;
-    //
-    //                             for (let i = lines.length - 1; i >= 0; i--) {
-    //                                 const line = lines[i].trim();
-    //                                 if (line.startsWith('^type:')) {
-    //                                     lastAssertType = line.split(':')[1]?.trim();
-    //                                     break;
-    //                                 }
-    //                             }
-    //
-    //                             // =====================================================
-    //                             // ✅ STEP 2: Suggest ASSERT TYPES (only for type field)
-    //                             // =====================================================
-    //                             if (typedKey === 'type') {
-    //                                 return {
-    //                                     suggestions: Object.keys(ASSERT_TYPES).map(type => ({
-    //                                         label: type,
-    //                                         kind: monaco.languages.CompletionItemKind.Enum,
-    //                                         insertText: type,
-    //                                         detail: ASSERT_TYPES[type].label
-    //                                     }))
-    //                                 };
-    //                             }
-    //
-    //                             // =====================================================
-    //                             // ✅ STEP 3: If assertType selected → show ONLY its fields
-    //                             // =====================================================
-    //                             if (lastAssertType && ASSERT_TYPES[lastAssertType]) {
-    //                                 const fields = ASSERT_TYPES[lastAssertType].fields;
-    //
-    //                                 return {
-    //                                     suggestions: fields.map(f => ({
-    //                                         label: f,
-    //                                         kind: monaco.languages.CompletionItemKind.Field,
-    //                                         insertText: `${f}:`
-    //                                     }))
-    //                                 };
-    //                             }
-    //
-    //                             // =====================================================
-    //                             // ✅ STEP 4: fallback (no type selected yet)
-    //                             // =====================================================
-    //                             return {
-    //                                 suggestions: TYPES['ASSERT'].fields.map(f => ({
-    //                                     label: f,
-    //                                     kind: monaco.languages.CompletionItemKind.Field,
-    //                                     insertText: `${f}:`
-    //                                 }))
-    //                             };
-    //                         }
-    //
-    //                         // ✅ FILTER_NAV (top-level)
-    //                         if (currentType === 'FILTER_NAV' && !insideFilterBlock) {
-    //                             return {
-    //                                 suggestions: [
-    //                                     {
-    //                                         label: 'applyBtnCss',
-    //                                         kind: monaco.languages.CompletionItemKind.Field,
-    //                                         insertText: 'applyBtnCss:',
-    //                                     }
-    //                                 ]
-    //                             };
-    //                         }
-    //
-    //                         // ✅ Inside FILTER block
-    //                         if (insideFilterBlock) {
-    //                             return {
-    //                                 suggestions: [
-    //                                     'querySelector',
-    //                                     'filterType',
-    //                                     'operation',
-    //                                     'value',
-    //                                     'valueSelector',
-    //                                     'logicalOperator'
-    //                                 ].map(f => ({
-    //                                     label: f,
-    //                                     kind: monaco.languages.CompletionItemKind.Field,
-    //                                     insertText: `${f}:`
-    //                                 }))
-    //                             };
-    //                         }
-    //
-    //                         // ✅ Normal scenarios
-    //                         if (currentType && TYPES[currentType]) {
-    //                             const fields = TYPES[currentType].fields || [];
-    //
-    //                             return {
-    //                                 suggestions: fields.map(field => ({
-    //                                     label: field,
-    //                                     kind: monaco.languages.CompletionItemKind.Field,
-    //                                     insertText: `${field}:`,
-    //                                 }))
-    //                             };
-    //                         }
-    //                     }
-    //
-    //                     // =========================================================
-    //                     // 🔹 VALUE SUGGESTION (after :)
-    //                     // =========================================================
-    //                     if (currentLine.includes(':')) {
-    //
-    //                         const [rawKey] = currentLine.split(':');
-    //                         const key = rawKey.replace('^', '').trim();  // 🔥 FIX
-    //
-    //                         // ✅ filterType suggestions
-    //                         if (key === 'filterType') {
-    //                             return {
-    //                                 suggestions: Object.keys(FILTER_OPERATIONS).map(type => ({
-    //                                     label: type,
-    //                                     kind: monaco.languages.CompletionItemKind.Enum,
-    //                                     insertText: type
-    //                                 }))
-    //                             };
-    //                         }
-    //
-    //                         // ✅ operation suggestions
-    //                         if (key === 'operation' && lastFilterType && FILTER_OPERATIONS[lastFilterType]) {
-    //                             return {
-    //                                 suggestions: FILTER_OPERATIONS[lastFilterType].map(op => ({
-    //                                     label: op.value,
-    //                                     kind: monaco.languages.CompletionItemKind.Enum,
-    //                                     insertText: op.value,
-    //                                     detail: op.label
-    //                                 }))
-    //                             };
-    //                         }
-    //                     }
-    //
-    //                     return { suggestions: [] };
-    //                 }
-    //             });
-    //
-    //             monaco.editor.defineTheme('dlTheme', {
-    //                 base: 'vs-dark',
-    //                 inherit: true,
-    //                 rules: [
-    //                     { token: 'keyword', foreground: '00ffcc', fontStyle: 'bold' },
-    //                     { token: 'type.identifier', foreground: 'ffcc00' },
-    //                     { token: 'attribute.name', foreground: '66ccff' }
-    //                 ],
-    //                 colors: {
-    //                     "editor.background": "#0f172a",
-    //                     "editor.foreground": "#e5e7eb"
-    //                 }
-    //             });
-    //
-    //             const el = document.getElementById('dl-editor');
-    //
-    //             window.editor = monaco.editor.create(el, {
-    //                 value: `@URL_NAV
-    // ^url:https://example.com`,
-    //                 language: 'dl',
-    //                 theme: 'dlTheme',
-    //                 fontSize: 13,
-    //                 automaticLayout: true
-    //             });
-    //             console.log("✅ Editor initialized");
-    //             resolve(window.editor);
-    //         });
-    //     });
-    // }
-
     function initMonacoEditor() {
 
         return new Promise((resolve) => {
@@ -507,16 +236,31 @@
                         let currentType = null;
                         let insideFilterBlock = false;
                         let lastFilterType = null;
+                        let lastSelectionType = null;
+                        let insideColumnBlock = false;
 
                         for (let i = lines.length - 1; i >= 0; i--) {
                             const line = lines[i].trim();
+                            const upperLine = line.toUpperCase();
 
-                            if (line.startsWith('@') && !currentType) {
-                                currentType = line.substring(1).trim();
+
+                            if (line.startsWith('@')) {
+                                if (!currentType) {
+                                    currentType = line.substring(1).trim();
+                                }
+                                break;
                             }
 
-                            if (line.startsWith('!FILTER')) {
-                                insideFilterBlock = true;
+                            if (upperLine.startsWith('!COLUMN')) {
+                                if (!insideColumnBlock && !insideFilterBlock) {
+                                    insideColumnBlock = true;
+                                }
+                                continue;
+                            }
+                            if (upperLine.startsWith('!FILTER')) {
+                                if (!insideColumnBlock && !insideFilterBlock) {
+                                    insideFilterBlock = true;
+                                }
                                 continue;
                             }
 
@@ -527,6 +271,10 @@
                             if (line.startsWith('^filterType:')) {
                                 const val = line.split(':')[1];
                                 if (val) lastFilterType = val.trim();
+                            }
+                            if (line.startsWith('^selectionType:')) {
+                                const val = line.split(':')[1];
+                                if (val) lastSelectionType = val.trim();
                             }
                         }
 
@@ -544,10 +292,39 @@
                             };
                         }
 
-                        // =========================
                         // 🔹 ! BLOCK
-                        // =========================
+                        // if (currentLine.startsWith('!')) {
+                        //
+                        //     // FILTER NAV
+                        //     if (currentType === 'FILTER_NAV') {
+                        //         return {
+                        //             suggestions: [{
+                        //                 label: 'FILTER',
+                        //                 kind: monaco.languages.CompletionItemKind.Struct,
+                        //                 insertText: 'FILTER',
+                        //                 detail: 'Start filter block'
+                        //             }]
+                        //         };
+                        //     }
+                        //
+                        //     // ===== MANAGE COLUMN NAV =====
+                        //     if (currentType === 'MANAGE_COL_NAV') {
+                        //
+                        //         return {
+                        //             suggestions: [
+                        //                 'saveBtnCss'
+                        //             ].map(f => ({
+                        //                 label: f,
+                        //                 kind: monaco.languages.CompletionItemKind.Field,
+                        //                 insertText: `${f}:`,
+                        //             }))
+                        //         };
+                        //     }
+                        // }
+                        // 🔹 ! BLOCK
                         if (currentLine.startsWith('!')) {
+
+                            // FILTER NAV
                             if (currentType === 'FILTER_NAV') {
                                 return {
                                     suggestions: [{
@@ -555,6 +332,18 @@
                                         kind: monaco.languages.CompletionItemKind.Struct,
                                         insertText: 'FILTER',
                                         detail: 'Start filter block'
+                                    }]
+                                };
+                            }
+
+                            // MANAGE COLUMN NAV
+                            if (currentType === 'MANAGE_COL_NAV') {
+                                return {
+                                    suggestions: [{
+                                        label: 'COLUMN',
+                                        kind: monaco.languages.CompletionItemKind.Struct,
+                                        insertText: 'COLUMN',
+                                        detail: 'Start column block'
                                     }]
                                 };
                             }
@@ -595,6 +384,43 @@
                                     };
                                 }
                             }
+
+                            // 🔥 selectionType values
+                            if (key === 'selectionType') {
+                                return {
+                                    suggestions: DATE_SELECTION_TYPES.map(type => ({
+                                        label: type.value,
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: type.value,
+                                        detail: type.label
+                                    }))
+                                };
+                            }
+
+                            // 🔥 preset suggestions
+                            if (key === 'preset') {
+
+                                return {
+                                    suggestions: DATE_PRESET_TYPES.map(preset => ({
+                                        label: preset.value,
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: preset.value,
+                                        detail: preset.label
+                                    }))
+                                };
+                            }
+
+                            // 🔥 manage column actions
+                            if (currentType === 'MANAGE_COL_NAV' && insideColumnBlock && key === 'action' && currentLine.includes(':')) {
+                                return {
+                                    suggestions: MANAGE_COLUMN_ACTIONS.map(action => ({
+                                        label: action.value || 'DEFAULT',
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: action.value,
+                                        detail: action.label
+                                    }))
+                                };
+                            }
                         }
 
                         // =========================
@@ -603,36 +429,65 @@
                         if (currentLine.startsWith('^')) {
 
                             const isValueContext = currentLine.includes(':');
+                            // ===== ASSERT VALUE SUGGESTIONS =====
+                            if (currentType === 'ASSERT') {
+
+                                const typedKey = currentLine.split(':')[0]
+                                    .replace('^', '')
+                                    .trim();
+
+                                // 🔥 type enum suggestions
+                                if (typedKey === 'type') {
+                                    return {
+                                        suggestions: Object.keys(ASSERT_TYPES).map(type => ({
+                                            label: type,
+                                            kind: monaco.languages.CompletionItemKind.Enum,
+                                            insertText: type,
+                                            detail: ASSERT_TYPES[type].label
+                                        }))
+                                    };
+                                };
+                            }
 
                             if (!isValueContext) {
+                                // ===== COLUMN BLOCK =====
+                                if (currentType === 'MANAGE_COL_NAV' && insideColumnBlock) {
 
-                                // ===== ASSERT =====
+                                    return {
+                                        suggestions: [
+                                            'column',
+                                            'action',
+                                            'position'
+                                        ].map(f => ({
+                                            label: f,
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: `${f}:`
+                                        }))
+                                    };
+                                }
+
+                                // =========================
+                                // ===== ASSERT FIELD SUGGESTIONS =====
+                                // =========================
                                 if (currentType === 'ASSERT') {
-
-                                    const typedKey = currentLine.replace('^', '').trim();
 
                                     let lastAssertType = null;
 
                                     for (let i = lines.length - 1; i >= 0; i--) {
+
                                         const line = lines[i].trim();
+
                                         if (line.startsWith('^type:')) {
                                             lastAssertType = line.split(':')[1]?.trim();
                                             break;
                                         }
                                     }
 
-                                    if (typedKey === 'type') {
-                                        return {
-                                            suggestions: Object.keys(ASSERT_TYPES).map(type => ({
-                                                label: type,
-                                                kind: monaco.languages.CompletionItemKind.Enum,
-                                                insertText: type,
-                                                detail: ASSERT_TYPES[type].label
-                                            }))
-                                        };
-                                    }
+                                    console.log("ASSERT TYPE =", lastAssertType);
 
+                                    // 🔥 Dynamic fields based on assert type
                                     if (lastAssertType && ASSERT_TYPES[lastAssertType]) {
+
                                         return {
                                             suggestions: ASSERT_TYPES[lastAssertType].fields.map(f => ({
                                                 label: f,
@@ -642,6 +497,7 @@
                                         };
                                     }
 
+                                    // fallback
                                     return {
                                         suggestions: TYPES['ASSERT'].fields.map(f => ({
                                             label: f,
@@ -651,6 +507,7 @@
                                     };
                                 }
 
+
                                 // ===== FILTER_NAV =====
                                 if (currentType === 'FILTER_NAV' && !insideFilterBlock) {
                                     return {
@@ -658,6 +515,15 @@
                                             label: 'applyBtnCss',
                                             kind: monaco.languages.CompletionItemKind.Field,
                                             insertText: 'applyBtnCss:',
+                                        }]
+                                    };
+                                }
+                                if (currentType === 'MANAGE_COL_NAV' && !insideColumnBlock) {
+                                    return {
+                                        suggestions: [{
+                                            label: 'saveBtnCss',
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: 'saveBtnCss:',
                                         }]
                                     };
                                 }
@@ -682,13 +548,47 @@
 
                                 // ===== NORMAL =====
                                 if (currentType && TYPES[currentType]) {
-                                    return {
-                                        suggestions: TYPES[currentType].fields.map(f => ({
-                                            label: f,
-                                            kind: monaco.languages.CompletionItemKind.Field,
-                                            insertText: `${f}:`,
-                                        }))
-                                    };
+                                    // ===== DATE RANGE NAV =====
+                                    if (currentType === 'DATE_RANGE_NAV') {
+
+                                        let fields = [
+                                            'inputSelector',
+                                            'selectionType',
+                                            'applyButtonSelector',
+                                            'calendarContainerSelector',
+                                            'dateFormat'
+                                        ];
+
+                                        if (lastSelectionType === 'PRESET') {
+                                            fields.push('preset');
+                                        }
+
+                                        if (lastSelectionType === 'CUSTOM') {
+                                            fields.push('startDate');
+                                            fields.push('endDate');
+                                        }
+
+                                        return {
+                                            suggestions: fields.map(f => ({
+                                                label: f,
+                                                kind: monaco.languages.CompletionItemKind.Field,
+                                                insertText: `${f}:`,
+                                            }))
+                                        };
+                                    }
+
+
+
+                                    // ===== NORMAL =====
+                                    if (currentType && TYPES[currentType]) {
+                                        return {
+                                            suggestions: TYPES[currentType].fields.map(f => ({
+                                                label: f,
+                                                kind: monaco.languages.CompletionItemKind.Field,
+                                                insertText: `${f}:`,
+                                            }))
+                                        };
+                                    }
                                 }
                             }
                         }
@@ -756,6 +656,29 @@
                                 desc: `Filter type: ${f.value}`
                             };
                         });
+                        // 🔹 DATE SELECTION TYPES
+                        DATE_SELECTION_TYPES.forEach(t => {
+                            docs[t.value] = {
+                                title: t.label,
+                                desc: `Selection type: ${t.value}`
+                            };
+                        });
+
+                        // 🔹 DATE PRESET TYPES
+                        DATE_PRESET_TYPES.forEach(p => {
+                            docs[p.value] = {
+                                title: p.label,
+                                desc: `Date preset: ${p.value}`
+                            };
+                        });
+
+                        // 🔹 MANAGE COLUMN ACTIONS
+                        MANAGE_COLUMN_ACTIONS.forEach(a => {
+                            docs[a.value] = {
+                                title: a.label,
+                                desc: `Column action: ${a.value || 'DEFAULT'}`
+                            };
+                        });
 
                         // =========================
                         // 🔹 FILTER OPERATIONS
@@ -793,7 +716,20 @@
                             columnName: 'Column name',
                             rangeId: 'Range selector',
                             rowsBtn: 'Pagination control',
-                            promptAi: 'AI validation prompt'
+                            promptAi: 'AI validation prompt',
+                            inputSelector: 'Date picker input selector',
+                            selectionType: 'PRESET or CUSTOM',
+                            preset: 'Preset date range value',
+                            startDate: 'Custom start date',
+                            endDate: 'Custom end date',
+                            applyButtonSelector: 'Apply button selector',
+                            calendarContainerSelector: 'Calendar wrapper selector',
+                            dateFormat: 'Date parsing format',
+
+                            columns: 'Columns configuration',
+                            column: 'Manage column selector',
+                            saveBtnCss: 'Save/manage column button selector',
+                            action: 'SHOW / HIDE / DEFAULT'
                         };
 
                         Object.entries(FIELD_DOCS).forEach(([key, desc]) => {
