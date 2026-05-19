@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.testingautomation.testautomation.dto.StepAction.ActionType.ASSERT_FILTER;
+import static com.testingautomation.testautomation.dto.StepAction.ActionType.ASSERT_ROWS_COUNT;
 
 @Service
 public class AssertionStepGenerator {
@@ -49,49 +50,25 @@ public class AssertionStepGenerator {
 
     private StepAction.ActionType mapToActionType(AssertionType type) {
 
-        switch (type) {
-            case ASSERT_VISIBLE:
-                return StepAction.ActionType.ASSERT_VISIBLE;
-
-            case ASSERT_NOT_VISIBLE:
-                return StepAction.ActionType.ASSERT_NOT_VISIBLE;
-
-            case ASSERT_ELEMENT_PRESENT:
-                return StepAction.ActionType.ASSERT_ELEMENT_PRESENT;
-
-            case ASSERT_TEXT_EQUALS:
-                return StepAction.ActionType.ASSERT_TEXT_EQUALS;
-
-            case ASSERT_TEXT_CONTAINS:
-                return StepAction.ActionType.ASSERT_TEXT_CONTAINS;
-
-            case ASSERT_COLUMN_PRESENT:
-                return StepAction.ActionType.ASSERT_COLUMN_PRESENT;
-
-            case ASSERT_SORT_ORDER:
-                return StepAction.ActionType.ASSERT_SORT_ORDER;
-
-            case ASSERT_COUNT:
-                return StepAction.ActionType.ASSERT_COUNT;
-
-            case ASSERT_API_CALLED:
-                return StepAction.ActionType.ASSERT_API_CALLED;
-
-            case ASSERT_ATTRIBUTE:
-                return StepAction.ActionType.ASSERT_ATTRIBUTE;
-
-            case ASSERT_AI:
-                return StepAction.ActionType.ASSERT_AI;
-            case ASSERT_FILTER:
-                return StepAction.ActionType.ASSERT_FILTER;
-            case ASSERT_MANAGE_COLUMN:
-                return StepAction.ActionType.ASSERT_MANAGE_COLUMN;
-
-            default:
-                throw new GlobalExceptionHandler.BadRequestException(
-                        "Invalid configuration - Unknown assertion type: " + type
-                );
-        }
+        return switch (type) {
+            case ASSERT_VISIBLE -> StepAction.ActionType.ASSERT_VISIBLE;
+            case ASSERT_NOT_VISIBLE -> StepAction.ActionType.ASSERT_NOT_VISIBLE;
+            case ASSERT_ELEMENT_PRESENT -> StepAction.ActionType.ASSERT_ELEMENT_PRESENT;
+            case ASSERT_TEXT_EQUALS -> StepAction.ActionType.ASSERT_TEXT_EQUALS;
+            case ASSERT_TEXT_CONTAINS -> StepAction.ActionType.ASSERT_TEXT_CONTAINS;
+            case ASSERT_COLUMN_PRESENT -> StepAction.ActionType.ASSERT_COLUMN_PRESENT;
+            case ASSERT_SORT_ORDER -> StepAction.ActionType.ASSERT_SORT_ORDER;
+            case ASSERT_COUNT -> StepAction.ActionType.ASSERT_COUNT;
+            case ASSERT_API_CALLED -> StepAction.ActionType.ASSERT_API_CALLED;
+            case ASSERT_ATTRIBUTE -> StepAction.ActionType.ASSERT_ATTRIBUTE;
+            case ASSERT_AI -> StepAction.ActionType.ASSERT_AI;
+            case ASSERT_FILTER -> StepAction.ActionType.ASSERT_FILTER;
+            case ASSERT_MANAGE_COLUMN -> StepAction.ActionType.ASSERT_MANAGE_COLUMN;
+            case ASSERT_ROWS_COUNT -> StepAction.ActionType.ASSERT_ROWS_COUNT;
+            default -> throw new GlobalExceptionHandler.BadRequestException(
+                    "Invalid configuration - Unknown assertion type: " + type
+            );
+        };
     }
 
     /**
