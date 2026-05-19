@@ -770,7 +770,7 @@ public class SeleniumExecutor {
         logger.info("In Assert rows count ");
         int rowsCount=Integer.parseInt(
                 scenarios.stream()
-                .filter(scenario -> scenario.getType()==ScenarioType.ROW_COUNT)
+                .filter(scenario -> scenario.getType()==ScenarioType.ROW_COUNT_NAV)
                 .findFirst()
                 .get().getValue()
         );

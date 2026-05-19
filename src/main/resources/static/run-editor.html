@@ -1136,14 +1136,30 @@
         </div>` : ''}
 
         <!-- ── Value (for SEARCH_NAV and FORM_MODAL) ── -->
-        ${cfg.fields.includes('value') ? `
+       ${cfg.fields.includes('value') ? `
         <div class="field">
-          <label class="lbl">${s.type === 'FORM_MODAL' ? 'Form Value *' : 'Search Value *'}</label>
+          <label class="lbl">
+            ${
+                    s.type === 'FORM_MODAL'
+                        ? 'Form Value *'
+                        : s.type === 'ROW_COUNT_NAV'
+                            ? 'Row Count *'
+                            : 'Search Value *'
+                }
+          </label>
+
           <input class="inp" id="sc-value"
             value="${esc(s.value)}"
-            placeholder="${s.type === 'FORM_MODAL' ? 'Value to type in form field' : 'Search term or input text'}"
+            placeholder="${
+                    s.type === 'FORM_MODAL'
+                        ? 'Value to type in form field'
+                        : s.type === 'ROW_COUNT_NAV'
+                            ? 'Enter row count (10, 25, 50, 100)'
+                            : 'Search term or input text'
+                }"
             oninput="updateField(${scIdx}, 'value', this.value)">
-        </div>` : ''}
+        </div>` : ''
+        }
 
         <!-- ── Click Option (only for FORM_MODAL) ── -->
         ${s.type === 'FORM_MODAL' ? `

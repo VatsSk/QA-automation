@@ -143,6 +143,18 @@ export const TYPES = {
 
         dynamicFields: true,
     },
+    ROW_COUNT_NAV: {
+        label: 'Row Count',
+        icon: '📊',
+        color: 'var(--pri)',
+        bg: 'var(--pri-bg)',
+        fields: [
+            'cssSelector',
+            'value'
+        ],
+        hasData: false,
+        hint: 'Change rows count on table'
+    }
 
 };
 
