@@ -331,63 +331,7 @@ export function parseDLToPayload(dlText) {
         }
     }
 
-    // ─────────────────────────────
     // 🔄 FINAL MAPPING
-    // ─────────────────────────────
-    // return {
-    //     scenariosList: scenarios.map((s, i) => ({
-    //
-    //         type: s.type,
-    //         sequenceNo: i + 1,
-    //
-    //         url: s.url || null,
-    //         cssOpener: s.cssSelector || null,
-    //         value: s.value || null,
-    //         clickCss: s.clickCss || null,
-    //         csv: s.csv || null,
-    //         // ✅ DATE RANGE
-    //         inputSelector: s.inputSelector || null,
-    //         selectionType: s.selectionType || null,
-    //         preset: s.preset || null,
-    //         startDate: s.startDate || null,
-    //         endDate: s.endDate || null,
-    //         applyButtonSelector: s.applyButtonSelector || null,
-    //         calendarContainerSelector: s.calendarContainerSelector || null,
-    //         dateFormat: s.dateFormat || null,
-    //
-    //         // ✅ MANAGE COLUMN
-    //         columns: s.columns || null,
-    //         saveBtnCss: s.saveBtnCss || null,
-    //
-    //         // ✅ ASSERTS
-    //         assertions: s.type === 'ASSERT'
-    //             ? (s.assertions || []).map(a => ({
-    //                 type: a.type || null,
-    //                 locator: a.locator || null,
-    //                 expected: a.expected || null,
-    //                 tableId: a.tableId || null,
-    //                 columnName: a.columnName || null,
-    //                 order: a.order || null,
-    //                 rowsBtn: a.rowsBtn || null,
-    //                 prompt: a.prompt || null
-    //             }))
-    //             : undefined,
-    //
-    //         // ✅ FILTERS
-    //         filters: s.filters?.length
-    //             ? s.filters.map(f => ({
-    //                 querySelector: f.querySelector || null,
-    //                 filterType: f.filterType || null,
-    //                 operation: f.operation || null,
-    //                 value: f.value || null,
-    //                 valueSelector: f.valueSelector || null,
-    //                 logicalOperator: f.logicalOperator || null
-    //             }))
-    //             : undefined,
-    //
-    //         applyFilterBtn: s.applyBtnCss || undefined
-    //     }))
-    // };
     return {
         scenariosList: scenarios.map((s, i) => {
 

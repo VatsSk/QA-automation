@@ -639,7 +639,7 @@ public class ScenarioOrchestratorService {
                 else if(currScenario.getType()== ScenarioType.MANAGE_COL_NAV){
                     handleManageColumnScenario(driver, wait, currScenario);
                 }
-                else if(currScenario.getType()== ScenarioType.ROW_COUNT) {
+                else if(currScenario.getType()== ScenarioType.ROW_COUNT_NAV) {
                     logger.info("ROW count scenario reached {}", currIdx);
                     By openerBy = By.cssSelector(currScenario.getCssOpener());
 

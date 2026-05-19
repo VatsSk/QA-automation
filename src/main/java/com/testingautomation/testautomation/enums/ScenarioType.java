@@ -18,5 +18,5 @@ public enum ScenarioType {
     FILTER_NAV,
     DATE_RANGE_NAV,
     MANAGE_COL_NAV,
-    ROW_COUNT
+    ROW_COUNT_NAV
 }
