@@ -321,35 +321,33 @@ public class ScenarioOrchestratorService {
             Path navigationScreenshotDir,
             String scenarioPrefix
     ) {
-
-        switch (currScenario.getType()) {
-
-            case URL_NAV:
-                urlNavigation(
-                        currScenario,
-                        scenario,
-                        driver,
-                        modalFormTcIdx,
-                        navigationScreenshotDir,
-                        scenarioPrefix,
-                        resultTestCase
-                );
-                return currIdx;
-
-            case MODAL_NAV:
-                handleModalNav(
-                        driver,
-                        currScenario,
-                        scenario,
-                        resultTestCase,
-                        modalFormTcIdx,
-                        navigationScreenshotDir,
-                        scenarioPrefix
-                );
-                return currIdx;
-
-            case SEARCH_NAV:
-                return handleSearchNavScenario(
+        try {
+            return switch (currScenario.getType()) {
+                case URL_NAV -> {
+                    urlNavigation(
+                            currScenario,
+                            scenario,
+                            driver,
+                            modalFormTcIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix,
+                            resultTestCase
+                    );
+                    yield currIdx;
+                }
+                case MODAL_NAV -> {
+                    handleModalNav(
+                            driver,
+                            currScenario,
+                            scenario,
+                            resultTestCase,
+                            modalFormTcIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    yield currIdx;
+                }
+                case SEARCH_NAV -> handleSearchNavScenario(
                         driver,
                         wait,
                         currScenario,
@@ -360,62 +358,63 @@ public class ScenarioOrchestratorService {
                         navigationScreenshotDir,
                         scenarioPrefix
                 );
-
-            case FORM_MODAL:
-                handleFormModal(
-                        currScenario,
-                        driver,
-                        resultTestCase,
-                        scenarioPrefix,
-                        navigationScreenshotDir,
-                        scenario,
-                        modalFormTcIdx
-                );
-                return currIdx;
-
-            case FILTER_NAV:
-                handleFilterNavScenario(driver, wait, currScenario, scenario, resultTestCase);
-                return currIdx;
-
-            case DATE_RANGE_NAV:
-                handleDateRangeNav(
-                        driver,
-                        wait,
-                        currScenario,
-                        scenario,
-                        resultTestCase,
-                        currIdx,
-                        navigationScreenshotDir,
-                        scenarioPrefix
-                );
-                return currIdx;
-
-            case MANAGE_COL_NAV:
-                handleManageColumnScenario(currIdx,driver, wait, currScenario);
-                return currIdx;
-
-            case ROW_COUNT_NAV:
-                handleRowCountNav(
-                        driver,
-                        wait,
-                        currScenario,
-                        scenario,
-                        resultTestCase,
-                        currIdx,
-                        modalFormTcIdx,
-                        navigationScreenshotDir,
-                        scenarioPrefix
-                );
-                return currIdx;
-
-            default:
-                throw new ScenarioExecutionException(
+                case FORM_MODAL -> {
+                    handleFormModal(
+                            currScenario,
+                            driver,
+                            resultTestCase,
+                            scenarioPrefix,
+                            navigationScreenshotDir,
+                            scenario,
+                            modalFormTcIdx
+                    );
+                    yield currIdx;
+                }
+                case FILTER_NAV -> {
+                    handleFilterNavScenario(driver, wait, currScenario, scenario, resultTestCase);
+                    yield currIdx;
+                }
+                case DATE_RANGE_NAV -> {
+                    handleDateRangeNav(
+                            driver,
+                            wait,
+                            currScenario,
+                            scenario,
+                            resultTestCase,
+                            currIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    yield currIdx;
+                }
+                case MANAGE_COL_NAV -> {
+                    handleManageColumnScenario(currIdx, driver, wait, currScenario);
+                    yield currIdx;
+                }
+                case ROW_COUNT_NAV -> {
+                    handleRowCountNav(
+                            driver,
+                            wait,
+                            currScenario,
+                            scenario,
+                            resultTestCase,
+                            currIdx,
+                            modalFormTcIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    yield currIdx;
+                }
+                default -> throw new ScenarioExecutionException(
                         currIdx,
                         currScenario.getType(),
                         "VALIDATE_SCENARIO_TYPE",
                         "Unsupported scenario type: " + currScenario.getType(),
                         null
                 );
+            };
+        }catch(ScenarioExecutionException e) {
+            throw e;
         }
     }
 
@@ -479,11 +478,10 @@ public class ScenarioOrchestratorService {
                 resultTestCase.setResult("Failed "+ex.getMessage());
 
                 logger.error(
-                        "Scenario stopped at index {} type {} because {}",
+                        "Scenario stopped at index {} type {}",
                         currIdx,
                         currScenario.getType(),
-                        ex.getMessage(),
-                        ex
+                        ex.getMessage().split("\n")[0]
                 );
 
                 screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
@@ -594,6 +592,7 @@ public class ScenarioOrchestratorService {
                     logger.info("Row count dropdown opened using smartClick");
                 }
                 catch (Exception smartEx) {
+                    logger.info("Both click failed {}",smartEx.getMessage());
                     throw new ScenarioExecutionException(
                             currIdx,
                             currScenario.getType(),
@@ -1390,8 +1389,21 @@ public class ScenarioOrchestratorService {
 
 
         logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
+        By openerBy;
+        try {
+         openerBy  = By.cssSelector(currScenario.getCssOpener());
+        }catch (Exception ex) {
+            logger.error("Failed to open modal using selector: {}", currScenario.getCssOpener(), ex.getMessage().split("\n")[0]);
+            throw new ScenarioExecutionException(
+                    modalFormTcIdx,
+                    currScenario.getType(),
+                    "ERROR_OPENING_SELECTOR",
+                    "Unable to select "+currScenario.getCssOpener(),
+                    ex
 
-        By openerBy = By.cssSelector(currScenario.getCssOpener());
+            );
+        }
+
 
         boolean clicked = false;
 
@@ -1401,7 +1413,7 @@ public class ScenarioOrchestratorService {
             clicked = true;
             logger.info("Modal opened using safeClick");
         } catch (Exception safeEx) {
-            logger.warn("safeClick failed, falling back to smartClick. Reason: {}", safeEx.getMessage());
+            logger.warn("safeClick failed, falling back to smartClick. Reason: {}",safeEx.getMessage().split("\n")[0]);
         }
 
         // 2️⃣ FALLBACK TO SMART CLICK
@@ -1419,18 +1431,16 @@ public class ScenarioOrchestratorService {
 
                 }
                 catch (
-                        NoSuchElementException |
-                        GlobalExceptionHandler.TimeoutException |
-                        ElementNotInteractableException |
-                        StaleElementReferenceException ex
+                        Exception ex
                 ) {
+                    logger.info("Unable to click "+ex.getMessage().split("\n")[0]);
 
                     throw new GlobalExceptionHandler.ScenarioExecutionException(
                             scenario.getSequenceNo(),
                             currScenario.getType(),
                             "OPEN_MODAL",
                             String.format(
-                                    "Failed to open modal using selector '%s'. "+
+                                    "Failed to open modal using selector '%s'. ",
                                     currScenario.getCssOpener()
                             ),
                             ex

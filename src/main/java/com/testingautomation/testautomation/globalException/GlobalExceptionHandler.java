@@ -124,6 +124,41 @@ public class GlobalExceptionHandler {
         public StorageException(String msg, Throwable cause) { super(msg, cause); }
     }
 
+    @ExceptionHandler(ScenarioExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleScenarioExecution(
+            ScenarioExecutionException ex
+    ) {
+
+        log.error(
+                "Scenario execution failed at step={} scenarioIndex={} type={}",
+                ex.getStep(),
+                ex.getScenarioIndex(),
+                ex.getScenarioType(),
+                ex
+        );
+
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ex.getUserMessage()
+        );
+
+        Map<String, String> details = new HashMap<>();
+
+        details.put("scenarioIndex", String.valueOf(ex.getScenarioIndex()));
+        details.put("scenarioType", ex.getScenarioType().name());
+        details.put("step", ex.getStep());
+
+        if (ex.getCause() != null) {
+            details.put("reason", ex.getCause().getMessage());
+        }
+
+        body.setDetails(details);
+
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(body);
+    }
+
     // ── Handlers ──────────────────────────────────────────────────────
 
     @ExceptionHandler(NoResourceFoundException.class)
