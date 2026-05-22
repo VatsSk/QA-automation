@@ -2764,18 +2764,22 @@ public class ScenarioOrchestratorService {
 
                 // optional only, do not stop execution if absent
                 try {
+                    logger.info("Searching for apply button");
                     WebElement applyButton = driver.findElement(By.id("apply-button"));
                     if (applyButton.isDisplayed()) {
                         applyButton.click();
                         logger.info("Clicked apply button");
                     }
                 }
-                catch (NoSuchElementException ignored) {
+                catch (Exception ignored) {
                     logger.info("No apply button found");
                 }
-
-                driver.findElement(By.tagName("body")).click();
-                logger.info("Closed dropdown using body click");
+                try {
+                    driver.findElement(By.tagName("body")).click();
+                    logger.info("Closed dropdown using body click");
+                } catch (Exception e) {
+                    logger.info("Unable to click");
+                }
 
                 screenshotService.takeScreenshot(
                         driver,
