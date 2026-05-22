@@ -83,6 +83,33 @@ public class GlobalExceptionHandler {
 
     }
 
+    public static class AssertionExecutionException extends AutomationException {
+        private final String assertionType;
+        private final String userMessage;
+
+        public AssertionExecutionException(
+                String assertionType,
+                String userMessage
+        ) {
+
+            super(userMessage);
+            this.assertionType = assertionType;
+            this.userMessage = userMessage;
+
+        }
+
+        public String getAssertionType() {
+            return assertionType;
+        }
+
+        public String getUserMessage() {
+
+            return userMessage;
+
+        }
+
+    }
+
 
     // ── Custom exceptions ─────────────────────────────────────────────
     public static abstract class AutomationException extends RuntimeException {
@@ -125,6 +152,69 @@ public class GlobalExceptionHandler {
     }
 
     // ── Handlers ──────────────────────────────────────────────────────
+
+    @ExceptionHandler(ScenarioExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleScenarioExecution(
+            ScenarioExecutionException ex
+    ) {
+        log.error(
+                "Scenario execution failed at step={} scenarioIndex={} type={}",
+                ex.getStep(),
+                ex.getScenarioIndex(),
+                ex.getScenarioType(),
+                ex
+        );
+
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ex.getUserMessage()
+        );
+
+        Map<String, String> details = new HashMap<>();
+
+        details.put("scenarioIndex", String.valueOf(ex.getScenarioIndex()));
+        details.put("scenarioType", ex.getScenarioType().name());
+        details.put("step", ex.getStep());
+
+        if (ex.getCause() != null) {
+            details.put("reason", ex.getCause().getMessage());
+        }
+
+        body.setDetails(details);
+
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(body);
+    }
+
+
+    @ExceptionHandler(AssertionExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleAssertionExecution(
+            AssertionExecutionException ex
+    ) {
+        log.error(
+                "Scenario execution failed at AssertionType={} and UserMessage={} ",
+                ex.getAssertionType(),
+                ex.getUserMessage(),
+                ex
+        );
+
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ex.getUserMessage()
+        );
+
+        Map<String, String> details = new HashMap<>();
+
+        details.put("AssertionType", String.valueOf(ex.getAssertionType()));
+        if (ex.getCause() != null) {
+            details.put("reason", ex.getCause().getMessage());
+        }
+        body.setDetails(details);
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(body);
+    }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Void> handleNoResource(NoResourceFoundException ex) {

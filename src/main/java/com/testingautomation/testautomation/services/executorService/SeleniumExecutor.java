@@ -747,7 +747,15 @@ public class SeleniumExecutor {
                         throw new IllegalArgumentException("Unsupported assertion: " + step.getType());
                 }
 
-            } catch (Exception e) {
+            }
+            catch(GlobalExceptionHandler.AssertionExecutionException ex){
+                step.getAssertion().setAssertResult("FAILED");
+                step.getAssertion().setErrorMessage(ex.getUserMessage());
+
+                System.out.println("❌ Assertion failed: " + step.getDescription()
+                        + " | Reason: " + ex.getUserMessage());
+            }
+            catch (Exception e) {
                 step.getAssertion().setAssertResult("FAILED");
                 step.getAssertion().setErrorMessage(e.getMessage());
 
@@ -1148,7 +1156,7 @@ public class SeleniumExecutor {
         List<WebElement> elements = driver.findElements(getBy(step));
 
         if (elements == null || elements.isEmpty()) {
-            throw new GlobalExceptionHandler.BadRequestException("Element not present in DOM: " + step.getLocator());
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Element not present in DOM: " + step.getLocator());
         }
     }
     private void assertVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
@@ -1158,7 +1166,7 @@ public class SeleniumExecutor {
         ));
 
         if (!el.isDisplayed()) {
-            throw new GlobalExceptionHandler.BadRequestException("Element not visible: " + step.getLocator());
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Element not visible: " + step.getLocator());
         }
     }
     private void assertNotVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
@@ -1168,7 +1176,7 @@ public class SeleniumExecutor {
         );
 
         if (!invisible) {
-            throw new GlobalExceptionHandler.BadRequestException("Element is visible but should not be");
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Element is visible but should not be");
         }
     }
 
@@ -1265,7 +1273,7 @@ public class SeleniumExecutor {
             logger.info("Missing values: {}", missing);
             logger.info("Unexpected extra values: {}", extra);
 
-            throw new GlobalExceptionHandler.BadRequestException("Text values do not match expected set");
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Text values do not match expected set");
         }
 
         logger.info("✅ Text assertion passed");
@@ -1281,7 +1289,7 @@ public class SeleniumExecutor {
         String actual = el.getText();
 
         if (!actual.contains(step.getPayload())) {
-            throw new GlobalExceptionHandler.BadRequestException("Text does not contain: " + step.getPayload());
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Text does not contain: " + step.getPayload());
         }
     }
 
@@ -1363,7 +1371,7 @@ public class SeleniumExecutor {
             logger.error("Assertion failed. Missing columns: {} | Actual columns: {}",
                     missingColumns, actualColumns);
 
-            throw new GlobalExceptionHandler.BadRequestException("Missing columns: " + missingColumns +
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Missing columns: " + missingColumns +
                     " | Actual: " + actualColumns);
         }
 
@@ -1397,18 +1405,18 @@ public class SeleniumExecutor {
                     logger.info("✅ PASS: Single page with fewer rows than page size");
                 } else {
                     logger.error("❌ FAIL: Multiple pages exist but rows < page size");
-                    throw new GlobalExceptionHandler.BadRequestException("Pagination mismatch detected");
+                    throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Pagination mismatch detected");
                 }
 
             } else {
                 logger.error("❌ FAIL: Visible rows exceed selected page size");
-                throw new GlobalExceptionHandler.BadRequestException("Row count exceeds page size");
+                throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Row count exceeds page size");
             }
             return "passed";
 
         } catch (Exception e) {
             logger.error("❌ Exception in ASSERT_COUNT: {}", e.getMessage(), e);
-            throw new GlobalExceptionHandler.BadRequestException("ASSERT_COUNT failed"+e);
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"ASSERT_COUNT failed");
         }
 
 
@@ -1567,7 +1575,7 @@ public class SeleniumExecutor {
                 }
             }
 
-            throw  new GlobalExceptionHandler.BadRequestException("Sorting is incorrect");
+            throw  new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Sorting is incorrect");
         }
 
         logger.info("✅ Sorting is correct");
@@ -1584,7 +1592,7 @@ public class SeleniumExecutor {
         String actual = el.getAttribute(step.getPayload());
 
         if (!actual.equals(step.getPayload())) {
-            throw new GlobalExceptionHandler.BadRequestException("Attribute mismatch");
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Attribute mismatch");
         }
     }
 
@@ -1603,6 +1611,6 @@ public class SeleniumExecutor {
             return By.cssSelector(step.getLocator());
         }
         logger.info("❌ Invalid locator type: {}", step.getLocatorType());
-        throw new IllegalArgumentException("Invalid locator type");
+        throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Invalid locator type "+step.getLocator());
     }
 }
