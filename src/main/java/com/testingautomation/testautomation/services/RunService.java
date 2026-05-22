@@ -17,11 +17,13 @@ import com.testingautomation.testautomation.services.orchestratorService.Scenari
 import com.testingautomation.testautomation.dto.filterDto.RunFilterParams;
 import com.testingautomation.testautomation.repositories.runRepos.RunRepository;
 import com.testingautomation.testautomation.dto.requestDto.RunRequest;
+import com.testingautomation.testautomation.services.s3Service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import software.amazon.awssdk.core.ResponseInputStream;
@@ -47,6 +49,11 @@ public class RunService {
     private final ScenarioOrchestratorService scenarioOrchestratorService;
     private final StorageProperties storageProperties;
     private final S3Client s3Client;
+    private final StorageService storageService;
+    @Value("${S3_BUCKET}")
+    private String bucketName;
+    @Value("${S3_BASE_PREFIX}")
+    private String prefix;
 
     // ── Filtered list ─────────────────────────────────────────────────
 
@@ -115,7 +122,17 @@ public class RunService {
     // ── Delete ────────────────────────────────────────────────────────
 
     public void deleteRun(String id) {
+        System.out.println("bucket"+bucketName);
+        System.out.println("prefix"+prefix);
+
         Run run = findRunOrThrow(id);
+        String projectId = run.getProjectId();
+        String moduleId = run.getModuleId();
+
+        String basePrefix=prefix+"/"+ projectId+ "/" + moduleId + "/" + id;
+        if(storageService.doesPrefixHaveObjects(bucketName,basePrefix)){
+            storageService.deleteFolder(bucketName,basePrefix);
+        }
         runRepository.delete(run);
         log.info("Deleted run {}", id);
     }

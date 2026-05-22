@@ -9,6 +9,7 @@ import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
 import com.testingautomation.testautomation.services.fallback.FallbackExecutor;
+import com.testingautomation.testautomation.services.s3Service.StorageService;
 import com.testingautomation.testautomation.services.stepGeneratorService.StepGenerator;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.csvLoaderService.CsvTestCaseLoader;
@@ -54,6 +55,8 @@ public class ScenarioOrchestratorService {
     private final AssertionStepGenerator assertionStepGenerator;
     @Value("${storage.s3.base-prefix}")
     private  String basePrefix;
+    @Value("${storage.s3.bucket-name}")
+    private String bucket;
     private final Logger logger = LoggerFactory.getLogger(ScenarioOrchestratorService.class);
 
     // your existing components (assumed to be available)
@@ -64,6 +67,7 @@ public class ScenarioOrchestratorService {
     private final RunRepository runRepository;
     private final MongoTemplate mongoTemplate;
     private final S3StorageService s3StorageService;
+    private final StorageService storageService;
 
 
     /**
@@ -72,6 +76,12 @@ public class ScenarioOrchestratorService {
      */
     public Run executeScenarios(Run run, WebDriver driver, String globalRunId) {
         String baseS3Prefix =basePrefix+"/"+ run.getProjectId()+ "/" + run.getModuleId() + "/" + globalRunId;
+
+        //deleting existing objects from the s3 for run
+        if (storageService.doesPrefixHaveObjects(bucket, baseS3Prefix)) {
+            storageService.deleteFolder(bucket, baseS3Prefix);
+        }
+
         List<Scenario> scenarios = run.getScenariosList();
 
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
@@ -150,7 +160,6 @@ public class ScenarioOrchestratorService {
             Files.createDirectories(scenarioDir);
         } catch (IOException e) {
             logger.error("Failed to create scenario directory: {}", scenarioPrefix, e);
-            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed to create directory for VERIFY_PAGE scenario", e);
         }
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
@@ -416,7 +425,7 @@ public class ScenarioOrchestratorService {
                             scenarioPrefix
                     );
 
-                    continue;
+//                    continue;
                 }
                 else if(currScenario.getType() == ScenarioType.FORM_MODAL){
 
@@ -634,10 +643,14 @@ public class ScenarioOrchestratorService {
                                 navigationScreenshotDir,
                                 scenarioPrefix
                         );
+                        scenario.setScenarioStatus(RunStatus.PASSED);
+                        resultTestCase.setResult("Passed");
                     }
                 }
                 else if(currScenario.getType()== ScenarioType.MANAGE_COL_NAV){
-                    handleManageColumnScenario(driver, wait, currScenario);
+                        handleManageColumnScenario(driver, wait, currScenario);
+                        scenario.setScenarioStatus(RunStatus.PASSED);
+                        resultTestCase.setResult("Passed");
                 }
                 else if(currScenario.getType()== ScenarioType.ROW_COUNT_NAV) {
                     logger.info("ROW count scenario reached {}", currIdx);
@@ -2152,7 +2165,7 @@ public class ScenarioOrchestratorService {
         scenario.setScenarioStatus(RunStatus.PASSED);
         resultTestCase.setResult("Passed");
 
-        return currIdx + 1;
+        return currIdx;
     }
 
     private void handleFilterNavScenario(
