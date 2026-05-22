@@ -1889,7 +1889,7 @@ public class ScenarioOrchestratorService {
                 );
 
         logger.info("steps of Assert scenario : {}",steps);
-        try {
+
             executor.runAssertionSteps(driver, steps,scenarioDir,scenarioPrefix,scenarios);
             List<AssertionDto> assertionDtos=scenario.getAssertions();
             List<TestCaseDTO> testDtos = new ArrayList<>();
@@ -1936,15 +1936,20 @@ public class ScenarioOrchestratorService {
             } else {
                 scenario.setScenarioStatus(RunStatus.PARTIAL);
             }
+        try {
             Path csvPath = csvLoader.writeScenarioCsv(testDtos,scenarioDir);
             String s3Key = scenarioPrefix;
             String finalCsvUrl = s3StorageService.uploadFile(csvPath, s3Key);
             scenario.setResultCsv(finalCsvUrl);
-
-
         } catch (Exception e) {
             logger.error("exception encountered "+ e.getMessage());
-            throw new GlobalExceptionHandler.RunnerIntegrationException(e.getMessage(),e);
+            throw new ScenarioExecutionException(
+                    scenarioId,
+                    scenario.getType(),
+                    "Problem while uploading csv to s3",
+                    "Unable to load assertion results",
+                    e
+            );
         }
     }
 
