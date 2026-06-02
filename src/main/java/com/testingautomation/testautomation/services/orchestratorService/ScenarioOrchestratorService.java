@@ -649,11 +649,7 @@ public class ScenarioOrchestratorService {
 
             WebElement rowOption;
             try {
-                rowOption = wait.until(
-                        ExpectedConditions.elementToBeClickable(
-                                By.xpath("//a[@data-value='" + rows + "']")
-                        )
-                );
+                rowOption =findRowCountOption(wait, driver, rows);
             }
             catch (Exception ex) {
                 throw new ScenarioExecutionException(
@@ -736,6 +732,31 @@ public class ScenarioOrchestratorService {
                     ex
             );
         }
+    }
+
+    private WebElement findRowCountOption(WebDriverWait wait, WebDriver driver, int rows) {
+        String value = String.valueOf(rows);
+
+        By[] locators = new By[] {
+                By.xpath("//a[@data-value='" + value + "']"),
+                By.xpath("//div[contains(@class,'dt-button-collection')]"
+                        + "//a[contains(@class,'button-page-length') and .//span[normalize-space()='" + value + "']]"),
+                By.xpath("//div[contains(@class,'dt-button-collection')]"
+                        + "//a[contains(@class,'button-page-length') and normalize-space()='" + value + "']")
+        };
+
+        for (By by : locators) {
+            List<WebElement> elements = driver.findElements(by);
+            if (!elements.isEmpty()) {
+                try {
+                    return wait.until(ExpectedConditions.elementToBeClickable(by));
+                } catch (Exception ignored) {
+                    return elements.get(0);
+                }
+            }
+        }
+
+        throw new NoSuchElementException("Row count option not found: " + rows);
     }
 
     private void handleDateRangeNav(
