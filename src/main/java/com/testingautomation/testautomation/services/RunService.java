@@ -172,7 +172,7 @@ public class RunService {
     public RunResponse executeRun(String id) {
         log.info("RUN STARTED for runId={}", id);
 
-        Run run = findRunOrThrow(id);
+        Run run = overwriteRunResults(id);;
 
         if (run.getStatus() == RunStatus.RUNNING) {
             throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
@@ -290,7 +290,72 @@ public class RunService {
         return runRepository.findById(id)
                 .orElseThrow(() -> new GlobalExceptionHandler.ResourceNotFoundException("Run not found: " + id));
     }
+    public Run overwriteRunResults(String id) {
+        Run existing = findRunOrThrow(id);
 
+        Run freshRun = new Run();
+        freshRun.setId(existing.getId()); // keep same run id
+
+        // keep run-level info
+        freshRun.setRunName(existing.getRunName());
+        freshRun.setCreatedBy(existing.getCreatedBy());
+        freshRun.setProjectId(existing.getProjectId());
+        freshRun.setModuleId(existing.getModuleId());
+        freshRun.setRunType(existing.getRunType());
+        freshRun.setScenarioCount(existing.getScenarioCount());
+        freshRun.setResultStatement(existing.getResultStatement());
+        freshRun.setTags(existing.getTags());
+
+        // fresh state
+        freshRun.setStatus(RunStatus.DRAFT);
+        freshRun.setCreatedAt(existing.getCreatedAt());
+        freshRun.setUpdatedAt(new Date().toInstant());
+
+        List<Scenario> freshScenarios = new ArrayList<>();
+
+        for (Scenario oldScenario : existing.getScenariosList()) {
+            Scenario s = new Scenario();
+
+            // keep scenario input definition
+            s.setId(oldScenario.getId()); // keep if you want same scenario ids
+            s.setType(oldScenario.getType());
+            s.setSequenceNo(oldScenario.getSequenceNo());
+            s.setUrl(oldScenario.getUrl());
+            s.setCsv(oldScenario.getCsv());
+            s.setCssOpener(oldScenario.getCssOpener());
+            s.setValue(oldScenario.getValue());
+
+            // keep assertion template only, remove old execution output
+            if (oldScenario.getAssertions() != null) {
+                List<AssertionDto> freshAssertions = new ArrayList<>();
+                for (AssertionDto oldAssertion : oldScenario.getAssertions()) {
+                    AssertionDto a = new AssertionDto();
+                    a.setType(oldAssertion.getType());
+                    a.setTableId(oldAssertion.getTableId());
+
+                    // do not copy result fields
+                    // a.setAssertResult(null);
+                    // a.setErrorMessage(null);
+
+                    freshAssertions.add(a);
+                }
+                s.setAssertions(freshAssertions);
+            }
+
+            // do not set these old result fields at all
+            // s.setScenarioStatus(null);
+            // s.setResultCsv(null);
+
+            s.setCreatedAt(oldScenario.getCreatedAt());
+            s.setUpdatedAt(new Date().toInstant());
+
+            freshScenarios.add(s);
+        }
+
+        freshRun.setScenariosList(freshScenarios);
+
+        return runRepository.save(freshRun);
+    }
     private void assignScenarioIds(Run run) {
         if (run.getScenariosList() == null) return;
         for (int i = 0; i < run.getScenariosList().size(); i++) {
