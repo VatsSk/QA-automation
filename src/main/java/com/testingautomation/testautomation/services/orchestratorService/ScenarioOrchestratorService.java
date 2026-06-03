@@ -1280,10 +1280,7 @@ public class ScenarioOrchestratorService {
                         modalFormTcIdx,
                         currScenario.getType(),
                         "LOAD_MODAL_TESTCASES",
-                        String.format(
-                                "Failed to load modal test cases from CSV file '%s'",
-                                csvFile
-                        ),
+                        "Failed to load modal test cases from CSV file",
                         ex
                 );
             }
