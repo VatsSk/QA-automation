@@ -2775,12 +2775,17 @@ public class ScenarioOrchestratorService {
                         logger.info("Clicked apply button");
                     }
                 }
-                catch (NoSuchElementException ignored) {
+                catch (Exception ignored) {
                     logger.info("No apply button found");
                 }
-
-                driver.findElement(By.tagName("body")).click();
+                try{
+                    driver.findElement(By.tagName("body")).click();
+                    logger.info("Closed dropdown");
+                }catch(Exception e){
+                    logger.info("Unable to close dropdown");
+                }
                 logger.info("Closed dropdown using body click");
+
 
                 screenshotService.takeScreenshot(
                         driver,
