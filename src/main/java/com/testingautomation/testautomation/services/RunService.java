@@ -172,7 +172,7 @@ public class RunService {
     public RunResponse executeRun(String id) {
         log.info("RUN STARTED for runId={}", id);
 
-        Run run = overwriteRunResults(id);;
+        Run run = overwriteRunResults(id);
 
         if (run.getStatus() == RunStatus.RUNNING) {
             throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
