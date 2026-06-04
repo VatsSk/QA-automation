@@ -41,11 +41,13 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.NoSuchElementException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
+import static com.testingautomation.testautomation.globalException.GlobalExceptionHandler.*;
 
 @Service
 @RequiredArgsConstructor
@@ -123,22 +125,14 @@ public class ScenarioOrchestratorService {
                             scenarioResultsMap
 
                     );
-                    System.out.println(scenarioResultsMap);
+//                    System.out.println(scenarioResultsMap);
 //                    current.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
                     break;
                 }
 
-            } catch (Exception e) {
+            }catch (ScenarioExecutionException e){
                 current.setScenarioStatus(RunStatus.FAILED);
-
-                // Create user-friendly error message
-                String userMessage = getUserFriendlyErrorMessage(e, current, i);
-
-                // Log detailed error for debugging
-                logger.error("Scenario #{} ({}) failed: {}", i + 1, current.getType(), e.getMessage(), e);
-
-                // Stop execution by throwing user-friendly exception
-                throw new GlobalExceptionHandler.RunnerIntegrationException(userMessage, e);
+                throw e;
             }
 
         }
@@ -211,7 +205,7 @@ public class ScenarioOrchestratorService {
                     logger.warn("VERIFY_PAGE scenario FAILED - element exists but not visible");
                 }
 
-            } catch (TimeoutException e) {
+            } catch (GlobalExceptionHandler.TimeoutException e) {
                 logger.error("VERIFY_PAGE FAILED - element not found with selector: {}", current.getCssOpener());
                 verifyResult.setResult("Failed - Element not found: " + current.getCssOpener());
 
@@ -250,12 +244,28 @@ public class ScenarioOrchestratorService {
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
     public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
-            , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) throws Exception {
+            , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) {
         List<FieldDescriptor> fields = scannerService.scanPage(current.getUrl(), driver);
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
-        List<TestCaseDTO>  testCases = csvLoader.loadFromS3(current.getCsv());
+        List<TestCaseDTO> testCases=null;
+        try {
+            testCases = csvLoader.loadFromS3(current.getCsv());
+        }catch (Exception e) {
+            logger.error("Error while loading testcases from s3", e);
+            throw new ScenarioExecutionException(
+                    currScenarioIdx,
+                    current.getType(),
+                    "UNABLE_TO_LOAD_CSV_FILE",
+                    "Unable to laod csv file ",
+                    e
+            );
+        }
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
-        Files.createDirectories(scenarioDir);
+        try {
+            Files.createDirectories(scenarioDir);
+        } catch (IOException e) {
+            logger.error("Failed to create scenario directory: {}", scenarioDir, e);
+        }
 
         int totalPasses = 0;
         int totalFails = 0;
@@ -308,10 +318,119 @@ public class ScenarioOrchestratorService {
         }
     }
 
+    private int executeScenarioByType(
+            WebDriver driver,
+            WebDriverWait wait,
+            Run run,
+            Scenario currScenario,
+            Scenario scenario,
+            TestCaseDTO resultTestCase,
+            int currIdx,
+            int modalFormTcIdx,
+            Path navigationScreenshotDir,
+            String scenarioPrefix
+    ) {
+        try {
+            return switch (currScenario.getType()) {
+                case URL_NAV -> {
+                    urlNavigation(
+                            currScenario,
+                            scenario,
+                            driver,
+                            modalFormTcIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix,
+                            resultTestCase
+                    );
+                    yield currIdx;
+                }
+                case MODAL_NAV -> {
+                    handleModalNav(
+                            driver,
+                            currScenario,
+                            scenario,
+                            resultTestCase,
+                            modalFormTcIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    yield currIdx;
+                }
+                case SEARCH_NAV -> handleSearchNavScenario(
+                        driver,
+                        wait,
+                        currScenario,
+                        scenario,
+                        resultTestCase,
+                        currIdx,
+                        modalFormTcIdx,
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+                case FORM_MODAL -> {
+                    handleFormModal(
+                            currScenario,
+                            driver,
+                            resultTestCase,
+                            scenarioPrefix,
+                            navigationScreenshotDir,
+                            scenario,
+                            modalFormTcIdx
+                    );
+                    yield currIdx;
+                }
+                case FILTER_NAV -> {
+                    handleFilterNavScenario(driver, wait, currScenario, scenario, resultTestCase);
+                    yield currIdx;
+                }
+                case DATE_RANGE_NAV -> {
+                    handleDateRangeNav(
+                            driver,
+                            wait,
+                            currScenario,
+                            scenario,
+                            resultTestCase,
+                            currIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    yield currIdx;
+                }
+                case MANAGE_COL_NAV -> {
+                    handleManageColumnScenario(currIdx, driver, wait, currScenario);
+                    yield currIdx;
+                }
+                case ROW_COUNT_NAV -> {
+                    handleRowCountNav(
+                            driver,
+                            wait,
+                            currScenario,
+                            scenario,
+                            resultTestCase,
+                            currIdx,
+                            modalFormTcIdx,
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    yield currIdx;
+                }
+                default -> throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "VALIDATE_SCENARIO_TYPE",
+                        "Unsupported scenario type: " + currScenario.getType(),
+                        null
+                );
+            };
+        }catch(ScenarioExecutionException e) {
+            throw e;
+        }
+    }
+
 
 
     public int handleNavigation(WebDriver driver, List<Scenario> scenarios, int currIdx, int modalFormTcIdx, String baseS3Prefix, Run run,
-                                Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
+                                Map<String, List<TestCaseDTO>> scenarioResultsMap) {
 
         logger.info("Starting navigation handling from index {}", currIdx);
 
@@ -326,7 +445,6 @@ public class ScenarioOrchestratorService {
         }
 
         while (currIdx < scenarios.size()) {
-            int stepCounter = 1;
             String scenarioId = (currIdx+1)+"";
             String scenarioPrefix =
                     baseS3Prefix + "/" + scenarioId;
@@ -334,13 +452,9 @@ public class ScenarioOrchestratorService {
             Scenario scenario = run.getScenariosList().get(currIdx);
             scenario.setScenarioBasePath(scenarioPrefix);
             run.getScenariosList().set(currIdx,scenario);
-
             // single generic testcase for this navigation scenario
             TestCaseDTO resultTestCase = new TestCaseDTO((modalFormTcIdx+1)+"", new HashMap<>());
-
             resultTestCase.setExpectedResult("Passed");
-//            resultTestCases.add(resultTestCase);
-
             Scenario currScenario = scenarios.get(currIdx);
 
             logger.info("Processing scenario index {} type {}", currIdx, currScenario.getType());
@@ -355,384 +469,33 @@ public class ScenarioOrchestratorService {
             }
 
             try {
-                if (currScenario.getType() == ScenarioType.URL_NAV) {
-
-                    logger.info("Navigating to URL: {}", currScenario.getUrl());
-                    driver.get(currScenario.getUrl());
-                    String url = screenshotService.takeScreenshot(
-                            driver,
-                            (modalFormTcIdx +1)+"",
-                            "step passed" ,
-                            navigationScreenshotDir,
-                            scenarioPrefix
-                    );
-
-                    scenario.setScenarioStatus(RunStatus.PASSED);
-                    resultTestCase.setResult("Passed");
-                }
-                else if (currScenario.getType() == ScenarioType.MODAL_NAV) {
-
-                    logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
-
-                    By openerBy = By.cssSelector(currScenario.getCssOpener());
-
-                    boolean clicked = false;
-
-                    // 1️⃣ TRY SAFE CLICK FIRST
-                    try {
-                        safeClick(driver, openerBy);
-                        clicked = true;
-                        logger.info("Modal opened using safeClick");
-                    } catch (Exception safeEx) {
-                        logger.warn("safeClick failed, falling back to smartClick. Reason: {}", safeEx.getMessage());
-                    }
-
-                    // 2️⃣ FALLBACK TO SMART CLICK
-                    if (!clicked) {
-                        try {
-                            smartClick(driver, openerBy);
-                            clicked = true;
-                            logger.info("Modal opened using smartClick");
-                        } catch (Exception smartEx) {
-                            throw new GlobalExceptionHandler.ResourceNotFoundException("Both safeClick and smartClick failed for modal opener "+smartEx.getMessage());
-                        }
-                    }
-
-                    // 3️⃣ Screenshot AFTER success
-                    String url = screenshotService.takeScreenshot(
-                            driver,
-                            (modalFormTcIdx + 1) + "",
-                            "step passed",
-                            navigationScreenshotDir,
-                            scenarioPrefix
-                    );
-
-                    logger.info("Modal opener clicked successfully");
-
-                    scenario.setScenarioStatus(RunStatus.PASSED);
-                    resultTestCase.setResult("Passed");
-                }
-                else if(currScenario.getType() == ScenarioType.SEARCH_NAV){
-                    currIdx = handleSearchNavScenario(
-                            driver,
-                            wait,
-                            currScenario,
-                            scenario,
-                            resultTestCase,
-                            currIdx,
-                            modalFormTcIdx,
-                            navigationScreenshotDir,
-                            scenarioPrefix
-                    );
-
-//                    continue;
-                }
-                else if(currScenario.getType() == ScenarioType.FORM_MODAL){
-
-                    String csvFile = currScenario.getCsv();
-                    logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+csvFile);
-                    List<TestCaseDTO> testCases = csvLoader.loadFromS3(csvFile);
-                    if(modalFormTcIdx>=testCases.size()){
-                        throw new GlobalExceptionHandler.InvalidCountException("Invalid test case index: " + modalFormTcIdx);
-                    }
-                    resultTestCase= testCases.get(modalFormTcIdx);
-                    handleModalScenario(driver, currScenario, resultTestCase,scenarioPrefix,navigationScreenshotDir);
-
-                    scenario.setScenarioStatus(RunStatus.PASSED);
-                    resultTestCase.setResult("Passed");
-                }
-                else if (currScenario.getType() == ScenarioType.FILTER_NAV) {
-                    handleFilterNavScenario(driver, wait, currScenario, scenario, resultTestCase);
-                }
-                else if (currScenario.getType() == ScenarioType.DATE_RANGE_NAV) {
-
-                    DateRangeNavDto dateRange = currScenario.getDateRangeNavDto();
-
-                    if (dateRange == null) {
-                        throw new GlobalExceptionHandler.ResourceNotFoundException("DateRange configuration is missing");
-                    }
-
-                    // =========================
-                    // Open Calendar
-                    // =========================
-                    WebElement inputElement = wait.until(
-                            ExpectedConditions.elementToBeClickable(
-                                    By.cssSelector(dateRange.getInputSelector())
-                            )
-                    );
-
-                    inputElement.click();
-                    screenshotService.takeScreenshot(
-                            driver,
-                            1+"",
-                            "step passed",
-                            navigationScreenshotDir,
-                            scenarioPrefix
-                    );
-                    // =========================
-                    // Wait for Calendar Container
-                    // =========================
-                    String containerSelector =
-                            dateRange.getCalendarContainerSelector() != null
-                                    ? dateRange.getCalendarContainerSelector()
-                                    : ".daterangepicker";
-
-                    wait.until(
-                            ExpectedConditions.visibilityOfElementLocated(
-                                    By.cssSelector(containerSelector)
-                            )
-                    );
-
-                    // =========================
-                    // PRESET MODE
-                    // =========================
-                    if (dateRange.getSelectionType() == DateSelectionType.PRESET) {
-
-                        if (dateRange.getPreset() == null) {
-                            throw new GlobalExceptionHandler.ResourceNotFoundException(
-                                    "Preset value is required for PRESET selection type"
-                            );
-                        }
-
-                        String preset = Arrays.stream(
-                                        dateRange.getPreset().toString()
-                                                .replace("_", " ")
-                                                .toLowerCase()
-                                                .split(" "))
-                                .map(word -> Character.toUpperCase(word.charAt(0)) + word.substring(1))
-                                .collect(Collectors.joining(" "));
-
-                        logger.info("Preset value = {}", preset);
-
-                        // Scope to visible daterangepicker
-                        String presetXpath =
-                                "//div[contains(@class,'daterangepicker') and contains(@style,'display: block')]"
-                                        + "//li[@data-range-key='" + preset + "']";
-
-                        WebElement presetElement = wait.until(
-                                ExpectedConditions.visibilityOfElementLocated(
-                                        By.xpath(presetXpath)
-                                )
-                        );
-
-                        // Scroll into view
-                        ((JavascriptExecutor) driver).executeScript(
-                                "arguments[0].scrollIntoView(true);",
-                                presetElement
-                        );
-
-                        // Wait small moment for animation
-                        Thread.sleep(300);
-
-                        try {
-                            wait.until(ExpectedConditions.elementToBeClickable(presetElement));
-                            presetElement.click();
-                        } catch (Exception e) {
-
-                            logger.info("Normal click failed. Using JS click.");
-
-                            ((JavascriptExecutor) driver).executeScript(
-                                    "arguments[0].click();",
-                                    presetElement
-                            );
-                        }
-
-                        screenshotService.takeScreenshot(
-                                driver,
-                                "2",
-                                "preset selected",
-                                navigationScreenshotDir,
-                                scenarioPrefix
-                        );
-                    }
-
-                    // =========================
-                    // CUSTOM MODE
-                    // =========================
-                    else if (dateRange.getSelectionType()
-                            == DateSelectionType.CUSTOM) {
-
-                        if (dateRange.getStartDate() == null
-                                || dateRange.getEndDate() == null) {
-
-                            throw new GlobalExceptionHandler.ResourceNotFoundException(
-                                    "StartDate and EndDate are required for CUSTOM mode"
-                            );
-                        }
-
-                        DateTimeFormatter formatter =
-                                DateTimeFormatter.ofPattern(
-                                        dateRange.getDateFormat() != null
-                                                ? dateRange.getDateFormat()
-                                                : "dd/MM/yyyy HH:mm"
-                                );
-
-                        LocalDateTime startDateTime =
-                                LocalDateTime.parse(
-                                        dateRange.getStartDate(),
-                                        formatter
-                                );
-
-                        LocalDateTime endDateTime =
-                                LocalDateTime.parse(
-                                        dateRange.getEndDate(),
-                                        formatter
-                                );
-
-                        // =========================
-                        // SELECT START DATE
-                        // =========================
-                        selectDate(
-                                driver,
-                                wait,
-                                containerSelector,
-                                startDateTime.toLocalDate()
-                        );
-
-                        screenshotService.takeScreenshot(
-                                driver,
-                                "3",
-                                "start date selected",
-                                navigationScreenshotDir,
-                                scenarioPrefix
-                        );
-
-                        // =========================
-                        // SELECT END DATE
-                        // =========================
-                        selectDate(
-                                driver,
-                                wait,
-                                containerSelector,
-                                endDateTime.toLocalDate()
-                        );
-
-                        screenshotService.takeScreenshot(
-                                driver,
-                                "4",
-                                "end date selected",
-                                navigationScreenshotDir,
-                                scenarioPrefix
-                        );
-
-                    }
-
-                    // =========================
-                    // APPLY BUTTON
-                    // =========================
-                    Boolean autoApply = dateRange.getAutoApply();
-
-                    if (autoApply == null || !autoApply) {
-
-                        String applySelector =
-                                dateRange.getApplyButtonSelector() != null
-                                        ? dateRange.getApplyButtonSelector()
-                                        : ".applyBtn";
-
-                        WebElement applyBtn = wait.until(
-                                ExpectedConditions.elementToBeClickable(
-                                        By.cssSelector(applySelector)
-                                )
-                        );
-
-                        applyBtn.click();
-                        screenshotService.takeScreenshot(
-                                driver,
-                                5+"",
-                                "step passed",
-                                navigationScreenshotDir,
-                                scenarioPrefix
-                        );
-                        scenario.setScenarioStatus(RunStatus.PASSED);
-                        resultTestCase.setResult("Passed");
-                    }
-                }
-                else if(currScenario.getType()== ScenarioType.MANAGE_COL_NAV){
-                        handleManageColumnScenario(driver, wait, currScenario);
-                        scenario.setScenarioStatus(RunStatus.PASSED);
-                        resultTestCase.setResult("Passed");
-                }
-                else if(currScenario.getType()== ScenarioType.ROW_COUNT_NAV) {
-                    logger.info("ROW count scenario reached {}", currIdx);
-                    By openerBy = By.cssSelector(currScenario.getCssOpener());
-
-                    boolean clicked = false;
-
-
-                    // 1️⃣ TRY SAFE CLICK FIRST
-                    try {
-                        safeClick(driver, openerBy);
-                        clicked = true;
-                        logger.info("Modal opened using safeClick");
-                    } catch (Exception safeEx) {
-                        logger.warn("safeClick failed, falling back to smartClick. Reason: {}", safeEx.getMessage());
-                    }
-
-                    // 2️⃣ FALLBACK TO SMART CLICK
-                    if (!clicked) {
-                        try {
-                            smartClick(driver, openerBy);
-                            clicked = true;
-                            logger.info("Modal opened using smartClick");
-                        } catch (Exception smartEx) {
-                            throw new GlobalExceptionHandler.ResourceNotFoundException("Both safeClick and smartClick failed for modal opener " + smartEx.getMessage());
-                        }
-                    }
-
-                    // 3️⃣ Screenshot AFTER success
-                    String url = screenshotService.takeScreenshot(
-                            driver,
-                            (modalFormTcIdx + 1) + "",
-                            "step passed",
-                            navigationScreenshotDir,
-                            scenarioPrefix
-                    );
-
-                    logger.info("Modal opener clicked successfully");
-
-//                    int rows = 50;
-                int rows=Integer.parseInt(currScenario.getValue());
-                    Thread.sleep(1000);
-//                driver.findElement(By.id("row-num-dd")).click();
-
-                    driver.findElement(
-                            By.xpath("//a[@data-value='" + rows + "']")
-                    ).click();
-                    logger.info("Clicked at data in dropdown values {}", rows);
-                    screenshotService.takeScreenshot(
-                            driver,
-                            (modalFormTcIdx + 1) + "",
-                            "step passed",
-                            navigationScreenshotDir,
-                            scenarioPrefix
-                    );
-                    currScenario.setScenarioStatus(RunStatus.PASSED);
-                    resultTestCase.setResult("Passed");
-                }
+                currIdx = executeScenarioByType(
+                        driver,
+                        wait,
+                        run,
+                        currScenario,
+                        scenario,
+                        resultTestCase,
+                        currIdx,
+                        modalFormTcIdx,
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
             }
-            catch (GlobalExceptionHandler.InvalidCountException e) {
+            catch (ScenarioExecutionException ex) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
-                resultTestCase.setResult("Failed - Test case index out of bounds");
+                resultTestCase.setResult("Failed "+ex.getMessage());
 
-                logger.error("Navigation step failed at index {} type {} selector {}",
+                logger.error(
+                        "Scenario stopped at index {} type {}",
                         currIdx,
                         currScenario.getType(),
-                        currScenario.getCssOpener(),
-                        e);
-                String urlSs= screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
-                throw e;
-            }
-            catch (Exception e) {
-                scenario.setScenarioStatus(RunStatus.ERROR);
-                resultTestCase.setResult("Error - " + e.getMessage());
+                        ex.getMessage().split("\n")[0]
+                );
 
-                logger.error("Unexpected error while executing scenario at index {} type {}",
-                        currIdx,
-                        currScenario.getType(),
-                        e);
-                throw new GlobalExceptionHandler.ResourceNotFoundException("Error - " + e.getMessage());
+                screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
+                throw ex;
             }
-            try {
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
 
@@ -742,11 +505,6 @@ public class ScenarioOrchestratorService {
                         scenarioResultsMap.get(scenarioPrefix).size());
                 logger.info("Current status of map: {}",scenarioResultsMap.get(scenarioPrefix));
 
-            } catch (Exception e) {
-                logger.error("Failed to store testcase result in scenarioResultsMap for scenario at index {}", currIdx, e);
-                throw new GlobalExceptionHandler.ResourceNotFoundException("Failed to store testcase result in scenarioResultsMap for scenario at index " + currIdx);
-            }
-
             run.getScenariosList().set(currIdx, scenario);
 
             currIdx++;
@@ -755,6 +513,1035 @@ public class ScenarioOrchestratorService {
         logger.info("Navigation phase completed. Final index {}", currIdx);
 
         return currIdx;
+    }
+
+    private void handleRowCountNav(
+            WebDriver driver,
+            WebDriverWait wait,
+            Scenario currScenario,
+            Scenario scenario,
+            TestCaseDTO resultTestCase,
+            int currIdx,
+            int modalFormTcIdx,
+            Path navigationScreenshotDir,
+            String scenarioPrefix
+    ) {
+
+        final String step = "ROW_COUNT_NAV";
+
+        try {
+
+            // =====================================================
+            // VALIDATE CONFIG
+            // =====================================================
+
+            String openerSelector = currScenario.getCssOpener();
+
+            if (openerSelector == null || openerSelector.isBlank()) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "VALIDATE_ROW_COUNT_SELECTOR",
+                        "Row count navigation failed because opener selector is missing",
+                        null
+                );
+            }
+
+            if (currScenario.getValue() == null || currScenario.getValue().isBlank()) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "VALIDATE_ROW_COUNT_VALUE",
+                        "Row count navigation failed because row count value is missing",
+                        null
+                );
+            }
+
+            int rows;
+            try {
+                rows = Integer.parseInt(currScenario.getValue().trim());
+            }
+            catch (NumberFormatException ex) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "PARSE_ROW_COUNT_VALUE",
+                        String.format(
+                                "Row count navigation failed because value '%s' is not a valid integer",
+                                currScenario.getValue()
+                        ),
+                        ex
+                );
+            }
+
+            By openerBy = By.cssSelector(openerSelector);
+
+            // =====================================================
+            // OPEN ROW COUNT DROPDOWN
+            // =====================================================
+
+            boolean clicked = false;
+
+            try {
+                safeClick(driver, openerBy);
+                clicked = true;
+                logger.info("Row count dropdown opened using safeClick");
+            }
+            catch (Exception safeEx) {
+                logger.warn(
+                        "safeClick failed for row count dropdown, trying smartClick. Reason={}",
+                        safeEx.getMessage()
+                );
+            }
+
+            if (!clicked) {
+                try {
+                    smartClick(driver, openerBy);
+                    clicked = true;
+                    logger.info("Row count dropdown opened using smartClick");
+                }
+                catch (Exception smartEx) {
+                    logger.info("Both click failed {}",smartEx.getMessage());
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "OPEN_ROW_COUNT_DROPDOWN",
+                            String.format(
+                                    "Failed to open row count dropdown using selector '%s'. Both safeClick and smartClick failed.",
+                                    openerSelector
+                            ),
+                            smartEx
+                    );
+                }
+            }
+
+            // =====================================================
+            // SCREENSHOT AFTER OPENING
+            // =====================================================
+
+            try {
+                screenshotService.takeScreenshot(
+                        driver,
+                        String.valueOf(modalFormTcIdx + 1),
+                        "row count dropdown opened",
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+            }
+            catch (Exception ex) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "SCREENSHOT_AFTER_ROW_COUNT_OPEN",
+                        "Row count dropdown opened, but screenshot capture failed",
+                        ex
+                );
+            }
+
+            // =====================================================
+            // SELECT ROW COUNT OPTION
+            // =====================================================
+
+            try {
+                Thread.sleep(1000);
+            }
+            catch (InterruptedException ex) {
+                Thread.currentThread().interrupt();
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "WAIT_BEFORE_ROW_COUNT_SELECT",
+                        "Row count navigation was interrupted before selecting the dropdown value",
+                        ex
+                );
+            }
+
+            WebElement rowOption;
+            try {
+                rowOption =findRowCountOption(wait, driver, rows);
+            }
+            catch (Exception ex) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "LOCATE_ROW_COUNT_OPTION",
+                        String.format(
+                                "Failed to locate row count option '%d' in the dropdown",
+                                rows
+                        ),
+                        ex
+                );
+            }
+
+            try {
+                rowOption.click();
+                logger.info("Clicked row count value {}", rows);
+            }
+            catch (Exception ex) {
+                try {
+                    ((JavascriptExecutor) driver).executeScript(
+                            "arguments[0].click();",
+                            rowOption
+                    );
+                    logger.info("Clicked row count value {} using JS click", rows);
+                }
+                catch (Exception jsEx) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "SELECT_ROW_COUNT_OPTION",
+                            String.format(
+                                    "Failed to select row count option '%d' even after JS click fallback",
+                                    rows
+                            ),
+                            jsEx
+                    );
+                }
+            }
+
+            // =====================================================
+            // SCREENSHOT AFTER SELECTION
+            // =====================================================
+
+            try {
+                screenshotService.takeScreenshot(
+                        driver,
+                        String.valueOf(modalFormTcIdx + 1),
+                        "row count selected",
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+            }
+            catch (Exception ex) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "SCREENSHOT_AFTER_ROW_COUNT_SELECT",
+                        "Row count value was selected, but screenshot capture failed",
+                        ex
+                );
+            }
+
+            // =====================================================
+            // SUCCESS
+            // =====================================================
+
+            currScenario.setScenarioStatus(RunStatus.PASSED);
+            resultTestCase.setResult("Passed");
+        }
+        catch (ScenarioExecutionException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new ScenarioExecutionException(
+                    currIdx,
+                    currScenario.getType(),
+                    step,
+                    "Unexpected failure while executing row count navigation",
+                    ex
+            );
+        }
+    }
+
+    private WebElement findRowCountOption(WebDriverWait wait, WebDriver driver, int rows) {
+        String value = String.valueOf(rows);
+
+        By[] locators = new By[] {
+                By.xpath("//a[@data-value='" + value + "']"),
+                By.xpath("//div[contains(@class,'dt-button-collection')]"
+                        + "//a[contains(@class,'button-page-length') and .//span[normalize-space()='" + value + "']]"),
+                By.xpath("//div[contains(@class,'dt-button-collection')]"
+                        + "//a[contains(@class,'button-page-length') and normalize-space()='" + value + "']")
+        };
+
+        for (By by : locators) {
+            List<WebElement> elements = driver.findElements(by);
+            if (!elements.isEmpty()) {
+                try {
+                    return wait.until(ExpectedConditions.elementToBeClickable(by));
+                } catch (Exception ignored) {
+                    return elements.get(0);
+                }
+            }
+        }
+
+        throw new NoSuchElementException("Row count option not found: " + rows);
+    }
+
+    private void handleDateRangeNav(
+            WebDriver driver,
+            WebDriverWait wait,
+            Scenario currScenario,
+            Scenario scenario,
+            TestCaseDTO resultTestCase,
+            int currIdx,
+            Path navigationScreenshotDir,
+            String scenarioPrefix
+    ) {
+
+        final String stepBase = "DATE_RANGE_NAV";
+
+        try {
+
+            // =====================================================
+            // VALIDATE CONFIG
+            // =====================================================
+
+            DateRangeNavDto dateRange = currScenario.getDateRangeNavDto();
+
+            if (dateRange == null) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "VALIDATE_DATE_RANGE_CONFIG",
+                        "Date range navigation failed because dateRange configuration is missing",
+                        null
+                );
+            }
+
+            if (dateRange.getInputSelector() == null || dateRange.getInputSelector().isBlank()) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "VALIDATE_DATE_RANGE_INPUT_SELECTOR",
+                        "Date range navigation failed because input selector is missing",
+                        null
+                );
+            }
+
+            // =====================================================
+            // OPEN CALENDAR
+            // =====================================================
+
+            WebElement inputElement;
+            try {
+                inputElement = wait.until(
+                        ExpectedConditions.elementToBeClickable(
+                                By.cssSelector(dateRange.getInputSelector())
+                        )
+                );
+                inputElement.click();
+            }
+            catch (Exception ex) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "OPEN_DATE_RANGE_CALENDAR",
+                        String.format(
+                                "Failed to open date range calendar using selector '%s'",
+                                dateRange.getInputSelector()
+                        ),
+                        ex
+                );
+            }
+
+            try {
+                screenshotService.takeScreenshot(
+                        driver,
+                        "1",
+                        "calendar opened",
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+            }
+            catch (Exception ex) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "TAKE_SCREENSHOT_AFTER_OPEN",
+                        "Date range navigation failed after opening calendar because screenshot capture failed",
+                        ex
+                );
+            }
+
+            // =====================================================
+            // WAIT FOR CALENDAR CONTAINER
+            // =====================================================
+
+            String containerSelector =
+                    dateRange.getCalendarContainerSelector() != null
+                            ? dateRange.getCalendarContainerSelector()
+                            : ".daterangepicker";
+
+            try {
+                wait.until(
+                        ExpectedConditions.visibilityOfElementLocated(
+                                By.cssSelector(containerSelector)
+                        )
+                );
+            }
+            catch (Exception ex) {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "WAIT_FOR_CALENDAR_CONTAINER",
+                        String.format(
+                                "Date range calendar container '%s' did not become visible",
+                                containerSelector
+                        ),
+                        ex
+                );
+            }
+
+            // =====================================================
+            // PRESET MODE
+            // =====================================================
+
+            if (dateRange.getSelectionType() == DateSelectionType.PRESET) {
+
+                if (dateRange.getPreset() == null) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "VALIDATE_PRESET_VALUE",
+                            "Date range navigation failed because preset value is missing for PRESET mode",
+                            null
+                    );
+                }
+
+                String preset = Arrays.stream(
+                                dateRange.getPreset().toString()
+                                        .replace("_", " ")
+                                        .toLowerCase()
+                                        .split(" ")
+                        )
+                        .map(word -> Character.toUpperCase(word.charAt(0)) + word.substring(1))
+                        .collect(Collectors.joining(" "));
+
+                logger.info("Preset value = {}", preset);
+
+                String presetXpath =
+                        "//div[contains(@class,'daterangepicker') and contains(@style,'display: block')]"
+                                + "//li[@data-range-key='" + preset + "']";
+
+                WebElement presetElement;
+                try {
+                    presetElement = wait.until(
+                            ExpectedConditions.visibilityOfElementLocated(
+                                    By.xpath(presetXpath)
+                            )
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "LOCATE_PRESET_OPTION",
+                            String.format(
+                                    "Failed to locate preset option '%s' in the date range calendar",
+                                    preset
+                            ),
+                            ex
+                    );
+                }
+
+                try {
+                    ((JavascriptExecutor) driver).executeScript(
+                            "arguments[0].scrollIntoView(true);",
+                            presetElement
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "SCROLL_PRESET_OPTION",
+                            String.format(
+                                    "Failed to scroll preset option '%s' into view",
+                                    preset
+                            ),
+                            ex
+                    );
+                }
+
+                try {
+                    Thread.sleep(300);
+                }
+                catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "WAIT_AFTER_SCROLL_PRESET",
+                            "Date range navigation was interrupted while waiting after scrolling preset option",
+                            ex
+                    );
+                }
+
+                try {
+                    wait.until(ExpectedConditions.elementToBeClickable(presetElement));
+                    presetElement.click();
+                }
+                catch (Exception ex) {
+                    try {
+                        ((JavascriptExecutor) driver).executeScript(
+                                "arguments[0].click();",
+                                presetElement
+                        );
+                    }
+                    catch (Exception jsEx) {
+                        throw new ScenarioExecutionException(
+                                currIdx,
+                                currScenario.getType(),
+                                "SELECT_PRESET_OPTION",
+                                String.format(
+                                        "Failed to select preset option '%s' even after JS click fallback",
+                                        preset
+                                ),
+                                jsEx
+                        );
+                    }
+                }
+
+                try {
+                    screenshotService.takeScreenshot(
+                            driver,
+                            "2",
+                            "preset selected",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "TAKE_SCREENSHOT_AFTER_PRESET",
+                            "Date range navigation failed after preset selection because screenshot capture failed",
+                            ex
+                    );
+                }
+            }
+
+            // =====================================================
+            // CUSTOM MODE
+            // =====================================================
+
+            else if (dateRange.getSelectionType() == DateSelectionType.CUSTOM) {
+
+                if (dateRange.getStartDate() == null || dateRange.getEndDate() == null) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "VALIDATE_CUSTOM_DATE_VALUES",
+                            "Date range navigation failed because start date or end date is missing for CUSTOM mode",
+                            null
+                    );
+                }
+
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(
+                        dateRange.getDateFormat() != null
+                                ? dateRange.getDateFormat()
+                                : "dd/MM/yyyy HH:mm"
+                );
+
+                LocalDateTime startDateTime;
+                LocalDateTime endDateTime;
+
+                try {
+                    startDateTime = LocalDateTime.parse(dateRange.getStartDate(), formatter);
+                    endDateTime = LocalDateTime.parse(dateRange.getEndDate(), formatter);
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "PARSE_CUSTOM_DATE_VALUES",
+                            String.format(
+                                    "Failed to parse custom date range values. start='%s', end='%s', format='%s'",
+                                    dateRange.getStartDate(),
+                                    dateRange.getEndDate(),
+                                    formatter
+                            ),
+                            ex
+                    );
+                }
+
+                try {
+                    selectDate(
+                            driver,
+                            wait,
+                            containerSelector,
+                            startDateTime.toLocalDate()
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "SELECT_START_DATE",
+                            String.format(
+                                    "Failed to select start date '%s' in custom date range",
+                                    startDateTime.toLocalDate()
+                            ),
+                            ex
+                    );
+                }
+
+                try {
+                    screenshotService.takeScreenshot(
+                            driver,
+                            "3",
+                            "start date selected",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "TAKE_SCREENSHOT_AFTER_START_DATE",
+                            "Date range navigation failed after start date selection because screenshot capture failed",
+                            ex
+                    );
+                }
+
+                try {
+                    selectDate(
+                            driver,
+                            wait,
+                            containerSelector,
+                            endDateTime.toLocalDate()
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "SELECT_END_DATE",
+                            String.format(
+                                    "Failed to select end date '%s' in custom date range",
+                                    endDateTime.toLocalDate()
+                            ),
+                            ex
+                    );
+                }
+
+                try {
+                    screenshotService.takeScreenshot(
+                            driver,
+                            "4",
+                            "end date selected",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "TAKE_SCREENSHOT_AFTER_END_DATE",
+                            "Date range navigation failed after end date selection because screenshot capture failed",
+                            ex
+                    );
+                }
+            }
+            else {
+                throw new ScenarioExecutionException(
+                        currIdx,
+                        currScenario.getType(),
+                        "VALIDATE_SELECTION_TYPE",
+                        "Date range navigation failed because selection type is neither PRESET nor CUSTOM",
+                        null
+                );
+            }
+
+            // =====================================================
+            // APPLY BUTTON
+            // =====================================================
+
+            Boolean autoApply = dateRange.getAutoApply();
+
+            if (autoApply == null || !autoApply) {
+
+                String applySelector =
+                        dateRange.getApplyButtonSelector() != null
+                                ? dateRange.getApplyButtonSelector()
+                                : ".applyBtn";
+
+                WebElement applyBtn;
+                try {
+                    applyBtn = wait.until(
+                            ExpectedConditions.elementToBeClickable(
+                                    By.cssSelector(applySelector)
+                            )
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "LOCATE_APPLY_BUTTON",
+                            String.format(
+                                    "Failed to locate clickable apply button using selector '%s'",
+                                    applySelector
+                            ),
+                            ex
+                    );
+                }
+
+                try {
+                    applyBtn.click();
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "CLICK_APPLY_BUTTON",
+                            String.format(
+                                    "Failed to click apply button using selector '%s'",
+                                    applySelector
+                            ),
+                            ex
+                    );
+                }
+
+                try {
+                    screenshotService.takeScreenshot(
+                            driver,
+                            "5",
+                            "step passed",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "TAKE_SCREENSHOT_AFTER_APPLY",
+                            "Date range navigation failed after clicking apply because screenshot capture failed",
+                            ex
+                    );
+                }
+            }
+
+            // =====================================================
+            // SUCCESS
+            // =====================================================
+
+            scenario.setScenarioStatus(RunStatus.PASSED);
+            resultTestCase.setResult("Passed");
+        }
+        catch (ScenarioExecutionException ex) {
+            throw ex;
+        }
+        catch (Exception ex) {
+            throw new ScenarioExecutionException(
+                    currIdx,
+                    currScenario.getType(),
+                    stepBase,
+                    "Unexpected failure while executing date range navigation",
+                    ex
+            );
+        }
+    }
+
+    private void handleFormModal(
+            Scenario currScenario,
+            WebDriver driver,
+            TestCaseDTO resultTestCase,
+            String scenarioPrefix,
+            Path navigationScreenshotDir,
+            Scenario scenario,
+            int modalFormTcIdx
+    ) {
+
+        try {
+
+            // =====================================================
+            // VALIDATE CSV CONFIGURATION
+            // =====================================================
+
+            String csvFile = currScenario.getCsv();
+
+            logger.info(
+                    "Processing modal CSV file: {}",
+                    csvFile
+            );
+
+            if (csvFile == null || csvFile.isBlank()) {
+
+                throw new ScenarioExecutionException(
+                        modalFormTcIdx,
+                        currScenario.getType(),
+                        "VALIDATE_MODAL_CSV",
+                        "Modal scenario execution failed because CSV file path is missing or empty",
+                        null
+                );
+            }
+
+            // =====================================================
+            // LOAD TEST CASES
+            // =====================================================
+
+            List<TestCaseDTO> testCases;
+
+            try {
+
+                testCases = csvLoader.loadFromS3(csvFile);
+
+            }
+            catch (Exception ex) {
+
+                throw new ScenarioExecutionException(
+                        modalFormTcIdx,
+                        currScenario.getType(),
+                        "LOAD_MODAL_TESTCASES",
+                        String.format(
+                                "Failed to load modal test cases from CSV file '%s'",
+                                csvFile
+                        ),
+                        ex
+                );
+            }
+
+            // =====================================================
+            // VALIDATE TEST CASE DATA
+            // =====================================================
+
+            if (testCases == null || testCases.isEmpty()) {
+
+                throw new ScenarioExecutionException(
+                        modalFormTcIdx,
+                        currScenario.getType(),
+                        "VALIDATE_MODAL_TESTCASES",
+                        String.format(
+                                "CSV file '%s' was loaded successfully but contains no modal test cases",
+                                csvFile
+                        ),
+                        null
+                );
+            }
+
+            // =====================================================
+            // VALIDATE TEST CASE INDEX
+            // =====================================================
+
+            if (modalFormTcIdx < 0 || modalFormTcIdx >= testCases.size()) {
+
+                throw new ScenarioExecutionException(
+                        modalFormTcIdx,
+                        currScenario.getType(),
+                        "VALIDATE_MODAL_TESTCASE_INDEX",
+                        String.format(
+                                "Invalid modal test case index %d. Available test case count is %d",
+                                modalFormTcIdx,
+                                testCases.size()
+                        ),
+                        null
+                );
+            }
+
+            // =====================================================
+            // FETCH CURRENT TEST CASE
+            // =====================================================
+
+            resultTestCase = testCases.get(modalFormTcIdx);
+
+            logger.info(
+                    "Executing modal testcase: {}",
+                    resultTestCase.getTestcaseId()
+            );
+
+            // =====================================================
+            // EXECUTE MODAL SCENARIO
+            // =====================================================
+
+
+
+            try {
+
+                handleModalScenario(
+                        driver,
+                        currScenario,
+                        resultTestCase,
+                        scenarioPrefix,
+                        navigationScreenshotDir
+                );
+
+            }
+            catch (ScenarioExecutionException ex) {
+
+                // already meaningful → bubble upward directly
+                throw ex;
+
+            }
+            catch (Exception ex) {
+
+                throw new ScenarioExecutionException(
+                        modalFormTcIdx,
+                        currScenario.getType(),
+                        "EXECUTE_MODAL_SCENARIO",
+                        String.format(
+                                "Modal scenario execution failed for testcase '%s'",
+                                resultTestCase.getTestcaseId()
+                        ),
+                        ex
+                );
+            }
+
+            // =====================================================
+            // SUCCESS FLOW
+            // =====================================================
+
+            scenario.setScenarioStatus(
+                    RunStatus.PASSED
+            );
+
+            resultTestCase.setResult(
+                    "Passed"
+            );
+
+            logger.info(
+                    "Modal testcase '{}' executed successfully",
+                    resultTestCase.getTestcaseId()
+            );
+        }
+        catch (ScenarioExecutionException ex) {
+
+            // preserve meaningful business exception
+            throw ex;
+        }
+        catch (Exception ex) {
+
+            // final safety net
+            throw new ScenarioExecutionException(
+                    modalFormTcIdx,
+                    currScenario.getType(),
+                    "HANDLE_FORM_MODAL",
+                    "Unexpected failure occurred while processing modal form scenario",
+                    ex
+            );
+        }
+    }
+
+    private void handleModalNav(WebDriver driver, Scenario currScenario, Scenario scenario, TestCaseDTO resultTestCase, int modalFormTcIdx, Path navigationScreenshotDir, String scenarioPrefix) {
+
+
+        logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
+        By openerBy;
+        try {
+         openerBy  = By.cssSelector(currScenario.getCssOpener());
+        }catch (Exception ex) {
+            logger.error("Failed to open modal using selector: {}", currScenario.getCssOpener(), ex.getMessage().split("\n")[0]);
+            throw new ScenarioExecutionException(
+                    modalFormTcIdx,
+                    currScenario.getType(),
+                    "ERROR_OPENING_SELECTOR",
+                    "Unable to select "+currScenario.getCssOpener(),
+                    ex
+
+            );
+        }
+
+
+        boolean clicked = false;
+
+        // 1️⃣ TRY SAFE CLICK FIRST
+        try {
+            safeClick(driver, openerBy);
+            clicked = true;
+            logger.info("Modal opened using safeClick");
+        } catch (Exception safeEx) {
+            logger.warn("safeClick failed, falling back to smartClick. Reason: {}",safeEx.getMessage().split("\n")[0]);
+        }
+
+        // 2️⃣ FALLBACK TO SMART CLICK
+            if (!clicked) {
+
+                try {
+
+                    smartClick(driver, openerBy);
+
+                    clicked = true;
+
+                    logger.info(
+                            "Modal opened using smartClick"
+                    );
+
+                }
+                catch (
+                        Exception ex
+                ) {
+                    logger.info("Unable to click "+ex.getMessage().split("\n")[0]);
+
+                    throw new GlobalExceptionHandler.ScenarioExecutionException(
+                            scenario.getSequenceNo(),
+                            currScenario.getType(),
+                            "OPEN_MODAL",
+                            String.format(
+                                    "Failed to open modal using selector '%s'. ",
+                                    currScenario.getCssOpener()
+                            ),
+                            ex
+                    );
+                }
+            }
+
+        // 3️⃣ Screenshot AFTER success
+        String url = screenshotService.takeScreenshot(
+                driver,
+                (modalFormTcIdx + 1) + "",
+                "step passed",
+                navigationScreenshotDir,
+                scenarioPrefix
+        );
+
+        logger.info("Modal opener clicked successfully");
+
+        scenario.setScenarioStatus(RunStatus.PASSED);
+        resultTestCase.setResult("Passed");
+    }
+
+    private void urlNavigation(Scenario currScenario,
+                               Scenario scenario,
+                               WebDriver driver,
+                               int modalFormTcIdx,
+                               Path navigationScreenshotDir,
+                               String scenarioPrefix,
+                               TestCaseDTO resultTestCase) {
+      try {
+          logger.info("Navigating to URL: {}", currScenario.getUrl());
+
+          driver.get(currScenario.getUrl());
+          String url = screenshotService.takeScreenshot(
+                  driver,
+                  (modalFormTcIdx + 1) + "",
+                  "step passed",
+                  navigationScreenshotDir,
+                  scenarioPrefix
+          );
+
+          scenario.setScenarioStatus(RunStatus.PASSED);
+          resultTestCase.setResult("Passed");
+      }  catch (WebDriverException | IllegalArgumentException e) {
+
+          String reason = e.getMessage() != null
+                  ? e.getMessage()
+                  : e.getClass().getSimpleName();
+
+          logger.error(
+                  "URL navigation failed | scenarioIndex={} | url={} | reason={}",
+                  modalFormTcIdx,
+                  currScenario.getUrl(),
+                  reason,
+                  e
+          );
+
+          throw new GlobalExceptionHandler.ScenarioExecutionException(
+                  modalFormTcIdx,
+                  ScenarioType.URL_NAV,
+                  "URL_NAVIGATION",
+                  String.format(
+                          "Failed to navigate to URL [%s]. Reason: %s",
+                          currScenario.getUrl(),
+                          reason
+                  ),
+                  e
+          );
+      }
     }
 
     private void moveManageColumn(
@@ -1003,14 +1790,15 @@ public class ScenarioOrchestratorService {
     }
 
     public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
-            , Map<String, List<TestCaseDTO>> scenarioResultsMap) throws Exception {
+            , Map<String, List<TestCaseDTO>> scenarioResultsMap) {
         List<TestCaseDTO> testCases=null;
 
         int currEle=-1;
 
         try{
             currEle=handleNavigation(driver,scenarios,currIdx,0,baseS3Prefix,run,scenarioResultsMap);
-        }catch (Exception ex){
+        }catch (ScenarioExecutionException ex){
+            logger.info("Got Exception {}",ex.getMessage());
             throw ex;
         }
         String scenarioPrefix =
@@ -1024,16 +1812,19 @@ public class ScenarioOrchestratorService {
         logger.info("Processing scenario at adjusted index {}: type={}, url={}",
                 currEle, currModal.getType(), currModal.getUrl());
 
-
-
+        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
+        try {
+            Files.createDirectories(scenarioDir);
+        }catch (IOException ex){
+            logger.error("Unable to create directory {}",ex.getMessage());
+        }
         if(currModal.getType()==ScenarioType.ASSERT){
             logger.info("Index adjustment completed - original: {}, adjusted: {}, scenario type: {}",
                     currEle,currModal.getUrl(), currModal.getType());
             runAssertionGeneric(driver,currModal,baseS3Prefix,scenarios);
             return;
         }
-        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
-        Files.createDirectories(scenarioDir);
+
         int counterIdx=0;
         int totalPasses = 0;
         int totalFails = 0;
@@ -1061,15 +1852,30 @@ public class ScenarioOrchestratorService {
                 }
                 tc.setUrls(resultRun.getScreenshots());
                 if(counterIdx<testCases.size())
-                    handleNavigation(driver,scenarios,currIdx,counterIdx,baseS3Prefix,run,scenarioResultsMap);
+                    try {
+                        handleNavigation(driver, scenarios, currIdx, counterIdx, baseS3Prefix, run, scenarioResultsMap);
+                    }catch (ScenarioExecutionException ex){
+                        throw ex;
+                    }
                 logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
 
             }
 
         }
-        catch (Exception e) {
-            logger.error("[{}] failed to open modal or execute tests: {}",scenarioPrefix, e.getMessage());
-            throw new GlobalExceptionHandler.ResourceNotFoundException("Failed to open modal");
+        catch (ScenarioExecutionException ex){
+            throw ex;
+        }
+        catch (Exception ex) {
+            logger.error("[{}] failed to open modal or execute tests: {}",scenarioPrefix, ex.getMessage());
+            throw new ScenarioExecutionException(
+                    currEle,
+                    currModal.getType(),
+                    "EXECUTE_MODAL_TESTCASE",
+                    String.format(
+                            "Modal execution failed for "+currIdx, scenarioPrefix, ex.getMessage()
+                    ),
+                    ex
+            );
         }
         // store modal scenario testcases in memory grouped by scenarioPrefix
         scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
@@ -1097,13 +1903,17 @@ public class ScenarioOrchestratorService {
             Scenario scenario,
             String baseS3Prefix,
             List<Scenario> scenarios
-    ) throws Exception {
+    ) {
 
         int scenarioId = scenario.getSequenceNo();
         String scenarioPrefix = baseS3Prefix + "/" + scenarioId;
 
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
-        Files.createDirectories(scenarioDir);
+        try {
+            Files.createDirectories(scenarioDir);
+        }catch (IOException e){
+            logger.error("[{}] failed to create scenario dir: {}", scenarioPrefix, e.getMessage());
+        }
 
         List<StepAction> steps =
                 assertionStepGenerator.generateAssertionSteps(
@@ -1111,7 +1921,7 @@ public class ScenarioOrchestratorService {
                 );
 
         logger.info("steps of Assert scenario : {}",steps);
-        try {
+
             executor.runAssertionSteps(driver, steps,scenarioDir,scenarioPrefix,scenarios);
             List<AssertionDto> assertionDtos=scenario.getAssertions();
             List<TestCaseDTO> testDtos = new ArrayList<>();
@@ -1158,15 +1968,20 @@ public class ScenarioOrchestratorService {
             } else {
                 scenario.setScenarioStatus(RunStatus.PARTIAL);
             }
+        try {
             Path csvPath = csvLoader.writeScenarioCsv(testDtos,scenarioDir);
             String s3Key = scenarioPrefix;
             String finalCsvUrl = s3StorageService.uploadFile(csvPath, s3Key);
             scenario.setResultCsv(finalCsvUrl);
-
-
         } catch (Exception e) {
             logger.error("exception encountered "+ e.getMessage());
-            throw new GlobalExceptionHandler.RunnerIntegrationException(e.getMessage(),e);
+            throw new ScenarioExecutionException(
+                    scenarioId,
+                    scenario.getType(),
+                    "Problem while uploading csv to s3",
+                    "Unable to load assertion results",
+                    e
+            );
         }
     }
 
@@ -1186,65 +2001,69 @@ public class ScenarioOrchestratorService {
         logger.info("is click : {}",isClick);
         boolean isSearch = !isClick;
         String secondId = scenario.getClickCss();
-        By by = resolveLocator(cssSelector);
-
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        if(cssSelector !=null){
+            By by = resolveLocator(cssSelector);
 
-        WebElement element = wait.until(
+
+            WebElement element = wait.until(
 //                ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector))
-                ExpectedConditions.presenceOfElementLocated(by)
-        );
-        logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', clickCss='{}', isClick={}, isSearch={}, clickCss='{}'",
-                cssSelector,
-                value,
-                scenario.getClickCss(),
-                isClick,
-                isSearch,
-                secondId
-        );
+                    ExpectedConditions.presenceOfElementLocated(by)
+            );
+            logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', clickCss='{}', isClick={}, isSearch={}, clickCss='{}'",
+                    cssSelector,
+                    value,
+                    scenario.getClickCss(),
+                    isClick,
+                    isSearch,
+                    secondId
+            );
 
 
-        String tag = element.getTagName();
+            String tag = element.getTagName();
 
-        // =========================
-        // HANDLE SELECT DROPDOWN
-        // =========================
+            // =========================
+            // HANDLE SELECT DROPDOWN
+            // =========================
 
-        if ("select".equalsIgnoreCase(tag)) {
+            if ("select".equalsIgnoreCase(tag)) {
 
-            boolean isSelect2 = element.getAttribute("class") != null &&
-                    element.getAttribute("class").contains("select2-hidden-accessible");
+                boolean isSelect2 = element.getAttribute("class") != null &&
+                        element.getAttribute("class").contains("select2-hidden-accessible");
 
-            if (isSelect2) {
-                // 🔥 pass stepCounter using wrapper array (mutable)
-                int[] counter = new int[]{stepCounter};
-                handleSelect2(driver, element, value, counter, navigationScreenshotDir, scenarioPrefix);
-                stepCounter = counter[0]; // update back
+                if (isSelect2) {
+                    // 🔥 pass stepCounter using wrapper array (mutable)
+                    int[] counter = new int[]{stepCounter};
+                    handleSelect2(driver, element, value, counter, navigationScreenshotDir, scenarioPrefix);
+                    stepCounter = counter[0]; // update back
+                } else {
+
+                    Select sel = new Select(element);
+                    sel.selectByVisibleText(value);
+
+                }
+
             } else {
 
-                Select sel = new Select(element);
-                sel.selectByVisibleText(value);
-
+                element.clear();
+                element.sendKeys(value);
             }
 
-        } else {
+            // Trigger change event
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", element);
 
-            element.clear();
-            element.sendKeys(value);
+            // 📸 Step 1 → after input/select
+            screenshotService.takeScreenshot(
+                    driver,
+                    "modal_form",
+                    "step_" +TimestampUtil.generateTimestamp(),
+                    navigationScreenshotDir,
+                    scenarioPrefix
+            );
+
         }
 
-        // Trigger change event
-        ((JavascriptExecutor) driver).executeScript(
-                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", element);
-
-        // 📸 Step 1 → after input/select
-        screenshotService.takeScreenshot(
-                driver,
-                "modal_form",
-                "step_" +TimestampUtil.generateTimestamp(),
-                navigationScreenshotDir,
-                scenarioPrefix
-        );
         // =========================
         // CLICK MODE
         // =========================
@@ -1292,7 +2111,7 @@ public class ScenarioOrchestratorService {
 
                 logger.info("Click action completed successfully for id: " + secondId);
 
-            } catch (TimeoutException e) {
+            } catch (GlobalExceptionHandler.TimeoutException e) {
                 logger.error("Timeout: Element with id '" + secondId + "' was not clickable.", e);
             } catch (Exception e) {
                 logger.error("Unexpected error while clicking element with id: " + secondId, e);
@@ -1431,7 +2250,7 @@ public class ScenarioOrchestratorService {
             element = wait.until(ExpectedConditions.elementToBeClickable(locator));
             element.click();
 
-        } catch (TimeoutException e) {
+        } catch (GlobalExceptionHandler.TimeoutException e) {
             logger.info("time out exception");
 
             // 🔥 fallback 1: JS click on fresh element
@@ -1550,11 +2369,12 @@ public class ScenarioOrchestratorService {
     }
 
     private void handleManageColumnScenario(
+            int currIdx,
             WebDriver driver,
             WebDriverWait wait,
             Scenario currScenario
-    ) throws InterruptedException {
-
+    )  {
+    try {
         logger.info("===== START : handleManageColumnScenario =====");
 
         List<ManageColumnItemDto> targetColumns =
@@ -1572,7 +2392,6 @@ public class ScenarioOrchestratorService {
             String columnSelector = column.getColumnName();
             Integer position = column.getPosition();
             ManageColumnAction action = column.getAction();
-
 
 
             logger.info(
@@ -1661,6 +2480,17 @@ public class ScenarioOrchestratorService {
         Thread.sleep(1500);
 
         logger.info("===== END : handleManageColumnScenario =====");
+    } catch (Exception e) {
+        throw new ScenarioExecutionException(
+                currIdx,
+                currScenario.getType(),
+                "MANAGE_COLUMN",
+                String.format(
+                        "Exception occured"+e.getMessage()
+                ),
+                e
+        );
+    }
     }
     public void handleSelect2Dropdown(WebDriver driver, String openerCss, String value) {
 
@@ -1803,7 +2633,7 @@ public class ScenarioOrchestratorService {
             int modalFormTcIdx,
             Path navigationScreenshotDir,
             String scenarioPrefix
-    ) throws InterruptedException {
+    ) {
 
         logger.info(
                 "Executing NAV_SEARCH using selector: {} and value: {}",
@@ -1811,260 +2641,88 @@ public class ScenarioOrchestratorService {
                 currScenario.getValue()
         );
 
-        WebElement opener = wait.until(
-                ExpectedConditions.presenceOfElementLocated(
-                        By.cssSelector(currScenario.getCssOpener())
-                )
-        );
+        try {
+            WebElement opener = wait.until(
+                    ExpectedConditions.presenceOfElementLocated(
+                            By.cssSelector(currScenario.getCssOpener())
+                    )
+            );
 
-        String value = currScenario.getValue();
+            String value = currScenario.getValue();
 
-        logger.info(
-                "Search element located: tag={}",
-                opener.getTagName()
-        );
+            logger.info("Search element located: tag={}", opener.getTagName());
 
-        boolean isInputSearch =
-                opener.getTagName().equalsIgnoreCase("input")
-                        || "true".equals(
-                        opener.getAttribute("contenteditable")
-                );
+            boolean isInputSearch =
+                    opener.getTagName().equalsIgnoreCase("input")
+                            || "true".equals(opener.getAttribute("contenteditable"));
 
-        // =====================================================
-        // CASE 1 → INPUT SEARCH FIELD
-        // =====================================================
+            // =====================================================
+            // CASE 1 → INPUT SEARCH FIELD
+            // =====================================================
+            if (isInputSearch) {
 
-        if (isInputSearch) {
+                logger.info("Detected input search field");
 
-            logger.info("Detected input search field");
-
-            FallbackExecutor.execute(
-
-                    List.of(
-                            "EMPLOYEE_DROPDOWN",
-                            "TREE_SELECTOR",
-                            "NO_ACTION"
-                    ),
-
-                    List.of(
-                            () -> {
-
-                                WebElement dropdownBtn =
-                                        wait.until(
-                                                ExpectedConditions
-                                                        .elementToBeClickable(
-                                                                By.cssSelector(
-                                                                        ".dropdown-btn"
-                                                                )
+                try {
+                    FallbackExecutor.execute(
+                            List.of("EMPLOYEE_DROPDOWN", "TREE_SELECTOR", "NO_ACTION"),
+                            List.of(
+                                    () -> {
+                                        WebElement dropdownBtn =
+                                                wait.until(
+                                                        ExpectedConditions.elementToBeClickable(
+                                                                By.cssSelector(".dropdown-btn")
                                                         )
-                                        );
+                                                );
+                                        Thread.sleep(1000);
+                                        dropdownBtn.click();
+                                        logger.info("Opened employee dropdown");
+                                        return true;
+                                    },
+                                    () -> {
+                                        WebElement treeOpener =
+                                                driver.findElement(
+                                                        By.cssSelector(".treeSelector-input-box")
+                                                );
 
-                                dropdownBtn.click();
+                                        if (!treeOpener.isDisplayed()) {
+                                            throw new ScenarioExecutionException(
+                                                    currIdx,
+                                                    currScenario.getType(),
+                                                    "OPEN_SEARCH_DROPDOWN",
+                                                    "Tree selector is present but not visible, so search navigation cannot continue",
+                                                    null
+                                            );
+                                        }
 
-                                logger.info(
-                                        "Opened employee dropdown"
-                                );
-
-                                return true;
-                            },
-
-                            () -> {
-
-                                WebElement treeOpener =
-                                        driver.findElement(
-                                                By.cssSelector(
-                                                        ".treeSelector-input-box"
-                                                )
-                                        );
-
-                                if (!treeOpener.isDisplayed()) {
-                                    throw new RuntimeException(
-                                            "Tree selector not visible"
-                                    );
-                                }
-
-                                treeOpener.click();
-
-                                logger.info(
-                                        "Opened tree selector dropdown"
-                                );
-
-                                return true;
-                            },
-
-                            () -> {
-
-                                logger.info(
-                                        "No dropdown opener needed"
-                                );
-
-                                return true;
-                            }
-                    )
-            );
-
-            opener.clear();
-            opener.sendKeys(value);
-
-            logger.info(
-                    "Typed search value: {}",
-                    value
-            );
-
-            screenshotService.takeScreenshot(
-                    driver,
-                    String.valueOf(modalFormTcIdx + 1),
-                    "step passed",
-                    navigationScreenshotDir,
-                    scenarioPrefix
-            );
-
-            Thread.sleep(500);
-
-            WebElement option = FallbackExecutor.execute(
-
-                    List.of(
-                            "DATA_TITLE",
-                            "TITLE_LIST_SPAN",
-                            "EXACT_TEXT",
-                            "PARTIAL_TEXT"
-                    ),
-
-                    List.of(
-
-                            () -> wait.until(
-                                    ExpectedConditions
-                                            .elementToBeClickable(
-                                                    By.xpath(
-                                                            "//*[@data-title='"
-                                                                    + value
-                                                                    + "']//input"
-                                                    )
-                                            )
-                            ),
-
-                            () -> wait.until(
-                                    ExpectedConditions
-                                            .presenceOfElementLocated(
-                                                    By.xpath(
-                                                            "//span[contains(@class,'tittle-list') and contains(text(),'"
-                                                                    + value
-                                                                    + "')]/preceding-sibling::input[@type='checkbox']"
-                                                    )
-                                            )
-                            ),
-
-                            () -> wait.until(
-                                    ExpectedConditions
-                                            .elementToBeClickable(
-                                                    By.xpath(
-                                                            "//*[text()='"
-                                                                    + value
-                                                                    + "']"
-                                                    )
-                                            )
-                            ),
-
-                            () -> wait.until(
-                                    ExpectedConditions
-                                            .elementToBeClickable(
-                                                    By.xpath(
-                                                            "//*[contains(text(),'"
-                                                                    + value
-                                                                    + "')]"
-                                                    )
-                                            )
+                                        treeOpener.click();
+                                        logger.info("Opened tree selector dropdown");
+                                        return true;
+                                    },
+                                    () -> {
+                                        logger.info("No dropdown opener needed");
+                                        return true;
+                                    }
                             )
-                    )
-            );
-
-            try {
-
-                option.click();
-
-                logger.info("Clicked option normally");
-
-            }
-            catch (Exception clickEx) {
-
-                logger.warn("Normal click failed, using JS click");
-
-                ((JavascriptExecutor) driver)
-                        .executeScript(
-                                "arguments[0].click();",
-                                option
-                        );
-
-                logger.info("Clicked option using JS click");
-            }
-
-            logger.info(
-                    "Successfully selected option: {}",
-                    value
-            );
-
-            screenshotService.takeScreenshot(
-                    driver,
-                    String.valueOf(modalFormTcIdx + 1),
-                    "step passed",
-                    navigationScreenshotDir,
-                    scenarioPrefix
-            );
-
-            try {
-
-                WebElement applyButton = driver.findElement(By.id("apply-button"));
-
-                if (applyButton.isDisplayed()) {
-
-                    applyButton.click();
-
-                    logger.info("Clicked apply button");
+                    );
+                }
+                catch (ScenarioExecutionException ex) {
+                    throw ex;
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "OPEN_SEARCH_DROPDOWN",
+                            "Failed to open search dropdown before typing search value",
+                            ex
+                    );
                 }
 
-            }
-            catch (Exception ignored) {
+                opener.clear();
+                opener.sendKeys(value);
 
-                logger.info("No apply button found");
-            }
-
-            driver.findElement(By.tagName("body")).click();
-
-            logger.info("Closed dropdown using body click");
-
-            screenshotService.takeScreenshot(
-                    driver,
-                    String.valueOf(modalFormTcIdx + 1),
-                    "step passed",
-                    navigationScreenshotDir,
-                    scenarioPrefix
-            );
-        }
-
-        // =====================================================
-        // CASE 2 → DROPDOWN OPENER
-        // =====================================================
-
-        else {
-
-            boolean isSelect2 =
-                    !driver.findElements(
-                            By.cssSelector(".select2-container--default")
-                    ).isEmpty()
-                            ||
-                            !driver.findElements(
-                                    By.cssSelector(".select2-hidden-accessible")
-                            ).isEmpty();
-
-            if (isSelect2) {
-
-                logger.info("Detected Select2 dropdown");
-
-                selectSelect2(
-                        driver,
-                        currScenario.getCssOpener(),
-                        value
-                );
+                logger.info("Typed search value: {}", value);
 
                 screenshotService.takeScreenshot(
                         driver,
@@ -2074,98 +2732,244 @@ public class ScenarioOrchestratorService {
                         scenarioPrefix
                 );
 
-                scenario.setScenarioStatus(RunStatus.PASSED);
-                resultTestCase.setResult("Passed");
-
-                return currIdx + 1;
-            }
-
-            logger.info("Detected normal dropdown opener");
-
-            wait.until(
-                    ExpectedConditions.elementToBeClickable(opener)
-            ).click();
-
-            WebElement option = FallbackExecutor.execute(
-
-                    List.of(
-                            "DATA_TITLE",
-                            "EXACT_TEXT",
-                            "PARTIAL_TEXT"
-                    ),
-
-                    List.of(
-
-                            () -> wait.until(
-                                    ExpectedConditions
-                                            .elementToBeClickable(
+                WebElement option;
+                try {
+                    option = FallbackExecutor.execute(
+                            List.of("DATA_TITLE", "TITLE_LIST_SPAN", "EXACT_TEXT", "PARTIAL_TEXT"),
+                            List.of(
+                                    () -> wait.until(
+                                            ExpectedConditions.elementToBeClickable(
+                                                    By.xpath("//*[@data-title='" + value + "']//input")
+                                            )
+                                    ),
+                                    () -> wait.until(
+                                            ExpectedConditions.presenceOfElementLocated(
                                                     By.xpath(
-                                                            "//*[@data-title='"
-                                                                    + value
-                                                                    + "']//input"
+                                                            "//span[contains(@class,'tittle-list') and contains(text(),'" + value + "')]/preceding-sibling::input[@type='checkbox']"
                                                     )
                                             )
-                            ),
-
-                            () -> wait.until(
-                                    ExpectedConditions
-                                            .elementToBeClickable(
-                                                    By.xpath(
-                                                            "//*[text()='"
-                                                                    + value
-                                                                    + "']"
-                                                    )
+                                    ),
+                                    () -> wait.until(
+                                            ExpectedConditions.elementToBeClickable(
+                                                    By.xpath("//*[text()='" + value + "']")
                                             )
-                            ),
-
-                            () -> wait.until(
-                                    ExpectedConditions
-                                            .elementToBeClickable(
-                                                    By.xpath(
-                                                            "//*[contains(text(),'"
-                                                                    + value
-                                                                    + "')]"
-                                                    )
+                                    ),
+                                    () -> wait.until(
+                                            ExpectedConditions.elementToBeClickable(
+                                                    By.xpath("//*[contains(text(),'" + value + "')]")
                                             )
+                                    )
                             )
-                    )
-            );
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "LOCATE_SEARCH_OPTION",
+                            "Failed to locate the searched option after typing the search value",
+                            ex
+                    );
+                }
 
-            try {
-
-                option.click();
-
-            }
-            catch (Exception e) {
-
-                ((JavascriptExecutor) driver)
-                        .executeScript(
-                                "arguments[0].click();",
-                                option
+                try {
+                    option.click();
+                    logger.info("Clicked option normally");
+                }
+                catch (Exception clickEx) {
+                    logger.warn("Normal click failed, using JS click");
+                    try {
+                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", option);
+                        logger.info("Clicked option using JS click");
+                    }
+                    catch (Exception jsEx) {
+                        throw new ScenarioExecutionException(
+                                currIdx,
+                                currScenario.getType(),
+                                "SELECT_SEARCH_OPTION",
+                                "Failed to select the searched option even after JS click fallback",
+                                jsEx
                         );
+                    }
+                }
+
+                logger.info("Successfully selected option: {}", value);
+
+                screenshotService.takeScreenshot(
+                        driver,
+                        String.valueOf(modalFormTcIdx + 1),
+                        "step passed",
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+
+                // optional only, do not stop execution if absent
+                try {
+                    logger.info("Searching for apply button");
+                    WebElement applyButton = driver.findElement(By.id("apply-button"));
+                    if (applyButton.isDisplayed()) {
+                        applyButton.click();
+                        logger.info("Clicked apply button");
+                    }
+                }
+                catch (Exception ignored) {
+                    logger.info("No apply button found");
+                }
+                try {
+                    driver.findElement(By.tagName("body")).click();
+                    logger.info("Closed dropdown using body click");
+                } catch (Exception e) {
+                    logger.info("Unable to click");
+                }
+
+                screenshotService.takeScreenshot(
+                        driver,
+                        String.valueOf(modalFormTcIdx + 1),
+                        "step passed",
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
             }
 
-            logger.info(
-                    "Dropdown option selected successfully"
-            );
+            // =====================================================
+            // CASE 2 → DROPDOWN OPENER
+            // =====================================================
+            else {
 
-            screenshotService.takeScreenshot(
-                    driver,
-                    String.valueOf(modalFormTcIdx + 1),
-                    "step passed",
-                    navigationScreenshotDir,
-                    scenarioPrefix
-            );
+                boolean isSelect2 =
+                        !driver.findElements(By.cssSelector(".select2-container--default")).isEmpty()
+                                || !driver.findElements(By.cssSelector(".select2-hidden-accessible")).isEmpty();
 
-            driver.findElement(By.tagName("body")).click();
+                if (isSelect2) {
+                    logger.info("Detected Select2 dropdown");
 
-            logger.info("Closed dropdown");
+                    try {
+                        selectSelect2(driver, currScenario.getCssOpener(), value);
+                    }
+                    catch (Exception ex) {
+                        throw new ScenarioExecutionException(
+                                currIdx,
+                                currScenario.getType(),
+                                "SELECT_SELECT2_OPTION",
+                                "Failed to select option in Select2 dropdown",
+                                ex
+                        );
+                    }
+
+                    screenshotService.takeScreenshot(
+                            driver,
+                            String.valueOf(modalFormTcIdx + 1),
+                            "step passed",
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+
+                    scenario.setScenarioStatus(RunStatus.PASSED);
+                    resultTestCase.setResult("Passed");
+                    return currIdx + 1;
+                }
+
+                logger.info("Detected normal dropdown opener");
+
+                try {
+                    wait.until(ExpectedConditions.elementToBeClickable(opener)).click();
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "OPEN_DROPDOWN",
+                            "Failed to open dropdown for search navigation",
+                            ex
+                    );
+                }
+
+                WebElement option;
+                try {
+                    option = FallbackExecutor.execute(
+                            List.of("DATA_TITLE", "EXACT_TEXT", "PARTIAL_TEXT"),
+                            List.of(
+                                    () -> wait.until(
+                                            ExpectedConditions.elementToBeClickable(
+                                                    By.xpath("//*[@data-title='" + value + "']//input")
+                                            )
+                                    ),
+                                    () -> wait.until(
+                                            ExpectedConditions.elementToBeClickable(
+                                                    By.xpath("//*[text()='" + value + "']")
+                                            )
+                                    ),
+                                    () -> wait.until(
+                                            ExpectedConditions.elementToBeClickable(
+                                                    By.xpath("//*[contains(text(),'" + value + "')]")
+                                            )
+                                    )
+                            )
+                    );
+                }
+                catch (Exception ex) {
+                    throw new ScenarioExecutionException(
+                            currIdx,
+                            currScenario.getType(),
+                            "LOCATE_DROPDOWN_OPTION",
+                            "Failed to locate dropdown option after opening dropdown",
+                            ex
+                    );
+                }
+
+                try {
+                    option.click();
+                }
+                catch (Exception ex) {
+                    try {
+                        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", option);
+                    }
+                    catch (Exception jsEx) {
+                        throw new ScenarioExecutionException(
+                                currIdx,
+                                currScenario.getType(),
+                                "SELECT_DROPDOWN_OPTION",
+                                "Failed to select dropdown option even after JS click fallback",
+                                jsEx
+                        );
+                    }
+                }
+
+                logger.info("Dropdown option selected successfully");
+
+                screenshotService.takeScreenshot(
+                        driver,
+                        String.valueOf(modalFormTcIdx + 1),
+                        "step passed",
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+
+                // optional only, do not stop execution if absent
+                try {
+                    driver.findElement(By.tagName("body")).click();
+                    logger.info("Closed dropdown");
+                }
+                catch (Exception ignored) {
+                    logger.info("Could not close dropdown using body click, continuing");
+                }
+            }
+
+            scenario.setScenarioStatus(RunStatus.PASSED);
+            resultTestCase.setResult("Passed");
+            return currIdx;
+        } catch (ScenarioExecutionException ex) {
+            throw ex;
         }
-
-        scenario.setScenarioStatus(RunStatus.PASSED);
-        resultTestCase.setResult("Passed");
-
-        return currIdx;
+        catch (Exception ex) {
+            throw new ScenarioExecutionException(
+                    currIdx,
+                    currScenario.getType(),
+                    "SEARCH_NAVIGATION",
+                    "Unexpected failure during search navigation",
+                    ex
+            );
+        }
     }
 
     private void handleFilterNavScenario(

@@ -239,60 +239,12 @@ public class RunService {
 
             return mapper.toRunResponse(updated);
 
-        }
-        catch(GlobalExceptionHandler.InvalidCountException | GlobalExceptionHandler.ResourceNotFoundException |
-              GlobalExceptionHandler.BadRequestException ex){
-            System.out.println("catched inside execute run method");
-            markRunFailed(updated, ex.getMessage());
+        }catch (GlobalExceptionHandler.ScenarioExecutionException ex){
+            markRunFailed(run,ex.getUserMessage());
             throw ex;
-        }
-        catch (GlobalExceptionHandler.RunnerIntegrationException ex) {
-
-            markRunFailed(updated, ex.getMessage());
+        }catch (Exception ex){
+            markRunFailed(run,ex.getMessage());
             throw ex;
-
-        } catch (org.openqa.selenium.TimeoutException ex) {
-
-            String message = "Test execution failed: target web page is slow or element did not become visible in time";
-            markRunFailed(updated, message);
-            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
-
-        } catch (org.openqa.selenium.NoSuchElementException ex) {
-
-            String message = "Test execution failed: required element not found on target web page";
-            markRunFailed(updated, message);
-            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
-
-        } catch (org.openqa.selenium.ElementClickInterceptedException ex) {
-
-            String message = "Test execution failed: element click was intercepted by another UI element";
-            markRunFailed(updated, message);
-            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
-
-        } catch (org.openqa.selenium.ElementNotInteractableException ex) {
-
-            String message = "Test execution failed: element exists but is not interactable on target web page";
-            markRunFailed(updated, message);
-            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
-
-        } catch (org.openqa.selenium.StaleElementReferenceException ex) {
-
-            String message = "Test execution failed: page updated and element reference became stale";
-            markRunFailed(updated, message);
-            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
-
-        } catch (org.openqa.selenium.WebDriverException ex) {
-
-            String message = "Browser automation failed during test execution: " + ex.getMessage();
-            markRunFailed(updated, message);
-            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
-
-        } catch (Exception ex) {
-
-            String message = "Unexpected execution failure: " + ex.getMessage();
-            markRunFailed(updated, message);
-            throw new GlobalExceptionHandler.RunnerIntegrationException(message, ex);
-
         }
         finally {
             if (driver != null) {
@@ -396,7 +348,6 @@ public class RunService {
                 // result fields cleared:
                 .resultCsv(null)
                 .screenshots(null)
-                .status(ScenarioStatus.PENDING)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
                 .assertions(

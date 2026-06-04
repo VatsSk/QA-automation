@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services.executorService;
 
-import com.ibm.icu.impl.Assert;
+import org.openqa.selenium.interactions.Actions;
+import java.time.Duration;
 import com.testingautomation.testautomation.dto.*;
 import com.testingautomation.testautomation.entities.Scenario;
 import com.testingautomation.testautomation.enums.DataType;
@@ -318,22 +319,51 @@ public class SeleniumExecutor {
             switch (s.getType()) {
 
                 case TYPE:
+
                     if (s.getPayload() != null && !s.getPayload().isBlank()) {
 
-                        WebDriverWait wait = new WebDriverWait(driver1, Duration.ofSeconds(10));
+                        WebDriverWait wait =
+                                new WebDriverWait(
+                                        driver1,
+                                        Duration.ofSeconds(10)
+                                );
 
-                        WebElement el = wait.until(
-                                ExpectedConditions.visibilityOfElementLocated(by)
-                        );
+                        WebElement el =
+                                wait.until(
+                                        ExpectedConditions
+                                                .visibilityOfElementLocated(by)
+                                );
 
                         waitUntilEditable(driver1, el);
                         scrollIntoView(driver1, el);
 
-                        String locator = s.getLocator() != null ? s.getLocator().toLowerCase() : "";
-                        String elementId = el.getAttribute("id") != null ? el.getAttribute("id").toLowerCase() : "";
-                        String classes = el.getAttribute("class") != null ? el.getAttribute("class").toLowerCase() : "";
-                        String type = el.getAttribute("type") != null ? el.getAttribute("type").toLowerCase() : "";
-                        boolean readOnly = el.getAttribute("readonly") != null;
+                        String locator =
+                                s.getLocator() != null
+                                        ? s.getLocator().toLowerCase()
+                                        : "";
+
+                        String elementId =
+                                el.getAttribute("id") != null
+                                        ? el.getAttribute("id").toLowerCase()
+                                        : "";
+
+                        String classes =
+                                el.getAttribute("class") != null
+                                        ? el.getAttribute("class").toLowerCase()
+                                        : "";
+
+                        String type =
+                                el.getAttribute("type") != null
+                                        ? el.getAttribute("type").toLowerCase()
+                                        : "";
+
+                        String placeholder =
+                                el.getAttribute("placeholder") != null
+                                        ? el.getAttribute("placeholder").toLowerCase()
+                                        : "";
+
+                        boolean readOnly =
+                                el.getAttribute("readonly") != null;
 
                         boolean isDateOrReadonly =
                                 readOnly ||
@@ -349,102 +379,311 @@ public class SeleniumExecutor {
                                         type.contains("datetime");
 
                         if (isDateOrReadonly) {
-                            JavascriptExecutor js = (JavascriptExecutor) driver1;
 
-                            // remove readonly if present
-                            js.executeScript("arguments[0].removeAttribute('readonly');", el);
+                            JavascriptExecutor js =
+                                    (JavascriptExecutor) driver1;
 
-                            // clear + set via JS
-                            js.executeScript("arguments[0].value = '';", el);
-                            js.executeScript("arguments[0].value = arguments[1];", el, s.getPayload());
-
-                            // trigger UI events
                             js.executeScript(
-                                    "arguments[0].dispatchEvent(new Event('input', { bubbles: true }));" +
-                                            "arguments[0].dispatchEvent(new Event('change', { bubbles: true }));" +
-                                            "arguments[0].dispatchEvent(new Event('blur', { bubbles: true }));",
+                                    "arguments[0].removeAttribute('readonly');",
+                                    el
+                            );
+
+                            js.executeScript(
+                                    "arguments[0].value='';",
+                                    el
+                            );
+
+                            js.executeScript(
+                                    "arguments[0].value=arguments[1];",
+                                    el,
+                                    s.getPayload()
+                            );
+
+                            js.executeScript(
+                                    "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));" +
+                                            "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));" +
+                                            "arguments[0].dispatchEvent(new Event('blur',{bubbles:true}));",
                                     el
                             );
 
                         } else {
+
+                            logger.info("Normal TYPE execution");
+
                             el.clear();
-                            el.sendKeys(s.getPayload());
 
-                            // Trigger UI events
-                            ((JavascriptExecutor) driver1).executeScript(
-                                    "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));", el);
+                            el.sendKeys(
+                                    s.getPayload()
+                            );
 
-                            ((JavascriptExecutor) driver1).executeScript(
-                                    "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", el);
+                            ((JavascriptExecutor) driver1)
+                                    .executeScript(
+                                            "arguments[0].dispatchEvent(new Event('input',{bubbles:true}));",
+                                            el
+                                    );
+
+                            ((JavascriptExecutor) driver1)
+                                    .executeScript(
+                                            "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));",
+                                            el
+                                    );
                         }
-                        // =========================
-                        // 🔥 AUTOCOMPLETE HANDLING
-                        // =========================
+
+                        // =================================
+                        // AUTOCOMPLETE / SEARCH HANDLING
+                        // =================================
 
                         boolean isAutoComplete =
-                                "combobox".equalsIgnoreCase(el.getAttribute("role")) ||
-                                        (el.getAttribute("class") != null &&
-                                                el.getAttribute("class").toLowerCase().contains("autocomplete"));
+
+                                "combobox".equalsIgnoreCase(
+                                        el.getAttribute("role")
+                                )
+
+                                        || classes.contains("autocomplete")
+
+                                        || elementId.contains("search")
+
+                                        || elementId.contains("location")
+
+                                        || placeholder.contains("search")
+
+                                        || placeholder.contains("address")
+
+                                        || placeholder.contains("location");
+
+                        logger.info(
+                                "Autocomplete Detection -> id={} placeholder={} result={}",
+                                elementId,
+                                placeholder,
+                                isAutoComplete
+                        );
 
                         if (isAutoComplete) {
 
-                            logger.info("Detected AUTOCOMPLETE field → waiting for suggestions");
-
-                            // wait for dropdown container
-                            WebElement container = wait.until(
-                                    ExpectedConditions.visibilityOfElementLocated(
-                                            By.cssSelector(".autocomplete-results"))
+                            logger.info(
+                                    "Waiting for search suggestions..."
                             );
 
-                            // wait for items
-                            List<WebElement> options = wait.until(d -> {
-                                List<WebElement> list = container.findElements(By.cssSelector(".autocomplete-item"));
-                                return list.size() > 0 ? list : null;
-                            });
+                            WebElement container =
+                                    wait.until(
+                                            ExpectedConditions
+                                                    .visibilityOfElementLocated(
+                                                            By.id("place")
+                                                    )
+                                    );
 
-                            logger.info("Selecting first autocomplete suggestion");
+                            List<WebElement> options =
+                                    wait.until(driver -> {
+
+                                        List<WebElement> items =
+                                                container.findElements(
+                                                        By.xpath("./*")
+                                                );
+
+                                        return items.size() > 0
+                                                ? items
+                                                : null;
+                                    });
+
+                            logger.info(
+                                    "Suggestions found {}",
+                                    options.size()
+                            );
 
                             options.get(0).click();
+
+                            Thread.sleep(500);
                         }
 
                     } else {
-                        logger.info("Skipping TYPE for locator {} because payload is empty", s.getLocator());
-                        throw new RuntimeException("SKIPPED");
+
+                        logger.info(
+                                "Skipping TYPE for locator {} because payload empty",
+                                s.getLocator()
+                        );
+
+                        throw new RuntimeException(
+                                "SKIPPED"
+                        );
                     }
+
                     break;
+//                case CLICK:
+//
+//                    String beforeUrl = driver1.getCurrentUrl();
+//
+//                    WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
+//                            .until(ExpectedConditions.presenceOfElementLocated(by));
+//
+//                    scrollIntoView(driver1, el);
+//
+//                    // Skip click if radio/checkbox already selected
+//                    String type = el.getAttribute("type");
+//                    if (type != null && (type.equalsIgnoreCase("radio") || type.equalsIgnoreCase("checkbox"))) {
+//                        if (el.isSelected()) {
+//                            logger.info("Element already selected, skipping click: {}", by);
+//                            break;
+//                        }
+//                    }
+//
+//                    try {
+//                        new WebDriverWait(driver1, Duration.ofSeconds(5))
+//                                .until(ExpectedConditions.elementToBeClickable(el));
+//
+//                        el.click();
+//
+//                    } catch (ElementClickInterceptedException e) {
+//                        logger.warn("Normal click failed, retrying via JS");
+//                        ((JavascriptExecutor) driver1).executeScript("arguments[0].click();", el);
+//                    }
+//
+//                    // Only check navigation but don't fail if it doesn't change
+//                    boolean navigated = waitForUrlChange(driver1, beforeUrl);
+//                    if (navigated) {
+//                        logger.info("Navigation detected after click");
+//                    }
+//
+//                    break;
                 case CLICK:
 
-                    String beforeUrl = driver1.getCurrentUrl();
+                    String beforeUrl =
+                            driver1.getCurrentUrl();
 
-                    WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
-                            .until(ExpectedConditions.presenceOfElementLocated(by));
+                    WebDriverWait wait =
+                            new WebDriverWait(
+                                    driver1,
+                                    Duration.ofSeconds(10)
+                            );
+
+                    WebElement el =
+                            wait.until(
+                                    ExpectedConditions
+                                            .presenceOfElementLocated(by)
+                            );
 
                     scrollIntoView(driver1, el);
 
-                    // Skip click if radio/checkbox already selected
-                    String type = el.getAttribute("type");
-                    if (type != null && (type.equalsIgnoreCase("radio") || type.equalsIgnoreCase("checkbox"))) {
-                        if (el.isSelected()) {
-                            logger.info("Element already selected, skipping click: {}", by);
-                            break;
-                        }
-                    }
+                    // skip already-selected radio/checkbox
+//                    String type =
+//                            el.getAttribute("type");
+//
+//                    if (type != null &&
+//                            (type.equalsIgnoreCase("checkbox")
+//                                    || type.equalsIgnoreCase("radio"))) {
+//
+//                        if (el.isSelected()) {
+//
+//                            logger.info(
+//                                    "Already selected -> skipping {}",
+//                                    s.getLocator()
+//                            );
+//
+//                            break;
+//                        }
+//                    }
+//
+                    boolean clicked = false;
+
+                    // ------------------------
+                    // Strategy 1 : normal click
+                    // ------------------------
 
                     try {
-                        new WebDriverWait(driver1, Duration.ofSeconds(5))
-                                .until(ExpectedConditions.elementToBeClickable(el));
+
+                        wait.until(
+                                ExpectedConditions.visibilityOf(el)
+                        );
 
                         el.click();
 
-                    } catch (ElementClickInterceptedException e) {
-                        logger.warn("Normal click failed, retrying via JS");
-                        ((JavascriptExecutor) driver1).executeScript("arguments[0].click();", el);
+                        clicked = true;
+
+                        logger.info(
+                                "Normal click success {}",
+                                s.getLocator()
+                        );
+
+                    } catch (Exception e) {
+
+                        logger.warn(
+                                "Normal click failed {}",
+                                e.getMessage()
+                        );
                     }
 
-                    // Only check navigation but don't fail if it doesn't change
-                    boolean navigated = waitForUrlChange(driver1, beforeUrl);
+                    // ------------------------
+                    // Strategy 2 : Actions click
+                    // ------------------------
+
+                    if (!clicked) {
+
+                        try {
+
+                            new Actions(driver1)
+                                    .moveToElement(el)
+                                    .pause(Duration.ofMillis(300))
+                                    .click()
+                                    .perform();
+
+                            clicked = true;
+
+                            logger.info(
+                                    "Actions click success {}",
+                                    s.getLocator()
+                            );
+
+                        } catch (Exception e) {
+
+                            logger.warn(
+                                    "Actions click failed {}",
+                                    e.getMessage()
+                            );
+                        }
+                    }
+
+                    // ------------------------
+                    // Strategy 3 : JS click
+                    // ------------------------
+
+                    if (!clicked) {
+
+                        try {
+
+                            ((JavascriptExecutor) driver1)
+                                    .executeScript(
+                                            "arguments[0].click();",
+                                            el
+                                    );
+
+                            clicked = true;
+
+                            logger.info(
+                                    "JS click success {}",
+                                    s.getLocator()
+                            );
+
+                        } catch (Exception e) {
+
+                            logger.error(
+                                    "All click strategies failed {}",
+                                    s.getLocator()
+                            );
+
+                            throw e;
+                        }
+                    }
+
+                    boolean navigated =
+                            waitForUrlChange(
+                                    driver1,
+                                    beforeUrl
+                            );
+
                     if (navigated) {
-                        logger.info("Navigation detected after click");
+
+                        logger.info(
+                                "Navigation detected after click"
+                        );
                     }
 
                     break;
@@ -484,7 +723,7 @@ public class SeleniumExecutor {
 
                         String selectId = selectElement.getAttribute("id");
 
-                        WebDriverWait wait = new WebDriverWait(driver1, Duration.ofSeconds(10));
+                        WebDriverWait wait1 = new WebDriverWait(driver1, Duration.ofSeconds(10));
 
                         // open dropdown
                         WebElement container = driver1.findElement(
@@ -497,7 +736,7 @@ public class SeleniumExecutor {
                             // -------- FIRST TRY : search based select2 --------
                             logger.info("Trying search-based Select2 selection");
 
-                            WebElement search = wait.until(
+                            WebElement search = wait1.until(
                                     ExpectedConditions.visibilityOfElementLocated(
                                             By.cssSelector(".select2-search__field"))
                             );
@@ -505,7 +744,7 @@ public class SeleniumExecutor {
                             search.clear();
                             search.sendKeys(s.getPayload());
 
-                            WebElement option = wait.until(
+                            WebElement option = wait1.until(
                                     ExpectedConditions.visibilityOfElementLocated(
                                             By.xpath("//li[contains(@class,'select2-results__option') and contains(.,'" + s.getPayload() + "')]")
                                     )
@@ -518,7 +757,7 @@ public class SeleniumExecutor {
                             logger.warn("Search select2 failed, trying direct select. Reason: {}", searchFail.getMessage());
 
                             // -------- SECOND TRY : static select2 --------
-                            WebElement option = wait.until(
+                            WebElement option = wait1.until(
                                     ExpectedConditions.visibilityOfElementLocated(
                                             By.xpath("//li[contains(@class,'select2-results__option') and contains(.,'" + s.getPayload() + "')]")
                                     )
@@ -747,7 +986,15 @@ public class SeleniumExecutor {
                         throw new IllegalArgumentException("Unsupported assertion: " + step.getType());
                 }
 
-            } catch (Exception e) {
+            }
+            catch(GlobalExceptionHandler.AssertionExecutionException ex){
+                step.getAssertion().setAssertResult("FAILED");
+                step.getAssertion().setErrorMessage(ex.getUserMessage());
+
+                System.out.println("❌ Assertion failed: " + step.getDescription()
+                        + " | Reason: " + ex.getUserMessage());
+            }
+            catch (Exception e) {
                 step.getAssertion().setAssertResult("FAILED");
                 step.getAssertion().setErrorMessage(e.getMessage());
 
@@ -1148,7 +1395,7 @@ public class SeleniumExecutor {
         List<WebElement> elements = driver.findElements(getBy(step));
 
         if (elements == null || elements.isEmpty()) {
-            throw new GlobalExceptionHandler.BadRequestException("Element not present in DOM: " + step.getLocator());
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Element not present in DOM: " + step.getLocator());
         }
     }
     private void assertVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
@@ -1158,7 +1405,7 @@ public class SeleniumExecutor {
         ));
 
         if (!el.isDisplayed()) {
-            throw new GlobalExceptionHandler.BadRequestException("Element not visible: " + step.getLocator());
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Element not visible: " + step.getLocator());
         }
     }
     private void assertNotVisible(WebDriver driver, WebDriverWait wait, StepAction step) {
@@ -1168,7 +1415,7 @@ public class SeleniumExecutor {
         );
 
         if (!invisible) {
-            throw new GlobalExceptionHandler.BadRequestException("Element is visible but should not be");
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Element is visible but should not be");
         }
     }
 
@@ -1265,7 +1512,7 @@ public class SeleniumExecutor {
             logger.info("Missing values: {}", missing);
             logger.info("Unexpected extra values: {}", extra);
 
-            throw new GlobalExceptionHandler.BadRequestException("Text values do not match expected set");
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Text values do not match expected set");
         }
 
         logger.info("✅ Text assertion passed");
@@ -1281,7 +1528,7 @@ public class SeleniumExecutor {
         String actual = el.getText();
 
         if (!actual.contains(step.getPayload())) {
-            throw new GlobalExceptionHandler.BadRequestException("Text does not contain: " + step.getPayload());
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Text does not contain: " + step.getPayload());
         }
     }
 
@@ -1363,7 +1610,7 @@ public class SeleniumExecutor {
             logger.error("Assertion failed. Missing columns: {} | Actual columns: {}",
                     missingColumns, actualColumns);
 
-            throw new GlobalExceptionHandler.BadRequestException("Missing columns: " + missingColumns +
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Missing columns: " + missingColumns +
                     " | Actual: " + actualColumns);
         }
 
@@ -1397,18 +1644,18 @@ public class SeleniumExecutor {
                     logger.info("✅ PASS: Single page with fewer rows than page size");
                 } else {
                     logger.error("❌ FAIL: Multiple pages exist but rows < page size");
-                    throw new GlobalExceptionHandler.BadRequestException("Pagination mismatch detected");
+                    throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Pagination mismatch detected");
                 }
 
             } else {
                 logger.error("❌ FAIL: Visible rows exceed selected page size");
-                throw new GlobalExceptionHandler.BadRequestException("Row count exceeds page size");
+                throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Row count exceeds page size");
             }
             return "passed";
 
         } catch (Exception e) {
             logger.error("❌ Exception in ASSERT_COUNT: {}", e.getMessage(), e);
-            throw new GlobalExceptionHandler.BadRequestException("ASSERT_COUNT failed"+e);
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"ASSERT_COUNT failed");
         }
 
 
@@ -1567,7 +1814,7 @@ public class SeleniumExecutor {
                 }
             }
 
-            throw  new GlobalExceptionHandler.BadRequestException("Sorting is incorrect");
+            throw  new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Sorting is incorrect");
         }
 
         logger.info("✅ Sorting is correct");
@@ -1584,7 +1831,7 @@ public class SeleniumExecutor {
         String actual = el.getAttribute(step.getPayload());
 
         if (!actual.equals(step.getPayload())) {
-            throw new GlobalExceptionHandler.BadRequestException("Attribute mismatch");
+            throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Attribute mismatch");
         }
     }
 
@@ -1603,6 +1850,6 @@ public class SeleniumExecutor {
             return By.cssSelector(step.getLocator());
         }
         logger.info("❌ Invalid locator type: {}", step.getLocatorType());
-        throw new IllegalArgumentException("Invalid locator type");
+        throw new GlobalExceptionHandler.AssertionExecutionException(step.getType().toString(),"Invalid locator type "+step.getLocator());
     }
 }

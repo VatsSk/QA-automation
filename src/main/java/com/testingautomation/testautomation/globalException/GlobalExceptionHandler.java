@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.globalException;
 
 
+import com.testingautomation.testautomation.enums.ScenarioType;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.*;
@@ -20,33 +21,200 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    // ── Custom exceptions ─────────────────────────────────────────────
+    public static class ScenarioExecutionException extends AutomationException {
 
-    public static class ResourceNotFoundException extends RuntimeException {
+        private final int scenarioIndex;
+
+        private final ScenarioType scenarioType;
+
+        private final String step;
+
+        private final String userMessage;
+
+        public ScenarioExecutionException(
+
+                int scenarioIndex,
+
+                ScenarioType scenarioType,
+
+                String step,
+
+                String userMessage,
+
+                Throwable cause
+
+        ) {
+
+            super(userMessage, cause);
+
+            this.scenarioIndex = scenarioIndex;
+
+            this.scenarioType = scenarioType;
+
+            this.step = step;
+
+            this.userMessage = userMessage;
+
+        }
+
+        public int getScenarioIndex() {
+
+            return scenarioIndex;
+
+        }
+
+        public ScenarioType getScenarioType() {
+
+            return scenarioType;
+
+        }
+
+        public String getStep() {
+
+            return step;
+
+        }
+
+        public String getUserMessage() {
+
+            return userMessage;
+
+        }
+
+    }
+
+    public static class AssertionExecutionException extends AutomationException {
+        private final String assertionType;
+        private final String userMessage;
+
+        public AssertionExecutionException(
+                String assertionType,
+                String userMessage
+        ) {
+
+            super(userMessage);
+            this.assertionType = assertionType;
+            this.userMessage = userMessage;
+
+        }
+
+        public String getAssertionType() {
+            return assertionType;
+        }
+
+        public String getUserMessage() {
+
+            return userMessage;
+
+        }
+
+    }
+
+
+    // ── Custom exceptions ─────────────────────────────────────────────
+    public static abstract class AutomationException extends RuntimeException {
+
+        public AutomationException(String message) {
+            super(message);
+        }
+
+        public AutomationException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
+    public static class ResourceNotFoundException extends AutomationException {
         public ResourceNotFoundException(String msg) { super(msg); }
     }
 
-    public static class BadRequestException extends RuntimeException {
-        public BadRequestException(String msg) { super(msg); }
+    public static class BadRequestException extends AutomationException {
+
+        public BadRequestException(String message) {
+            super(message);
+        }
     }
 
-    public static class RunnerIntegrationException extends RuntimeException {
+    public static class RunnerIntegrationException extends AutomationException {
         public RunnerIntegrationException(String msg, Throwable cause) { super(msg, cause); }
     }
 
-    public static class InvalidCountException extends IndexOutOfBoundsException{
+
+    public static class InvalidCountException extends AutomationException{
         public InvalidCountException(String msg) { super(msg); }
     }
 
-    public static class TimeoutException extends RuntimeException {
+    public static class TimeoutException extends AutomationException {
         public TimeoutException(String msg) { super(msg); }
     }
 
-    public static class StorageException extends RuntimeException {
+    public static class StorageException extends AutomationException {
         public StorageException(String msg, Throwable cause) { super(msg, cause); }
     }
 
     // ── Handlers ──────────────────────────────────────────────────────
+
+    @ExceptionHandler(ScenarioExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleScenarioExecution(
+            ScenarioExecutionException ex
+    ) {
+        log.error(
+                "Scenario execution failed at step={} scenarioIndex={} type={}",
+                ex.getStep(),
+                ex.getScenarioIndex(),
+                ex.getScenarioType(),
+                ex
+        );
+
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ex.getUserMessage()
+        );
+
+        Map<String, String> details = new HashMap<>();
+
+        details.put("scenarioIndex", String.valueOf(ex.getScenarioIndex()));
+        details.put("scenarioType", ex.getScenarioType().name());
+        details.put("step", ex.getStep());
+
+        if (ex.getCause() != null) {
+            details.put("reason", ex.getCause().getMessage());
+        }
+
+        body.setDetails(details);
+
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(body);
+    }
+
+
+    @ExceptionHandler(AssertionExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleAssertionExecution(
+            AssertionExecutionException ex
+    ) {
+        log.error(
+                "Scenario execution failed at AssertionType={} and UserMessage={} ",
+                ex.getAssertionType(),
+                ex.getUserMessage(),
+                ex
+        );
+
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ex.getUserMessage()
+        );
+
+        Map<String, String> details = new HashMap<>();
+
+        details.put("AssertionType", String.valueOf(ex.getAssertionType()));
+        if (ex.getCause() != null) {
+            details.put("reason", ex.getCause().getMessage());
+        }
+        body.setDetails(details);
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(body);
+    }
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<Void> handleNoResource(NoResourceFoundException ex) {

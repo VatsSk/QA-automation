@@ -386,7 +386,7 @@
         try {
             toast('Starting run…', 'info', 2000);
             await api.runs.execute(id);
-            toast('Run started!', 'success');
+            toast('Run Executed!', 'success');
             await refreshCacheAndRender();
         } catch (e) { toast('Execute failed: ' + e.message, 'error'); }
     };

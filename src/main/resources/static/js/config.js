@@ -314,12 +314,12 @@ export const DATE_SELECTION_TYPES = [
 // Minimum required fields per type (used for validation before save)
 export const REQUIRED = {
     URL:        ['url'],
-    MODAL:      ['cssSelector'],
+    MODAL:      [],
     URL_NAV:    ['url'],
     MODAL_NAV:  ['cssSelector'],
     SEARCH_NAV: ['cssSelector', 'value'],
     VERIFY_PAGE: ['url', 'cssSelector'],
-    FORM_MODAL:  ['cssSelector'],
+    FORM_MODAL:  [],
     ASSERT:     [],
     FILTER_NAV: ['applyBtnCss'],
     DATE_RANGE_NAV: ['inputSelector', 'selectionType', 'applyButtonSelector','calendarContainerSelector'],
