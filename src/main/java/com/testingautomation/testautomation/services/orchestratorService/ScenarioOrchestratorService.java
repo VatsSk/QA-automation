@@ -90,9 +90,8 @@ public class ScenarioOrchestratorService {
         Map<String, List<TestCaseDTO>> scenarioResultsMap = new LinkedHashMap<>();
         for (int i = 0; i < scenarios.size(); i++) {
             Scenario current = scenarios.get(i);
-            String scenarioId = (i+1)+"";
             String scenarioPrefix =
-                    baseS3Prefix + "/" + scenarioId;
+                    baseS3Prefix + "/" + (i+1);
             try {
                 if (current.getType() == ScenarioType.URL) {
                     // check next scenario
@@ -126,12 +125,13 @@ public class ScenarioOrchestratorService {
 
                     );
 //                    System.out.println(scenarioResultsMap);
-//                    current.setScenarioStatus(scenarioTestDto.getOverAllScenarioStatus());
                     break;
                 }
 
             }catch (ScenarioExecutionException e){
-                current.setScenarioStatus(RunStatus.FAILED);
+                logger.info("execution completed with exception");
+                s3StorageService.writeAndUploadScenarioCsvs(scenarioResultsMap,run);
+                runRepository.save(run);
                 throw e;
             }
 
@@ -245,7 +245,18 @@ public class ScenarioOrchestratorService {
      */
     public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
             , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) {
-        List<FieldDescriptor> fields = scannerService.scanPage(current.getUrl(), driver);
+        List<FieldDescriptor> fields=null;
+        try {
+           fields = scannerService.scanPage(current.getUrl(), driver);
+        } catch (Exception e) {
+            throw new ScenarioExecutionException(
+                    currScenarioIdx,
+                    ScenarioType.URL,
+                    "RUN_URL_STEP",
+                    "unable to open the driver review url or try again",
+                    e
+            );
+        }
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO> testCases=null;
         try {
@@ -485,6 +496,8 @@ public class ScenarioOrchestratorService {
             catch (ScenarioExecutionException ex) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
                 resultTestCase.setResult("Failed "+ex.getMessage());
+                scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                        .add(resultTestCase);
 
                 logger.error(
                         "Scenario stopped at index {} type {}",
@@ -1457,7 +1470,7 @@ public class ScenarioOrchestratorService {
                     logger.info(
                             "Modal opened using smartClick"
                     );
-
+                    wait(1000);
                 }
                 catch (
                         Exception ex
