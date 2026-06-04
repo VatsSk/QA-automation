@@ -129,6 +129,9 @@ public class ScenarioOrchestratorService {
                 }
 
             }catch (ScenarioExecutionException e){
+                logger.info("execution completed with exception");
+                s3StorageService.writeAndUploadScenarioCsvs(scenarioResultsMap,run);
+                runRepository.save(run);
                 throw e;
             }
 
@@ -493,6 +496,8 @@ public class ScenarioOrchestratorService {
             catch (ScenarioExecutionException ex) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
                 resultTestCase.setResult("Failed "+ex.getMessage());
+                scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                        .add(resultTestCase);
 
                 logger.error(
                         "Scenario stopped at index {} type {}",
@@ -1465,7 +1470,7 @@ public class ScenarioOrchestratorService {
                     logger.info(
                             "Modal opened using smartClick"
                     );
-
+                    wait(1000);
                 }
                 catch (
                         Exception ex

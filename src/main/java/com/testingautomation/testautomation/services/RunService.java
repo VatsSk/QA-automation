@@ -341,6 +341,7 @@ public class RunService {
             s.setCsv(oldScenario.getCsv());
             s.setCssOpener(oldScenario.getCssOpener());
             s.setValue(oldScenario.getValue());
+            s.setClickCss(oldScenario.getClickCss());
 
             // keep assertion template only, remove old execution output
             if (oldScenario.getAssertions() != null) {
