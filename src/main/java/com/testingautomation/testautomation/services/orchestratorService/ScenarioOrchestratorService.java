@@ -9,6 +9,7 @@ import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
 import com.testingautomation.testautomation.services.fallback.FallbackExecutor;
+import com.testingautomation.testautomation.services.s3Service.StorageService;
 import com.testingautomation.testautomation.services.stepGeneratorService.StepGenerator;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.csvLoaderService.CsvTestCaseLoader;
@@ -56,6 +57,8 @@ public class ScenarioOrchestratorService {
     private final AssertionStepGenerator assertionStepGenerator;
     @Value("${storage.s3.base-prefix}")
     private  String basePrefix;
+    @Value("${storage.s3.bucket-name}")
+    private String bucket;
     private final Logger logger = LoggerFactory.getLogger(ScenarioOrchestratorService.class);
 
     // your existing components (assumed to be available)
@@ -66,6 +69,7 @@ public class ScenarioOrchestratorService {
     private final RunRepository runRepository;
     private final MongoTemplate mongoTemplate;
     private final S3StorageService s3StorageService;
+    private final StorageService storageService;
 
 
     /**
@@ -74,6 +78,12 @@ public class ScenarioOrchestratorService {
      */
     public Run executeScenarios(Run run, WebDriver driver, String globalRunId) {
         String baseS3Prefix =basePrefix+"/"+ run.getProjectId()+ "/" + run.getModuleId() + "/" + globalRunId;
+
+        //deleting existing objects from the s3 for run
+        if (storageService.doesPrefixHaveObjects(bucket, baseS3Prefix)) {
+            storageService.deleteFolder(bucket, baseS3Prefix);
+        }
+
         List<Scenario> scenarios = run.getScenariosList();
 
         logger.info("[{}] Executing {} scenarios sequentially", globalRunId, scenarios.size());
@@ -141,7 +151,6 @@ public class ScenarioOrchestratorService {
             Files.createDirectories(scenarioDir);
         } catch (IOException e) {
             logger.error("Failed to create scenario directory: {}", scenarioPrefix, e);
-            throw new GlobalExceptionHandler.RunnerIntegrationException("Failed to create directory for VERIFY_PAGE scenario", e);
         }
 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
@@ -1345,6 +1354,8 @@ public class ScenarioOrchestratorService {
             // EXECUTE MODAL SCENARIO
             // =====================================================
 
+
+
             try {
 
                 handleModalScenario(
@@ -1995,65 +2006,69 @@ public class ScenarioOrchestratorService {
         logger.info("is click : {}",isClick);
         boolean isSearch = !isClick;
         String secondId = scenario.getClickCss();
-        By by = resolveLocator(cssSelector);
-
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        if(cssSelector !=null){
+            By by = resolveLocator(cssSelector);
 
-        WebElement element = wait.until(
+
+            WebElement element = wait.until(
 //                ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector))
-                ExpectedConditions.presenceOfElementLocated(by)
-        );
-        logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', clickCss='{}', isClick={}, isSearch={}, clickCss='{}'",
-                cssSelector,
-                value,
-                scenario.getClickCss(),
-                isClick,
-                isSearch,
-                secondId
-        );
+                    ExpectedConditions.presenceOfElementLocated(by)
+            );
+            logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', clickCss='{}', isClick={}, isSearch={}, clickCss='{}'",
+                    cssSelector,
+                    value,
+                    scenario.getClickCss(),
+                    isClick,
+                    isSearch,
+                    secondId
+            );
 
 
-        String tag = element.getTagName();
+            String tag = element.getTagName();
 
-        // =========================
-        // HANDLE SELECT DROPDOWN
-        // =========================
+            // =========================
+            // HANDLE SELECT DROPDOWN
+            // =========================
 
-        if ("select".equalsIgnoreCase(tag)) {
+            if ("select".equalsIgnoreCase(tag)) {
 
-            boolean isSelect2 = element.getAttribute("class") != null &&
-                    element.getAttribute("class").contains("select2-hidden-accessible");
+                boolean isSelect2 = element.getAttribute("class") != null &&
+                        element.getAttribute("class").contains("select2-hidden-accessible");
 
-            if (isSelect2) {
-                // 🔥 pass stepCounter using wrapper array (mutable)
-                int[] counter = new int[]{stepCounter};
-                handleSelect2(driver, element, value, counter, navigationScreenshotDir, scenarioPrefix);
-                stepCounter = counter[0]; // update back
+                if (isSelect2) {
+                    // 🔥 pass stepCounter using wrapper array (mutable)
+                    int[] counter = new int[]{stepCounter};
+                    handleSelect2(driver, element, value, counter, navigationScreenshotDir, scenarioPrefix);
+                    stepCounter = counter[0]; // update back
+                } else {
+
+                    Select sel = new Select(element);
+                    sel.selectByVisibleText(value);
+
+                }
+
             } else {
 
-                Select sel = new Select(element);
-                sel.selectByVisibleText(value);
-
+                element.clear();
+                element.sendKeys(value);
             }
 
-        } else {
+            // Trigger change event
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", element);
 
-            element.clear();
-            element.sendKeys(value);
+            // 📸 Step 1 → after input/select
+            screenshotService.takeScreenshot(
+                    driver,
+                    "modal_form",
+                    "step_" +TimestampUtil.generateTimestamp(),
+                    navigationScreenshotDir,
+                    scenarioPrefix
+            );
+
         }
 
-        // Trigger change event
-        ((JavascriptExecutor) driver).executeScript(
-                "arguments[0].dispatchEvent(new Event('change',{bubbles:true}));", element);
-
-        // 📸 Step 1 → after input/select
-        screenshotService.takeScreenshot(
-                driver,
-                "modal_form",
-                "step_" +TimestampUtil.generateTimestamp(),
-                navigationScreenshotDir,
-                scenarioPrefix
-        );
         // =========================
         // CLICK MODE
         // =========================
@@ -2961,381 +2976,6 @@ public class ScenarioOrchestratorService {
             );
         }
     }
-
-//    private int handleSearchNavScenario(
-//            WebDriver driver,
-//            WebDriverWait wait,
-//            Scenario currScenario,
-//            Scenario scenario,
-//            TestCaseDTO resultTestCase,
-//            int currIdx,
-//            int modalFormTcIdx,
-//            Path navigationScreenshotDir,
-//            String scenarioPrefix
-//    ) {
-//
-//        logger.info(
-//                "Executing NAV_SEARCH using selector: {} and value: {}",
-//                currScenario.getCssOpener(),
-//                currScenario.getValue()
-//        );
-//
-//        WebElement opener = wait.until(
-//                ExpectedConditions.presenceOfElementLocated(
-//                        By.cssSelector(currScenario.getCssOpener())
-//                )
-//        );
-//
-//        String value = currScenario.getValue();
-//
-//        logger.info(
-//                "Search element located: tag={}",
-//                opener.getTagName()
-//        );
-//
-//        boolean isInputSearch =
-//                opener.getTagName().equalsIgnoreCase("input")
-//                        || "true".equals(
-//                        opener.getAttribute("contenteditable")
-//                );
-//
-//        // =====================================================
-//        // CASE 1 → INPUT SEARCH FIELD
-//        // =====================================================
-//
-//        if (isInputSearch) {
-//
-//            logger.info("Detected input search field");
-//
-//            FallbackExecutor.execute(
-//
-//                    List.of(
-//                            "EMPLOYEE_DROPDOWN",
-//                            "TREE_SELECTOR",
-//                            "NO_ACTION"
-//                    ),
-//
-//                    List.of(
-//                            () -> {
-//
-//                                WebElement dropdownBtn =
-//                                        wait.until(
-//                                                ExpectedConditions
-//                                                        .elementToBeClickable(
-//                                                                By.cssSelector(
-//                                                                        ".dropdown-btn"
-//                                                                )
-//                                                        )
-//                                        );
-//                                Thread.sleep(1000);
-//
-//                                dropdownBtn.click();
-//
-//                                logger.info(
-//                                        "Opened employee dropdown"
-//                                );
-//
-//                                return true;
-//                            },
-//
-//                            () -> {
-//
-//                                WebElement treeOpener =
-//                                        driver.findElement(
-//                                                By.cssSelector(
-//                                                        ".treeSelector-input-box"
-//                                                )
-//                                        );
-//
-//                                if (!treeOpener.isDisplayed()) {
-//                                    throw new GlobalExceptionHandler.ResourceNotFoundException(
-//                                            "Tree selector not visible"
-//                                    );
-//                                }
-//
-//                                treeOpener.click();
-//
-//                                logger.info(
-//                                        "Opened tree selector dropdown"
-//                                );
-//
-//                                return true;
-//                            },
-//
-//                            () -> {
-//
-//                                logger.info(
-//                                        "No dropdown opener needed"
-//                                );
-//
-//                                return true;
-//                            }
-//                    )
-//            );
-//
-//            opener.clear();
-//            opener.sendKeys(value);
-//
-//            logger.info(
-//                    "Typed search value: {}",
-//                    value
-//            );
-//
-//            screenshotService.takeScreenshot(
-//                    driver,
-//                    String.valueOf(modalFormTcIdx + 1),
-//                    "step passed",
-//                    navigationScreenshotDir,
-//                    scenarioPrefix
-//            );
-//
-//
-//            WebElement option = FallbackExecutor.execute(
-//
-//                    List.of(
-//                            "DATA_TITLE",
-//                            "TITLE_LIST_SPAN",
-//                            "EXACT_TEXT",
-//                            "PARTIAL_TEXT"
-//                    ),
-//
-//                    List.of(
-//
-//                            () -> wait.until(
-//                                    ExpectedConditions
-//                                            .elementToBeClickable(
-//                                                    By.xpath(
-//                                                            "//*[@data-title='"
-//                                                                    + value
-//                                                                    + "']//input"
-//                                                    )
-//                                            )
-//                            ),
-//
-//                            () -> wait.until(
-//                                    ExpectedConditions
-//                                            .presenceOfElementLocated(
-//                                                    By.xpath(
-//                                                            "//span[contains(@class,'tittle-list') and contains(text(),'"
-//                                                                    + value
-//                                                                    + "')]/preceding-sibling::input[@type='checkbox']"
-//                                                    )
-//                                            )
-//                            ),
-//
-//                            () -> wait.until(
-//                                    ExpectedConditions
-//                                            .elementToBeClickable(
-//                                                    By.xpath(
-//                                                            "//*[text()='"
-//                                                                    + value
-//                                                                    + "']"
-//                                                    )
-//                                            )
-//                            ),
-//
-//                            () -> wait.until(
-//                                    ExpectedConditions
-//                                            .elementToBeClickable(
-//                                                    By.xpath(
-//                                                            "//*[contains(text(),'"
-//                                                                    + value
-//                                                                    + "')]"
-//                                                    )
-//                                            )
-//                            )
-//                    )
-//            );
-//
-//            try {
-//
-//                option.click();
-//
-//                logger.info("Clicked option normally");
-//
-//            }
-//            catch (Exception clickEx) {
-//
-//                logger.warn("Normal click failed, using JS click");
-//
-//                ((JavascriptExecutor) driver)
-//                        .executeScript(
-//                                "arguments[0].click();",
-//                                option
-//                        );
-//
-//                logger.info("Clicked option using JS click");
-//            }
-//
-//            logger.info(
-//                    "Successfully selected option: {}",
-//                    value
-//            );
-//
-//            screenshotService.takeScreenshot(
-//                    driver,
-//                    String.valueOf(modalFormTcIdx + 1),
-//                    "step passed",
-//                    navigationScreenshotDir,
-//                    scenarioPrefix
-//            );
-//
-//            try {
-//
-//                WebElement applyButton = driver.findElement(By.id("apply-button"));
-//
-//                if (applyButton.isDisplayed()) {
-//
-//                    applyButton.click();
-//
-//                    logger.info("Clicked apply button");
-//                }
-//
-//            }
-//            catch (Exception ignored) {
-//
-//                logger.info("No apply button found");
-//            }
-//
-//            driver.findElement(By.tagName("body")).click();
-//
-//            logger.info("Closed dropdown using body click");
-//
-//            screenshotService.takeScreenshot(
-//                    driver,
-//                    String.valueOf(modalFormTcIdx + 1),
-//                    "step passed",
-//                    navigationScreenshotDir,
-//                    scenarioPrefix
-//            );
-//        }
-//
-//        // =====================================================
-//        // CASE 2 → DROPDOWN OPENER
-//        // =====================================================
-//
-//        else {
-//
-//            boolean isSelect2 =
-//                    !driver.findElements(
-//                            By.cssSelector(".select2-container--default")
-//                    ).isEmpty()
-//                            ||
-//                            !driver.findElements(
-//                                    By.cssSelector(".select2-hidden-accessible")
-//                            ).isEmpty();
-//
-//            if (isSelect2) {
-//
-//                logger.info("Detected Select2 dropdown");
-//
-//                selectSelect2(
-//                        driver,
-//                        currScenario.getCssOpener(),
-//                        value
-//                );
-//
-//                screenshotService.takeScreenshot(
-//                        driver,
-//                        String.valueOf(modalFormTcIdx + 1),
-//                        "step passed",
-//                        navigationScreenshotDir,
-//                        scenarioPrefix
-//                );
-//
-//                scenario.setScenarioStatus(RunStatus.PASSED);
-//                resultTestCase.setResult("Passed");
-//
-//                return currIdx + 1;
-//            }
-//
-//            logger.info("Detected normal dropdown opener");
-//
-//            wait.until(
-//                    ExpectedConditions.elementToBeClickable(opener)
-//            ).click();
-//
-//            WebElement option = FallbackExecutor.execute(
-//
-//                    List.of(
-//                            "DATA_TITLE",
-//                            "EXACT_TEXT",
-//                            "PARTIAL_TEXT"
-//                    ),
-//
-//                    List.of(
-//
-//                            () -> wait.until(
-//                                    ExpectedConditions
-//                                            .elementToBeClickable(
-//                                                    By.xpath(
-//                                                            "//*[@data-title='"
-//                                                                    + value
-//                                                                    + "']//input"
-//                                                    )
-//                                            )
-//                            ),
-//
-//                            () -> wait.until(
-//                                    ExpectedConditions
-//                                            .elementToBeClickable(
-//                                                    By.xpath(
-//                                                            "//*[text()='"
-//                                                                    + value
-//                                                                    + "']"
-//                                                    )
-//                                            )
-//                            ),
-//
-//                            () -> wait.until(
-//                                    ExpectedConditions
-//                                            .elementToBeClickable(
-//                                                    By.xpath(
-//                                                            "//*[contains(text(),'"
-//                                                                    + value
-//                                                                    + "')]"
-//                                                    )
-//                                            )
-//                            )
-//                    )
-//            );
-//
-//            try {
-//
-//                option.click();
-//
-//            }
-//            catch (Exception e) {
-//
-//                ((JavascriptExecutor) driver)
-//                        .executeScript(
-//                                "arguments[0].click();",
-//                                option
-//                        );
-//            }
-//
-//            logger.info(
-//                    "Dropdown option selected successfully"
-//            );
-//
-//            screenshotService.takeScreenshot(
-//                    driver,
-//                    String.valueOf(modalFormTcIdx + 1),
-//                    "step passed",
-//                    navigationScreenshotDir,
-//                    scenarioPrefix
-//            );
-//
-//            driver.findElement(By.tagName("body")).click();
-//
-//            logger.info("Closed dropdown");
-//        }
-//
-//        scenario.setScenarioStatus(RunStatus.PASSED);
-//        resultTestCase.setResult("Passed");
-////        System.out.println(resultTestCase);
-//        return currIdx ;
-//    }
 
     private void handleFilterNavScenario(
             WebDriver driver,

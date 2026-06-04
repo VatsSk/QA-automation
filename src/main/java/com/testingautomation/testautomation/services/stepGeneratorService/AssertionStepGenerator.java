@@ -39,7 +39,8 @@ public class AssertionStepGenerator {
                     a.getRowsBtn(),      //rowsBtn
                     a.getPrompt(),      //prompt
                     a.getOrder(),      //order
-                    a                 //assertionDto
+                    a,                //assertionDto
+                    null             //fieldKey
             );
 
             steps.add(step);

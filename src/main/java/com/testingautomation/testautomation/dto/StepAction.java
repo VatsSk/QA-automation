@@ -40,14 +40,16 @@ public class StepAction {
 //    private String rangeId;
     private String order;
     private AssertionDto assertion;
+    private String fieldKey;
 
     // constructor + getters/setters
-    public StepAction(ActionType type, String locatorType, String locator, String payload, String description) {
+    public StepAction(ActionType type, String locatorType, String locator, String payload, String description,String fieldKey) {
         this.type = type;
         this.locatorType = locatorType;
         this.locator = locator;
         this.payload = payload;
         this.description = description;
+        this.fieldKey=fieldKey;
     }
 
     @Override
@@ -62,6 +64,8 @@ public class StepAction {
                 ", colName='" + colName + '\'' +
                 ", rowsBtn='" + rowsBtn + '\'' +
                 ", order='" + order + '\'' +
+                ",fieldKey='" + fieldKey+'\''+
                 '}';
     }
+
 }

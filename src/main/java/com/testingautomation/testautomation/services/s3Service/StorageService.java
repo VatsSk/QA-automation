@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.*;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -255,6 +255,112 @@ public class StorageService {
     private void validateKey(String key) {
         if (key == null || key.contains("..") || key.contains("//") || key.startsWith("/")) {
             throw new GlobalExceptionHandler.StorageException("Invalid S3 key: " + key, null);
+        }
+    }
+
+
+    public boolean doesPrefixHaveObjects(String bucket, String prefix) {
+
+        log.info("Checking if S3 prefix contains objects. Bucket: {}, Prefix: {}", bucket, prefix);
+
+        try {
+
+            ListObjectsV2Request request = ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix(prefix)
+                    .maxKeys(1) // optimization: only check existence
+                    .build();
+
+            ListObjectsV2Response response = s3Client.listObjectsV2(request);
+
+            boolean hasObjects = !response.contents().isEmpty();
+
+            if (hasObjects) {
+                log.info("Objects found in S3 prefix. Bucket: {}, Prefix: {}", bucket, prefix);
+            } else {
+                log.info("No objects found in S3 prefix. Bucket: {}, Prefix: {}", bucket, prefix);
+            }
+
+            return hasObjects;
+
+        } catch (Exception e) {
+
+            log.error(
+                    "Error while checking S3 prefix existence. Bucket: {}, Prefix: {}, Error: {}",
+                    bucket,
+                    prefix,
+                    e.getMessage(),
+                    e
+            );
+
+            return false;
+        }
+    }
+
+    public void deleteFolder(String bucket, String prefix) {
+        log.info("Starting deletion of S3 folder. Bucket: {}, Prefix: {}", bucket, prefix);
+
+        try {
+
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix(prefix)
+                    .build();
+
+            ListObjectsV2Response listResponse = s3Client.listObjectsV2(listRequest);
+
+            List<ObjectIdentifier> objects = listResponse.contents()
+                    .stream()
+                    .map(s3Object -> ObjectIdentifier.builder()
+                            .key(s3Object.key())
+                            .build())
+                    .toList();
+
+            if (objects.isEmpty()) {
+
+                log.info(
+                        "No objects found for deletion in S3 prefix. Bucket: {}, Prefix: {}",
+                        bucket,
+                        prefix
+                );
+
+                return;
+            }
+
+            log.info(
+                    "Found {} objects for deletion in S3 prefix. Bucket: {}, Prefix: {}",
+                    objects.size(),
+                    bucket,
+                    prefix
+            );
+
+            Delete delete = Delete.builder()
+                    .objects(objects)
+                    .build();
+
+            DeleteObjectsRequest deleteRequest = DeleteObjectsRequest.builder()
+                    .bucket(bucket)
+                    .delete(delete)
+                    .build();
+
+            s3Client.deleteObjects(deleteRequest);
+
+            log.info(
+                    "Successfully deleted {} objects from S3 prefix. Bucket: {}, Prefix: {}",
+                    objects.size(),
+                    bucket,
+                    prefix
+            );
+
+        } catch (Exception e) {
+
+            log.error(
+                    "Error while deleting S3 folder. Bucket: {}, Prefix: {}, Error: {}",
+                    bucket,
+                    prefix,
+                    e.getMessage(),
+                    e
+            );
         }
     }
 

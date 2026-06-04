@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services.csvLoaderService;
 
 
+import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderHeaderAware;
 import com.testingautomation.testautomation.dto.TestCaseDTO;
 import org.slf4j.Logger;
@@ -30,48 +31,125 @@ public class CsvTestCaseLoader {
     }
 
     public List<TestCaseDTO> loadFromS3(String csvUrl) throws Exception {
+
         logger.info("Loading CSV testcases from S3: {}", csvUrl);
+
         List<TestCaseDTO> list = new ArrayList<>();
+
         String key = extractKeyFromUrl(csvUrl);
 
         logger.info("Extracted S3 key: {}", key);
-        logger.info("S3 GET -> bucket='{}', key='{}'", bucketName, key);
+        logger.info(
+                "S3 GET -> bucket='{}', key='{}'",
+                bucketName,
+                key
+        );
 
-        GetObjectRequest request = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(key)
-                .build();
+        GetObjectRequest request =
+                GetObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(key)
+                        .build();
 
-        try (InputStream inputStream = s3Client.getObject(request);
-             CSVReaderHeaderAware reader =
-                     new CSVReaderHeaderAware(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+        try (
+                InputStream inputStream =
+                        s3Client.getObject(request);
 
-            Map<String, String> row;
+                CSVReader reader =
+                        new CSVReader(
+                                new InputStreamReader(
+                                        inputStream,
+                                        StandardCharsets.UTF_8
+                                )
+                        )
+        ) {
 
-            while ((row = reader.readMap()) != null) {
+            String[] headers = reader.readNext();
 
-                String id = row.get("testCaseId");
-                String expectedResult = row.get("expectedResult");
+            if (headers == null || headers.length == 0) {
+                throw new RuntimeException(
+                        "CSV file is empty or headers missing"
+                );
+            }
 
-                Map<String, String> values = new LinkedHashMap<>(row);
-                values.remove("testCaseId");
-                values.remove("expectedResult");
+            logger.info(
+                    "CSV Headers -> {}",
+                    Arrays.toString(headers)
+            );
 
-                TestCaseDTO testCase = new TestCaseDTO(id, values);
-                testCase.setExpectedResult(expectedResult);
+            String[] row;
+
+            while ((row = reader.readNext()) != null) {
+
+                Map<String, String> values =
+                        new LinkedHashMap<>();
+
+                String testCaseId = null;
+                String expectedResult = null;
+
+                for (int i = 0; i < headers.length; i++) {
+
+                    String header =
+                            headers[i] != null
+                                    ? headers[i].trim()
+                                    : "";
+
+                    String value =
+                            i < row.length
+                                    ? row[i]
+                                    : "";
+
+                    if ("testCaseId".equals(header)) {
+                        testCaseId = value;
+                        continue;
+                    }
+
+                    if ("expectedResult".equals(header)) {
+                        expectedResult = value;
+                        continue;
+                    }
+
+                    values.put(
+                            header,
+                            value
+                    );
+                }
+
+                TestCaseDTO testCase =
+                        new TestCaseDTO(
+                                testCaseId,
+                                values
+                        );
+
+                testCase.setExpectedResult(
+                        expectedResult
+                );
 
                 list.add(testCase);
 
-                logger.debug("Loaded testcase {}", id);
+                logger.info(
+                        "CSV Ordered Keys -> {}",
+                        values.keySet()
+                );
             }
 
         } catch (Exception e) {
-            logger.error("S3 read failed -> bucket='{}', key='{}', error='{}'",
-                    bucketName, key, e.getMessage(), e);
+
+            logger.error(
+                    "S3 read failed -> bucket='{}', key='{}', error='{}'",
+                    bucketName,
+                    key,
+                    e.getMessage(),
+                    e
+            );
+
             throw e;
         }
 
-        logger.info("Total testcases loaded: {}", list.size());
+        logger.info(
+                "Total testcases loaded: {}",
+                list.size()
+        );
 
         return list;
     }
