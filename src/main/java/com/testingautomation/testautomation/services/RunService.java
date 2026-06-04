@@ -322,7 +322,6 @@ public class RunService {
         freshRun.setScenarioCount(existing.getScenarioCount());
         freshRun.setResultStatement(existing.getResultStatement());
         freshRun.setTags(existing.getTags());
-
         // fresh state
         freshRun.setStatus(RunStatus.DRAFT);
         freshRun.setCreatedAt(existing.getCreatedAt());
@@ -341,6 +340,7 @@ public class RunService {
             s.setCsv(oldScenario.getCsv());
             s.setCssOpener(oldScenario.getCssOpener());
             s.setValue(oldScenario.getValue());
+            s.setClickCss(oldScenario.getClickCss());
 
             // keep assertion template only, remove old execution output
             if (oldScenario.getAssertions() != null) {
