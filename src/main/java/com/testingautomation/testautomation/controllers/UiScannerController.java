@@ -9,11 +9,11 @@ public class UiScannerController {
 
     @GetMapping("/")
     public String getHome(){
-        return "index.html";
+        return "runs.html";
     }
 
-    @GetMapping("/auth")
-    public String getAuth(){return "runs.html";}
+    @GetMapping("/previous-ui")
+    public String getAuth(){return "index.html";}
 
     @GetMapping("/run-detail")
     public String getRunDetail(){

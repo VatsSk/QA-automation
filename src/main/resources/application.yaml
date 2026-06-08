@@ -1,16 +1,14 @@
 spring:
   profiles:
-    active: dev
-#    active: prod
+#    active: dev
+    active: prod
+
   application:
     name: Testing Automation
   config:
     import: optional:file:.env[.properties]
 
   #EC2 Mongo
-
-
-
   jackson:
     serialization:
       write-dates-as-timestamps: false
