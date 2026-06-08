@@ -7,7 +7,7 @@
  * Groups:  auth | projects | modules | runs | uploads
  */
 
-const BASE = window.QA_API_BASE || 'http://localhost:8080';
+const BASE = window.QA_API_BASE || 'http://localhost:8088';
 
 function getToken() {
     return localStorage.getItem('qa_token') || '';

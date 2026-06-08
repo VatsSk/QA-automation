@@ -1,0 +1,5 @@
+spring:
+  data:
+    mongodb:
+      uri: mongodb://trackofield12ai:TBEmerging12ai@3.7.136.248:27017/qadb?authSource=admin
+      database: qadb
