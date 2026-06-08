@@ -52,7 +52,7 @@ logging:
 
 autotest:
   browser: chrome
-  headless: false
+  headless: true
   results:
     base-dir: ./test-results
   screenshot-dir: screenshots
