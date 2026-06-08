@@ -1,13 +1,13 @@
 /**
  * api.js — ALL HTTP calls to the Spring Boot backend live here.
  *
- * Base URL: window.QA_API_BASE  OR  'http://localhost:8080'
+ * Base URL: window.QA_API_BASE  OR  'http://localhost:8088'
  * Auth    : Bearer token stored in localStorage key 'qa_token'
  *
  * Groups:  auth | projects | modules | runs | uploads
  */
 
-const BASE = window.QA_API_BASE || 'http://localhost:8080';
+const BASE = window.QA_API_BASE || 'http://localhost:8088';
 
 function getToken() {
     return localStorage.getItem('qa_token') || '';

@@ -272,16 +272,16 @@ public class SeleniumExecutor {
 
                 boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
 
-                String screenshotUrl = screenshotService.takeScreenshot(
-                        driver1,
-                        testCaseId,
-                        "final_check",
-                        screenshotsDir,
-                        scenarioPrefix
-                );
-
-                if (screenshotUrl != null)
-                    screenshotUrls.add(screenshotUrl);
+//                String screenshotUrl = screenshotService.takeScreenshot(
+//                        driver1,
+//                        testCaseId,
+//                        "final_check",
+//                        screenshotsDir,
+//                        scenarioPrefix
+//                );
+//
+//                if (screenshotUrl != null)
+//                    screenshotUrls.add(screenshotUrl);
 
                 if (!foundVisible) {
                     testPassed = false;
@@ -430,25 +430,16 @@ public class SeleniumExecutor {
                         }
 
                         // =================================
-                        // AUTOCOMPLETE / SEARCH HANDLING
-                        // =================================
+// AUTOCOMPLETE / SEARCH HANDLING
+// =================================
 
                         boolean isAutoComplete =
-
-                                "combobox".equalsIgnoreCase(
-                                        el.getAttribute("role")
-                                )
-
+                                "combobox".equalsIgnoreCase(el.getAttribute("role"))
                                         || classes.contains("autocomplete")
-
                                         || elementId.contains("search")
-
                                         || elementId.contains("location")
-
                                         || placeholder.contains("search")
-
                                         || placeholder.contains("address")
-
                                         || placeholder.contains("location");
 
                         logger.info(
@@ -460,39 +451,68 @@ public class SeleniumExecutor {
 
                         if (isAutoComplete) {
 
-                            logger.info(
-                                    "Waiting for search suggestions..."
-                            );
+                            logger.info("Waiting for search suggestions...");
+                            wait = new WebDriverWait(driver1, Duration.ofSeconds(10));
 
-                            WebElement container =
-                                    wait.until(
-                                            ExpectedConditions
-                                                    .visibilityOfElementLocated(
-                                                            By.id("place")
-                                                    )
-                                    );
+                            // Try all known autocomplete containers
+                            By[] containerLocators = new By[] {
+                                    By.cssSelector("#place"),
+                                    By.cssSelector(".autocomplete-results"),
+                                    By.cssSelector(".places"),
+                                    By.cssSelector("ul[role='listbox']"),
+                                    By.cssSelector("[class*='autocomplete']")
+                            };
 
-                            List<WebElement> options =
-                                    wait.until(driver -> {
+                            WebElement firstOption = null;
 
-                                        List<WebElement> items =
-                                                container.findElements(
-                                                        By.xpath("./*")
+                            for (By containerBy : containerLocators) {
+                                try {
+                                    List<WebElement> items = wait.until(d -> {
+                                        List<WebElement> els = d.findElements(containerBy);
+                                        for (WebElement container : els) {
+                                            if (container.isDisplayed()) {
+                                                List<WebElement> options = container.findElements(
+                                                        By.cssSelector("li.autocomplete-item, li")
                                                 );
 
-                                        return items.size() > 0
-                                                ? items
-                                                : null;
+                                                List<WebElement> visibleOptions = new java.util.ArrayList<>();
+                                                for (WebElement opt : options) {
+                                                    if (opt.isDisplayed()) {
+                                                        visibleOptions.add(opt);
+                                                    }
+                                                }
+
+                                                if (!visibleOptions.isEmpty()) {
+                                                    return visibleOptions;
+                                                }
+                                            }
+                                        }
+                                        return null;
                                     });
 
-                            logger.info(
-                                    "Suggestions found {}",
-                                    options.size()
-                            );
+                                    if (items != null && !items.isEmpty()) {
+                                        firstOption = items.get(0);
+                                        break;
+                                    }
 
-                            options.get(0).click();
+                                } catch (Exception ignored) {
+                                }
+                            }
 
-                            Thread.sleep(500);
+                            if (firstOption != null) {
+                                scrollIntoView(driver1, firstOption);
+
+                                try {
+                                    firstOption.click();
+                                } catch (Exception e) {
+                                    ((JavascriptExecutor) driver1).executeScript("arguments[0].click();", firstOption);
+                                }
+
+                                Thread.sleep(500);
+                                logger.info("First autocomplete suggestion selected");
+                            } else {
+                                logger.warn("No autocomplete suggestions found");
+                            }
                         }
 
                     } else {
