@@ -81,7 +81,7 @@ public class ScenarioOrchestratorService {
 
         //deleting existing objects from the s3 for run
         if (storageService.doesPrefixHaveObjects(bucket, baseS3Prefix)) {
-            storageService.deleteFolder(bucket, baseS3Prefix);
+            storageService.deleteFolderExceptTestCase(bucket, baseS3Prefix);
         }
 
         List<Scenario> scenarios = run.getScenariosList();

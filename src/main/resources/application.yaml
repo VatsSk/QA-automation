@@ -1,4 +1,7 @@
 spring:
+  profiles:
+    active: dev
+#    active: prod
   application:
     name: Testing Automation
   config:
@@ -6,17 +9,9 @@ spring:
 
   #EC2 Mongo
 
-  data:
-    mongodb:
-      uri: mongodb://trackofield12ai:TBEmerging12ai@3.7.136.248:27017/qadb?authSource=admin
-      database: qadb
 
-#  data:
-#    mongodb:
-#      uri: mongodb://localhost:27017/qadb
-#      # Atlas: mongodb+srv://<user>:<pass>@cluster.mongodb.net/testforge?retryWrites=true&w=majority
-#
-#  jackson:
+
+  jackson:
     serialization:
       write-dates-as-timestamps: false
     time-zone: UTC
@@ -31,10 +26,10 @@ spring:
 server:
   port: 8088
 
-  runner:
-    base-url: ${RUNNER_BASE_URL:http://localhost:8080}
-    run-auth-path: /runner/run-auth
-    timeout-seconds: ${RUNNER_TIMEOUT:120}
+runner:
+  base-url: ${RUNNER_BASE_URL:http://localhost:8080}
+  run-auth-path: /runner/run-auth
+  timeout-seconds: ${RUNNER_TIMEOUT:120}
 
   # MinIO / S3 configuration
 storage:
@@ -46,12 +41,10 @@ storage:
     secret-key: ${AWS_SECRET_ACCESS_KEY}
     presigned-url-expiry-minutes: ${S3_PRESIGNED_EXPIRY_MINUTES:60}
 
-
 llm:
   api:
     key: ${OPEN_AI_API_KEY}
     url: ${OPEN_AI_URL}
-
 
 logging:
   level:
@@ -62,20 +55,14 @@ logging:
 
 autotest:
   browser: chrome
-  headless: false
-
+  headless: true
   results:
     base-dir: ./test-results
-
   screenshot-dir: screenshots
-
   screenshot-on-step: true
-
   scanner:
     timeout-seconds: 15
     user-agent: "AutoTestScannerClient/1.0"
-
-
     pagination:
       default-page-size: 20
       max-page-size: 100

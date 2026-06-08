@@ -297,6 +297,76 @@ public class StorageService {
         }
     }
 
+    public void deleteFolderExceptTestCase(String bucket, String prefix) {
+        log.info("Starting deletion of S3 folder. Bucket: {}, Prefix: {}", bucket, prefix);
+
+        try {
+
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix(prefix)
+                    .build();
+
+            ListObjectsV2Response listResponse = s3Client.listObjectsV2(listRequest);
+
+            List<ObjectIdentifier> objects = listResponse.contents()
+                    .stream()
+                    .filter(s3Object -> {
+                        String fileName = s3Object.key()
+                                .substring(s3Object.key().lastIndexOf('/') + 1);
+
+                        boolean shouldDelete =
+                                !fileName.equalsIgnoreCase("testcase.csv")
+                                        && !fileName.equalsIgnoreCase("credentials.csv");
+
+                        log.info("File: {}, Delete: {}", fileName, shouldDelete);
+
+                        return shouldDelete;
+                    })
+                    .map(s3Object -> ObjectIdentifier.builder()
+                            .key(s3Object.key())
+                            .build())
+                    .toList();
+
+            if (objects.isEmpty()) {
+
+                log.info("No objects found for deletion in S3 prefix. Bucket: {}, Prefix: {}",bucket,prefix);
+
+                return;
+            }
+
+            log.info("Found {} objects for deletion in S3 prefix. Bucket: {}, Prefix: {}", objects.size(),bucket,prefix);
+
+            Delete delete = Delete.builder()
+                    .objects(objects)
+                    .build();
+
+            DeleteObjectsRequest deleteRequest = DeleteObjectsRequest.builder()
+                    .bucket(bucket)
+                    .delete(delete)
+                    .build();
+
+            s3Client.deleteObjects(deleteRequest);
+
+            log.info(
+                    "Successfully deleted {} objects from S3 prefix. Bucket: {}, Prefix: {}",
+                    objects.size(),
+                    bucket,
+                    prefix
+            );
+
+        } catch (Exception e) {
+
+            log.error(
+                    "Error while deleting S3 folder. Bucket: {}, Prefix: {}, Error: {}",
+                    bucket,
+                    prefix,
+                    e.getMessage(),
+                    e
+            );
+        }
+    }
+
     public void deleteFolder(String bucket, String prefix) {
         log.info("Starting deletion of S3 folder. Bucket: {}, Prefix: {}", bucket, prefix);
 

@@ -54,6 +54,8 @@ public class RunService {
     private String bucketName;
     @Value("${S3_BASE_PREFIX}")
     private String prefix;
+    @Value("${autotest.headless}")
+    private boolean isHeadless;
 
     // ── Filtered list ─────────────────────────────────────────────────
 
@@ -207,9 +209,14 @@ public class RunService {
             updated.setUpdatedAt(java.time.Instant.now());
             updated = runRepository.save(updated);
 
+
             ChromeOptions options = new ChromeOptions();
             options.addArguments("--disable-gpu");
             options.addArguments("--window-size=1534,664");
+
+            if (isHeadless) {
+                options.addArguments("--headless=new");
+            }
 
             driver = new ChromeDriver(options);
 
@@ -322,7 +329,6 @@ public class RunService {
         freshRun.setScenarioCount(existing.getScenarioCount());
         freshRun.setResultStatement(existing.getResultStatement());
         freshRun.setTags(existing.getTags());
-
         // fresh state
         freshRun.setStatus(RunStatus.DRAFT);
         freshRun.setCreatedAt(existing.getCreatedAt());

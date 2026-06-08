@@ -28,7 +28,7 @@ export const TYPES = {
         icon:    '◫',
         color:   'var(--pu)',
         bg:      'var(--pu-d)',
-        fields:  ['cssSelector'],
+        fields:  [],
         hasData: true,
         hint:    'Open a modal by CSS selector and run test cases',
     },
