@@ -1165,28 +1165,44 @@
         ${s.type === 'FORM_MODAL' ? `
         <div class="field">
           <label class="lbl">Click After Filling?</label>
+
           <div style="display:flex;gap:16px;margin-top:8px">
+
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input type="radio" name="click-option-${scIdx}" value="yes"
-                    ${s.clickEnabled ? 'checked' : ''}
+              <input
+                type="radio"
+                name="click-option-${scIdx}"
+                value="yes"
+                ${(s.clickEnabled || s.clickCss) ? 'checked' : ''}
                 onchange="handleClickOption(${scIdx}, 'yes')">
+
               <span>Yes</span>
             </label>
+
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
-              <input type="radio" name="click-option-${scIdx}" value="no" 
-                ${!s.clickEnabled ? 'checked' : ''}
+              <input
+                type="radio"
+                name="click-option-${scIdx}"
+                value="no"
+                ${!(s.clickEnabled || s.clickCss) ? 'checked' : ''}
                 onchange="handleClickOption(${scIdx}, 'no')">
+
               <span>No</span>
             </label>
+
           </div>
         </div>` : ''}
 
-        <!-- ── Click CSS (only for FORM_MODAL when click option is yes) ── -->
-        ${s.type === 'FORM_MODAL' && s.clickEnabled ? `
+
+        <!-- ─ Click CSS (only for FORM_MODAL when click option is yes OR clickCss already exists) ─ -->
+        ${s.type === 'FORM_MODAL' && (s.clickEnabled || s.clickCss) ? `
         <div class="field">
           <label class="lbl">Click CSS Selector *</label>
-          <input class="inp inp-mono" id="sc-clickCss"
-            value="${esc(s.clickCss)}"
+
+          <input
+            class="inp inp-mono"
+            id="sc-clickCss"
+            value="${esc(s.clickCss || '')}"
             placeholder=".submit-btn, #confirm-button"
             oninput="updateField(${scIdx}, 'clickCss', this.value)">
         </div>` : ''}

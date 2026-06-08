@@ -40,6 +40,7 @@ public class ScenarioResponse {
     private List<ManageColumnItemDto> columns;
     private List<ManualTestCaseResponse> manualTestCases;
     private String resultCsv;
+    private String clickCss;
     private List<String> screenshots;
     private ScenarioStatus status;
     private Instant actionPerformedAt;
