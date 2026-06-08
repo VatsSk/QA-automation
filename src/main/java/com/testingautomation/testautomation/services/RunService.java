@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.remote.RemoteWebDriver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -33,7 +34,9 @@ import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
@@ -209,16 +212,25 @@ public class RunService {
             updated.setUpdatedAt(java.time.Instant.now());
             updated = runRepository.save(updated);
 
-
             ChromeOptions options = new ChromeOptions();
-            options.addArguments("--disable-gpu");
-            options.addArguments("--window-size=1534,664");
+            options.addArguments("--headless=new");
+            options.addArguments("--no-sandbox");
+            options.addArguments("--disable-dev-shm-usage");
 
-            if (isHeadless) {
-                options.addArguments("--headless=new");
-            }
+            driver = new RemoteWebDriver(
+                    new URL("http://localhost:4444"),
+                    options
+            );
 
-            driver = new ChromeDriver(options);
+//            ChromeOptions options = new ChromeOptions();
+//            options.addArguments("--disable-gpu");
+//            options.addArguments("--window-size=1534,664");
+
+//            if (isHeadless) {
+//                options.addArguments("--headless=new");
+//            }
+
+//            driver = new ChromeDriver(options);
 
             updated = scenarioOrchestratorService.executeScenarios(updated, driver, id);
 
@@ -246,6 +258,9 @@ public class RunService {
 
             return mapper.toRunResponse(updated);
 
+        }catch(MalformedURLException ex){
+            markRunFailed(run,"Driver failed");
+            throw new RuntimeException(ex);
         }catch (GlobalExceptionHandler.ScenarioExecutionException ex){
             markRunFailed(run,ex.getUserMessage());
             throw ex;
