@@ -3,3 +3,9 @@ spring:
     mongodb:
       uri: ${MONGO_PROD_URI}
       database: qadb
+
+
+selenium:
+  remote: true
+  remote-url: http://localhost:4444
+  headless: true

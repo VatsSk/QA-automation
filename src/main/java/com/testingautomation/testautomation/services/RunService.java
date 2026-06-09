@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services;
 
 
+import com.testingautomation.testautomation.config.WebDriverConfig.WebDriverFactory;
 import com.testingautomation.testautomation.config.s3Config.StorageProperties;
 import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
@@ -59,6 +60,7 @@ public class RunService {
     private String prefix;
     @Value("${autotest.headless}")
     private boolean isHeadless;
+    private final WebDriverFactory webDriverFactory;
 
     // ── Filtered list ─────────────────────────────────────────────────
 
@@ -212,15 +214,16 @@ public class RunService {
             updated.setUpdatedAt(java.time.Instant.now());
             updated = runRepository.save(updated);
 
-            ChromeOptions options = new ChromeOptions();
-            options.addArguments("--headless=new");
-            options.addArguments("--no-sandbox");
-            options.addArguments("--disable-dev-shm-usage");
+//            ChromeOptions options = new ChromeOptions();
+//            options.addArguments("--headless=new");
+//            options.addArguments("--no-sandbox");
+//            options.addArguments("--disable-dev-shm-usage");
+//
+//            driver = new RemoteWebDriver(
+//                    new URL("http://localhost:4444"),
+//                    options
+//            );
 
-            driver = new RemoteWebDriver(
-                    new URL("http://localhost:4444"),
-                    options
-            );
 
 //            ChromeOptions options = new ChromeOptions();
 //            options.addArguments("--disable-gpu");
@@ -231,6 +234,7 @@ public class RunService {
 //            }
 
 //            driver = new ChromeDriver(options);
+            driver= webDriverFactory.createDriver();
 
             updated = scenarioOrchestratorService.executeScenarios(updated, driver, id);
 

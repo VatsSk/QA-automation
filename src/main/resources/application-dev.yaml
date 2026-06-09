@@ -1,5 +1,10 @@
 spring:
   data:
     mongodb:
-      uri: mongodb://localhost:27017/qadb
+      uri: ${MONGO_PROD_URI}
       database: qadb
+
+
+selenium:
+  remote: false
+  headless: false
