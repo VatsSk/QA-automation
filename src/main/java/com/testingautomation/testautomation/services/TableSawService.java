@@ -4,6 +4,7 @@ import com.testingautomation.testautomation.dto.StepAction;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.By;
+import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import tech.tablesaw.api.StringColumn;
@@ -52,8 +53,26 @@ public class TableSawService {
         log.info("Total body rows found: {}", rows.size());
 
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
-            WebElement row = rows.get(rowIndex);
-            List<WebElement> cells = row.findElements(By.cssSelector("td, th"));
+            List<WebElement> cells;
+
+            try {
+                WebElement row = rows.get(rowIndex);
+                cells = row.findElements(By.cssSelector("td, th"));
+
+            } catch (StaleElementReferenceException e) {
+
+                log.info("Row {} became stale. Re-fetching row.", rowIndex);
+
+                rows = driver.findElements(
+                        By.cssSelector(tableLocator + " tbody tr"));
+
+                if (rowIndex >= rows.size()) {
+                    continue;
+                }
+
+                WebElement row = rows.get(rowIndex);
+                cells = row.findElements(By.cssSelector("td, th"));
+            }
 
             List<String> rowValues = cells.stream()
                     .map(this::extractCellText)

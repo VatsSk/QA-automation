@@ -283,6 +283,15 @@ public class RunService {
             }
         }
     }
+
+    public List<RunResponse> getAllRunByCreatedBy(String createdBy){
+        List<Run> runs=runRepository.getAllRunsByCreatedBy(createdBy);
+        List<RunResponse> runResponses = runs.stream()
+                .map(mapper::toRunResponse)   // your mapper method
+                .toList();
+
+        return runResponses;
+    }
     private void markRunFailed(Run run, String failureReason) {
         try {
             run.setStatus(RunStatus.FAILED);

@@ -89,6 +89,12 @@ public class RunControllerNew {
         return ResponseEntity.ok(runService.getFilteredRuns(params));
     }
 
+    @GetMapping("api/run/{createdBy}")
+    public ResponseEntity<List<RunResponse>> getAllRuns(@PathVariable String createdBy){
+        List<RunResponse> runResponses=runService.getAllRunByCreatedBy(createdBy);
+        return ResponseEntity.ok(runResponses);
+    }
+
     // ── Filter meta (for dropdown population) ─────────────────────────
 
     @GetMapping("/api/runs/filters/meta")
@@ -172,6 +178,8 @@ public class RunControllerNew {
     ) {
         return ResponseEntity.ok(screenshotService.getScenarioScreenshots(prefix));
     }
+
+
     // ── Parse helpers ─────────────────────────────────────────────────
 
     private List<RunStatus> parseStatuses(String statusParam) {

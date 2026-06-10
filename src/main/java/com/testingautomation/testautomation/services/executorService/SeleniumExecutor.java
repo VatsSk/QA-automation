@@ -1552,22 +1552,7 @@ public class SeleniumExecutor {
         }
     }
 
-    private void assertColumnPresent(WebDriver driver, StepAction step) {
 
-        List<WebElement> headers = driver.findElements(By.cssSelector("th"));
-        logger.info("headers {}",headers);
-
-        boolean found = headers.stream()
-                .anyMatch(h -> h.getText().trim()
-                        .equalsIgnoreCase(step.getPayload()));
-
-
-        logger.info("found {}",found);
-
-        if (!found) {
-            throw new GlobalExceptionHandler.BadRequestException("Column not found: " + step.getPayload());
-        }
-    }
     private void assertAllColumnsPresent(WebDriver driver, StepAction step) {
 
         // Expected columns → comma separated
@@ -1679,21 +1664,6 @@ public class SeleniumExecutor {
         }
 
 
-    }
-    private void validateElementCount(WebDriver driver, StepAction step) {
-
-        List<WebElement> elements = driver.findElements(getBy(step));
-        int expected = Integer.parseInt(step.getPayload());
-
-        logger.info("🔢 Expected elements: {}, Found: {}", expected, elements.size());
-
-        if (elements.size() != expected) {
-            throw new GlobalExceptionHandler.BadRequestException(
-                    "Expected count: " + expected + " but got: " + elements.size()
-            );
-        }
-
-        logger.info("✅ Element count assertion passed");
     }
     private int getPaginationCount(WebDriver driver) {
 
