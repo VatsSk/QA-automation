@@ -171,11 +171,11 @@ export const ASSERT_TYPES = {
         fields: ['locator'],
         required: ['locator']
     },
-    ASSERT_ELEMENT_PRESENT: {
-        label: 'Element Present',
-        fields: ['locator'],
-        required: ['locator']
-    },
+    // ASSERT_ELEMENT_PRESENT: {
+    //     label: 'Element Present',
+    //     fields: ['locator'],
+    //     required: ['locator']
+    // },
 
     // 🔹 Text / Value
     ASSERT_TEXT_EQUALS: {
@@ -214,11 +214,11 @@ export const ASSERT_TYPES = {
     // },
 
     // 🔹 Advanced
-    ASSERT_API_CALLED: {
-        label: 'API Called',
-        fields: ['locator'],
-        required: ['locator']
-    },
+    // ASSERT_API_CALLED: {
+    //     label: 'API Called',
+    //     fields: ['locator'],
+    //     required: ['locator']
+    // },
     ASSERT_ATTRIBUTE: {
         label: 'Attribute',
         fields: ['locator', 'expected'],

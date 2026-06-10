@@ -49,4 +49,8 @@ public class ModuleController {
         moduleService.deleteModule(id);
         return ResponseEntity.noContent().build();
     }
+    @PostMapping("api/modules/{id}/all")
+    public ResponseEntity<ModuleResponse> runAllRuns(@PathVariable String id){
+        return ResponseEntity.ok(moduleService.runAllRuns(id));
+    }
 }

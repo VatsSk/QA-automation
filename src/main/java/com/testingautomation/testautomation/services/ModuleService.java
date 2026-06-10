@@ -55,9 +55,18 @@ public class ModuleService {
         moduleRepository.deleteById(id);
         log.info("Deleted module {} with cascaded runs", id);
     }
+    public ModuleResponse runAllRuns(String id){
+        List<String> runIds=runRepository.getRunsByModuleId(id);
+        log.info("runIds : {}",runIds);
+        ModuleResponse moduleResponse = new ModuleResponse();
+        moduleResponse.setRunIds(runIds);
+        return moduleResponse;
+    }
 
     private Module findOrThrow(String id) {
         return moduleRepository.findById(id)
                 .orElseThrow(() -> new GlobalExceptionHandler.ResourceNotFoundException("Module not found: " + id));
     }
+
+
 }

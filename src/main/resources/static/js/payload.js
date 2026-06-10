@@ -55,7 +55,7 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
             tags: document.getElementById('f-tags').value
                 .split(',').map(t => t.trim()).filter(Boolean),
             resultStatement: document.getElementById('f-resultStatement').value.trim(),
-            createdBy: user.id ||  '',
+            createdBy: user.username,
 
             scenariosList: finalScenarios
         };
@@ -70,7 +70,7 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
         tags: document.getElementById('f-tags').value
             .split(',').map(t => t.trim()).filter(Boolean),
         resultStatement: document.getElementById('f-resultStatement').value.trim(),
-        createdBy: user.id || '',
+        createdBy: user.username,
 
         scenariosList: scenarios.map((s, i) => ({
             id: s.id || undefined,

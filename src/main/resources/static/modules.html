@@ -289,7 +289,7 @@
         const desc = document.getElementById('nm-desc').value.trim();
         if (!name) { toast('Module name is required', 'warning'); return; }
         try {
-            const m = await api.modules.create(projectId, { name, description: desc });
+            const m = await api.modules.create(projectId, { name, description: desc,createdBy: user.username });
             modules.unshift(m);
             closeModal();
             render();
