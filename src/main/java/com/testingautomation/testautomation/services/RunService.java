@@ -198,7 +198,7 @@ public class RunService {
 
         Run run = overwriteRunResults(id);
 
-        if (run.getStatus() == RunStatus.RUNNING) {
+        if (!run.isBulkRun() || run.getStatus() == RunStatus.RUNNING ) {
             throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
         }
 
@@ -290,6 +290,15 @@ public class RunService {
                 .map(mapper::toRunResponse)   // your mapper method
                 .toList();
 
+        return runResponses;
+    }
+    public List<RunResponse> excuteAllRun(List<String> runIds){
+        runRepository.updateBulkRunAndStatusForRuns(runIds,true,RunStatus.RUNNING);
+        List<RunResponse> runResponses=new ArrayList<>();
+        for(String runId:runIds){
+            runResponses.add(executeRun(runId));
+        }
+        runRepository.updateBulkRunForRuns(runIds,false);
         return runResponses;
     }
     private void markRunFailed(Run run, String failureReason) {

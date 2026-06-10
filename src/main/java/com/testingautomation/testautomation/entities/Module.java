@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.entities;
 
+import com.testingautomation.testautomation.enums.RunStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +28,8 @@ public class Module {
 
     private String name;
     private String description;
+
+    private RunStatus status;
 
     @Indexed
     private String createdBy;

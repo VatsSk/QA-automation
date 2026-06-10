@@ -13,6 +13,8 @@ import com.testingautomation.testautomation.services.RunService;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -27,6 +29,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequiredArgsConstructor
 public class RunControllerNew {
+    private final Logger log = LoggerFactory.getLogger(RunControllerNew.class);
 
     private final RunService runService;
     private final ScreenshotService screenshotService;
@@ -93,6 +96,16 @@ public class RunControllerNew {
     public ResponseEntity<List<RunResponse>> getAllRuns(@PathVariable String createdBy){
         List<RunResponse> runResponses=runService.getAllRunByCreatedBy(createdBy);
         return ResponseEntity.ok(runResponses);
+    }
+
+    @PostMapping("/api/runs/execute-queue")
+    public ResponseEntity<?> executeQueue(@RequestBody List<String> runIds) {
+
+        log.info("Executing queue: {}", runIds);
+
+        runService.excuteAllRun(runIds);
+
+        return ResponseEntity.ok().build();
     }
 
     // ── Filter meta (for dropdown population) ─────────────────────────
