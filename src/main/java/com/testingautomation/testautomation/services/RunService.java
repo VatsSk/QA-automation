@@ -198,9 +198,9 @@ public class RunService {
 
         Run run = overwriteRunResults(id);
 
-        if (run.getStatus() == RunStatus.RUNNING) {
-            throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
-        }
+//        if (run.getStatus() == RunStatus.RUNNING) {
+//            throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
+//        }
 
         if (run.getScenariosList() == null || run.getScenariosList().isEmpty()) {
             throw new GlobalExceptionHandler.BadRequestException("Cannot execute a run with no scenarios");
@@ -210,9 +210,9 @@ public class RunService {
         Run updated = run;
 
         try {
-            updated.setStatus(RunStatus.RUNNING);
-            updated.setUpdatedAt(java.time.Instant.now());
-            updated = runRepository.save(updated);
+//            updated.setStatus(RunStatus.RUNNING);
+//            updated.setUpdatedAt(java.time.Instant.now());
+//            updated = runRepository.save(updated);
 
 //            ChromeOptions options = new ChromeOptions();
 //            options.addArguments("--headless=new");
@@ -344,7 +344,9 @@ public class RunService {
     }
     public Run overwriteRunResults(String id) {
         Run existing = findRunOrThrow(id);
-
+        if (existing.getStatus() == RunStatus.RUNNING) {
+            throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
+        }
         Run freshRun = new Run();
         freshRun.setId(existing.getId()); // keep same run id
 //
@@ -358,7 +360,7 @@ public class RunService {
         freshRun.setResultStatement(existing.getResultStatement());
         freshRun.setTags(existing.getTags());
         // fresh state
-        freshRun.setStatus(RunStatus.DRAFT);
+        freshRun.setStatus(RunStatus.RUNNING);
         freshRun.setCreatedAt(existing.getCreatedAt());
         freshRun.setUpdatedAt(new Date().toInstant());
 

@@ -1,8 +1,14 @@
+#spring:
+#  data:
+#    mongodb:
+#      host: localhost
+#      port: 27017
+#      database: qadb
+
 spring:
   data:
     mongodb:
-      host: localhost
-      port: 27017
+      uri: ${MONGO_PROD_URI}
       database: qadb
 
 

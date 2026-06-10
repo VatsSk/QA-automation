@@ -29,7 +29,7 @@ public interface RunRepository extends MongoRepository<Run, String>, RunReposito
     List<String> getRunsByModuleId(String id);
     @Query(
             value = "{'createdBy': ?0,'status': {$ne : 'RUNNING'}}",
-            fields = "{'_id': 1,'name': 1}"
+            fields = "{'_id': 1,'runName': 1}"
     )
     List<Run> getAllRunsByCreatedBy(String createdBy);
 }

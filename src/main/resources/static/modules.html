@@ -352,14 +352,14 @@
                 return;
             }
 
-            const matches = allProjectRuns.filter(r => r.name.toLowerCase().includes(query)).slice(0, 8);
+            const matches = allProjectRuns.filter(r => r.runName.toLowerCase().includes(query)).slice(0, 8);
 
             if (matches.length === 0) {
                 resultsBox.innerHTML = `<div class="search-item" style="color:var(--text-muted)">No runs found</div>`;
             } else {
                 resultsBox.innerHTML = matches.map(r => `
                     <div class="search-item" onclick="addToQueue('${r.id}')">
-                        ➕ ${esc(r.name)}
+                        ➕ ${esc(r.runName)}
                     </div>
                 `).join('');
             }
@@ -382,14 +382,14 @@
         runQueue.push({
             id: 'q_' + Date.now() + Math.random().toString(36).substr(2, 5),
             runId: run.id || run._id,
-            name: run.name,
+            name: run.runName,
             status: 'pending'
         });
 
         document.getElementById('run-search').value = '';
         document.getElementById('search-results').classList.remove('active');
 
-        toast(`Added "${run.name}" to queue`, 'info');
+        toast(`Added "${run.runName}" to queue`, 'info');
         renderQueue();
     }
 
@@ -461,37 +461,29 @@
     window.executeQueue = async function() {
         if (runQueue.length === 0 || isQueueRunning) return;
 
-        isQueueRunning = true;
-        renderQueue();
+        try {
+            isQueueRunning = true;
 
-        runQueue.forEach(q => { if(q.status !== 'success') q.status = 'pending'; });
-
-        let allSuccess = true;
-
-        for (let i = 0; i < runQueue.length; i++) {
-            const item = runQueue[i];
-            if (item.status === 'success') continue;
-
-            item.status = 'running';
+            runQueue.forEach(item => item.status = 'running');
             renderQueue();
 
-            try {
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                item.status = 'success';
-            } catch (err) {
-                item.status = 'error';
-                allSuccess = false;
-                console.error(`Failed to execute ${item.name}:`, err);
-            }
-        }
+            const runIds = runQueue.map(item => item.runId);
 
-        isQueueRunning = false;
-        renderQueue();
+            const response = await api.runs.executeQueue(runIds);
 
-        if (allSuccess) {
-            toast('Queue execution completed successfully!', 'success');
-        } else {
-            toast('Queue finished with errors.', 'warning');
+            runQueue.forEach(item => item.status = 'success');
+
+            toast('Queue execution started successfully!', 'success');
+
+        } catch (err) {
+            console.error(err);
+
+            runQueue.forEach(item => item.status = 'error');
+
+            toast(err.message || 'Queue execution failed', 'error');
+        } finally {
+            isQueueRunning = false;
+            renderQueue();
         }
     }
 

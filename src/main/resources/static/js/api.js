@@ -87,9 +87,12 @@ function toQS(f = {}) {
 }
 
 export const runs = {
+
+    executeQueue: (runIds) => request('POST', '/api/runs/execute-queue', runIds),
+
     //all runs of the user
-    bucketRunList: (username) =>
-        request('GET',`/api/runs/${username}`),
+    bucketRunList: (username) => request('GET',`/api/runlist/${username}`),
+
     // Paginated list filtered by project + module
     list:    (projectId, moduleId, filters) =>
         request('GET', `/api/projects/${projectId}/modules/${moduleId}/runs?${toQS(filters)}`),
