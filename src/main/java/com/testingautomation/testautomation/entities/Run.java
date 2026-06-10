@@ -51,6 +51,8 @@ public class Run {
     /** Optional run type label (e.g., "regression", "smoke") */
     private String runType;
 
+    private boolean bulkRun;
+
     /** Count mirrors scenariosList.size() — kept for fast queries */
     private int scenarioCount;
 

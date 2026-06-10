@@ -22,7 +22,7 @@ public class RunController {
     @PostMapping(value = "/runs/{id}/execute")
     public ResponseEntity<?> receiveTests(
             @PathVariable("id") String runId) {
-        return ResponseEntity.ok(runService.executeRun(runId));
+        return ResponseEntity.ok(runService.executeRun(runId,false));
     }
 
     @PostMapping("/ask")

@@ -100,6 +100,16 @@ public class RunControllerNew {
         return ResponseEntity.ok(runResponses);
     }
 
+    @PostMapping("/api/runs/execute-queue")
+    public ResponseEntity<?> executeQueue(@RequestBody List<String> runIds) {
+
+        log.info("Executing queue: {}", runIds);
+
+        runService.executeAllRun(runIds);
+
+        return ResponseEntity.ok().build();
+    }
+
     // ── Filter meta (for dropdown population) ─────────────────────────
 
     @GetMapping("/api/runs/filters/meta")
@@ -162,7 +172,7 @@ public class RunControllerNew {
      */
     @PostMapping("/api/runs/{id}/execute")
     public ResponseEntity<RunResponse> executeRun(@PathVariable String id) {
-        return ResponseEntity.ok(runService.executeRun(id));
+        return ResponseEntity.ok(runService.executeRun(id,false));
     }
 
     // ── Results ───────────────────────────────────────────────────────

@@ -391,7 +391,7 @@ public class ScenarioOrchestratorService {
                     yield currIdx;
                 }
                 case FILTER_NAV -> {
-                    handleFilterNavScenario(driver, wait, currScenario, scenario, resultTestCase);
+                    handleFilterNavScenario(driver, wait, currScenario, scenario, resultTestCase,currIdx);
                     yield currIdx;
                 }
                 case DATE_RANGE_NAV -> {
@@ -2987,9 +2987,10 @@ public class ScenarioOrchestratorService {
             WebDriverWait wait,
             Scenario currScenario,
             Scenario scenario,
-            TestCaseDTO resultTestCase
+            TestCaseDTO resultTestCase,
+            int currIdx
     ) {
-
+    try {
         logger.info("Executing FILTER_NAV scenario");
 
         List<FilterScenarioDto> filters = currScenario.getFilters();
@@ -3118,8 +3119,7 @@ public class ScenarioOrchestratorService {
 
             if (valueSelector == null || valueSelector.isEmpty()) {
                 logger.warn("No valueSelector provided, skipping value input");
-            }
-            else {
+            } else {
 
                 WebElement valueEl = wait.until(
                         ExpectedConditions.presenceOfElementLocated(
@@ -3162,8 +3162,7 @@ public class ScenarioOrchestratorService {
                                     }
                             )
                     );
-                }
-                else if (id != null && id.startsWith("select2-")) {
+                } else if (id != null && id.startsWith("select2-")) {
 
                     logger.info("id starts with select2-");
 
@@ -3181,8 +3180,7 @@ public class ScenarioOrchestratorService {
                                     }
                             )
                     );
-                }
-                else if (tag.equalsIgnoreCase("select")
+                } else if (tag.equalsIgnoreCase("select")
                         && classes != null
                         && classes.contains("select2-hidden-accessible")) {
 
@@ -3202,8 +3200,7 @@ public class ScenarioOrchestratorService {
                                     }
                             )
                     );
-                }
-                else if (tag.equalsIgnoreCase("select")
+                } else if (tag.equalsIgnoreCase("select")
                         && classes != null
                         && classes.contains("selectpicker")) {
 
@@ -3223,8 +3220,7 @@ public class ScenarioOrchestratorService {
                                     }
                             )
                     );
-                }
-                else {
+                } else {
 
                     logger.info("Handling as generic dropdown");
 
@@ -3245,8 +3241,7 @@ public class ScenarioOrchestratorService {
                                                     )
                                             );
                                             option.click();
-                                        }
-                                        catch (Exception ignored) {
+                                        } catch (Exception ignored) {
                                             WebElement option = wait.until(
                                                     ExpectedConditions.elementToBeClickable(
                                                             By.xpath("//*[contains(text(),'" + filter.getValue() + "')]")
@@ -3292,8 +3287,7 @@ public class ScenarioOrchestratorService {
                                     );
 
                                     logger.info("Toggled logical operator: {}", operatorId);
-                                }
-                                else {
+                                } else {
                                     logger.info("already And operator is chosen!");
                                 }
 
@@ -3333,8 +3327,7 @@ public class ScenarioOrchestratorService {
 
                                 try {
                                     button.click();
-                                }
-                                catch (Exception e) {
+                                } catch (Exception e) {
                                     ((JavascriptExecutor) driver).executeScript(
                                             "arguments[0].click();",
                                             button
@@ -3355,5 +3348,11 @@ public class ScenarioOrchestratorService {
 
         scenario.setScenarioStatus(RunStatus.PASSED);
         resultTestCase.setResult("Passed");
+    } catch (Exception e) {
+        throw new ScenarioExecutionException(currIdx,scenario.getType(),
+                "FILTER_NAV",
+                "Error occurred in FILTER_NAV at index"+currIdx+" ",
+                e);
+    }
     }
 }

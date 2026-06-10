@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.dto.responseDto;
 
 
+import com.testingautomation.testautomation.enums.RunStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,4 +23,5 @@ public class ModuleResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private List<String> runIds;
+    private RunStatus status;
 }

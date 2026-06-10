@@ -24,6 +24,8 @@ public class RunRequest {
     private String createdBy;
     private String runType;
 
+    private boolean bulkRun;
+
     /**
      * Final assert message for the entire run.
      * Passed as ?resultStatement=... query param to /runner/run-auth.

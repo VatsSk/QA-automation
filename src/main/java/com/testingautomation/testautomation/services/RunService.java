@@ -22,9 +22,6 @@ import com.testingautomation.testautomation.services.s3Service.StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
-import org.openqa.selenium.remote.RemoteWebDriver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -37,7 +34,6 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.URI;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
@@ -193,12 +189,12 @@ public class RunService {
      * resultStatement from the Run document is appended as a query param.
      * Run state is updated to RUNNING immediately, then updated again on completion.
      */
-    public RunResponse executeRun(String id) {
+    public RunResponse executeRun(String id,boolean isBulk) {
         log.info("RUN STARTED for runId={}", id);
 
-        Run run = overwriteRunResults(id);
+        Run run = overwriteRunResults(id,isBulk);
 
-//        if (run.getStatus() == RunStatus.RUNNING) {
+//        if (!run.isBulkRun() || run.getStatus() == RunStatus.RUNNING ) {
 //            throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
 //        }
 
@@ -210,30 +206,6 @@ public class RunService {
         Run updated = run;
 
         try {
-//            updated.setStatus(RunStatus.RUNNING);
-//            updated.setUpdatedAt(java.time.Instant.now());
-//            updated = runRepository.save(updated);
-
-//            ChromeOptions options = new ChromeOptions();
-//            options.addArguments("--headless=new");
-//            options.addArguments("--no-sandbox");
-//            options.addArguments("--disable-dev-shm-usage");
-//
-//            driver = new RemoteWebDriver(
-//                    new URL("http://localhost:4444"),
-//                    options
-//            );
-
-
-//            ChromeOptions options = new ChromeOptions();
-//            options.addArguments("--disable-gpu");
-//            options.addArguments("--window-size=1534,664");
-
-//            if (isHeadless) {
-//                options.addArguments("--headless=new");
-//            }
-
-//            driver = new ChromeDriver(options);
             driver= webDriverFactory.createDriver();
 
             updated = scenarioOrchestratorService.executeScenarios(updated, driver, id);
@@ -292,6 +264,14 @@ public class RunService {
 
         return runResponses;
     }
+    public List<RunResponse> executeAllRun(List<String> runIds){
+        runRepository.updateStatusForRuns(runIds,RunStatus.RUNNING);
+        List<RunResponse> runResponses=new ArrayList<>();
+        for(String runId:runIds){
+            runResponses.add(executeRun(runId,true));
+        }
+        return runResponses;
+    }
     private void markRunFailed(Run run, String failureReason) {
         try {
             run.setStatus(RunStatus.FAILED);
@@ -342,11 +322,13 @@ public class RunService {
         return runRepository.findById(id)
                 .orElseThrow(() -> new GlobalExceptionHandler.ResourceNotFoundException("Run not found: " + id));
     }
-    public Run overwriteRunResults(String id) {
+    public Run overwriteRunResults(String id,boolean isBulk) {
         Run existing = findRunOrThrow(id);
-        if (existing.getStatus() == RunStatus.RUNNING) {
+
+        if(!isBulk && existing.getStatus()==RunStatus.RUNNING){
             throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
         }
+
         Run freshRun = new Run();
         freshRun.setId(existing.getId()); // keep same run id
 //
@@ -378,6 +360,7 @@ public class RunService {
             s.setCssOpener(oldScenario.getCssOpener());
             s.setValue(oldScenario.getValue());
             s.setClickCss(oldScenario.getClickCss());
+            s.setApplyFilterBtn(oldScenario.getApplyFilterBtn());
 
             // keep assertion template only, remove old execution output
             if (oldScenario.getAssertions() != null) {
