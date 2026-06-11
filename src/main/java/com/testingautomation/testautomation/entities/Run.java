@@ -51,7 +51,6 @@ public class Run {
     /** Optional run type label (e.g., "regression", "smoke") */
     private String runType;
 
-    private boolean bulkRun;
 
     /** Count mirrors scenariosList.size() — kept for fast queries */
     private int scenarioCount;
@@ -72,8 +71,6 @@ public class Run {
      */
     private List<Scenario> scenariosList;
 
-    /** Arbitrary key-value metadata (browser, env, etc.) */
-    private Map<String, Object> metadata;
 
     /** Freeform tags for filtering */
     private List<String> tags;

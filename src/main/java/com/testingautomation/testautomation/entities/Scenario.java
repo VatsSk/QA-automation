@@ -65,8 +65,6 @@ public class Scenario {
     /** S3/MinIO paths to screenshots captured by runner */
     private List<String> screenshots;
 
-    private ScenarioStatus status;
-
     private Instant actionPerformedAt;
     private Instant createdAt;
     private Instant updatedAt;
