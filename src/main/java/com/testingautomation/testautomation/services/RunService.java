@@ -158,7 +158,6 @@ public class RunService {
                 .status(RunStatus.DRAFT)
                 .runType(original.getRunType())
                 .resultStatement(original.getResultStatement())   // copied from original
-                .metadata(original.getMetadata() != null ? new HashMap<>(original.getMetadata()) : null)
                 .tags(original.getTags() != null ? new ArrayList<>(original.getTags()) : null)
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
