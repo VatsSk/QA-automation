@@ -377,7 +377,7 @@ public class RunService {
                     List<FilterScenarioDto> filters =
                             oldScenario.getFilters()
                                     .stream()
-                                    .map(this::resetFilter)
+                                    .map(this::cloneFilter)
                                     .collect(Collectors.toList());
 
                     s.setFilters(filters);
@@ -389,7 +389,7 @@ public class RunService {
                     List<AssertionDto> assertions =
                             oldScenario.getAssertions()
                                     .stream()
-                                    .map(this::resetAssertion)
+                                    .map(this::cloneAssertion)
                                     .collect(Collectors.toList());
 
                     s.setAssertions(assertions);
@@ -411,36 +411,7 @@ public class RunService {
 
         return runRepository.save(freshRun);
     }
-    private AssertionDto resetAssertion(AssertionDto old) {
 
-        return AssertionDto.builder()
-                .type(old.getType())
-                .locator(old.getLocator())
-                .expected(old.getExpected())
-                .columnName(old.getColumnName())
-                .tableId(old.getTableId())
-                .rowsBtn(old.getRowsBtn())
-                .order(old.getOrder())
-
-                // Clear execution results
-                .assertResult(null)
-                .errorMessage(null)
-                .reason(null)
-
-                .build();
-    }
-    private FilterScenarioDto resetFilter(FilterScenarioDto old) {
-
-        FilterScenarioDto filter = new FilterScenarioDto();
-
-        filter.setQuerySelector(old.getQuerySelector());
-        filter.setColumnName(old.getColumnName());
-        filter.setFilterType(old.getFilterType());
-        filter.setOperation(old.getOperation());
-        filter.setValue(old.getValue());
-
-        return filter;
-    }
     private void assignScenarioIds(Run run) {
         if (run.getScenariosList() == null) return;
         for (int i = 0; i < run.getScenariosList().size(); i++) {
@@ -501,6 +472,7 @@ public class RunService {
                 .tableId(a.getTableId())
                 .rowsBtn(a.getRowsBtn())
                 .order(a.getOrder())
+                .prompt(a.getPrompt())
                 .build();
     }
 
@@ -511,6 +483,8 @@ public class RunService {
         copy.setFilterType(f.getFilterType());
         copy.setOperation(f.getOperation());
         copy.setValue(f.getValue());
+        copy.setValueSelector(f.getValueSelector());
+        copy.setLogicalOperator(f.getLogicalOperator());
         return copy;
     }
 

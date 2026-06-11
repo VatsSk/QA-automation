@@ -65,8 +65,6 @@ public interface EntityMapper {
      */
     @Mapping(target = "resultCsv",          ignore = true)
     @Mapping(target = "screenshots",        ignore = true)
-    @Mapping(target = "status",             ignore = true)
-    @Mapping(target = "scenarioStatus",     ignore = true)
     @Mapping(target = "actionPerformedAt",  ignore = true)
     @Mapping(target = "createdAt",          ignore = true)
     @Mapping(target = "updatedAt",          ignore = true)

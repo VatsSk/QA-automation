@@ -528,42 +528,6 @@ public class SeleniumExecutor {
                     }
 
                     break;
-//                case CLICK:
-//
-//                    String beforeUrl = driver1.getCurrentUrl();
-//
-//                    WebElement el = new WebDriverWait(driver1, Duration.ofSeconds(10))
-//                            .until(ExpectedConditions.presenceOfElementLocated(by));
-//
-//                    scrollIntoView(driver1, el);
-//
-//                    // Skip click if radio/checkbox already selected
-//                    String type = el.getAttribute("type");
-//                    if (type != null && (type.equalsIgnoreCase("radio") || type.equalsIgnoreCase("checkbox"))) {
-//                        if (el.isSelected()) {
-//                            logger.info("Element already selected, skipping click: {}", by);
-//                            break;
-//                        }
-//                    }
-//
-//                    try {
-//                        new WebDriverWait(driver1, Duration.ofSeconds(5))
-//                                .until(ExpectedConditions.elementToBeClickable(el));
-//
-//                        el.click();
-//
-//                    } catch (ElementClickInterceptedException e) {
-//                        logger.warn("Normal click failed, retrying via JS");
-//                        ((JavascriptExecutor) driver1).executeScript("arguments[0].click();", el);
-//                    }
-//
-//                    // Only check navigation but don't fail if it doesn't change
-//                    boolean navigated = waitForUrlChange(driver1, beforeUrl);
-//                    if (navigated) {
-//                        logger.info("Navigation detected after click");
-//                    }
-//
-//                    break;
                 case CLICK:
 
                     String beforeUrl =
