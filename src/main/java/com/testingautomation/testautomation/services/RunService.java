@@ -288,14 +288,14 @@ public class RunService {
     public RunResultsResponse getRunResults(String id) {
         Run run = findRunOrThrow(id);
 
-        Map<ScenarioStatus, Long> statusCounts = new EnumMap<>(ScenarioStatus.class);
+        Map<RunStatus, Long> statusCounts = new EnumMap<>(RunStatus.class);
         List<String> allScreenshots = new ArrayList<>();
         List<String> allResultCsvs  = new ArrayList<>();
 
         if (run.getScenariosList() != null) {
             for (Scenario s : run.getScenariosList()) {
-                if (s.getStatus() != null) {
-                    statusCounts.merge(s.getStatus(), 1L, Long::sum);
+                if (s.getScenarioStatus() != null) {
+                    statusCounts.merge(s.getScenarioStatus(), 1L, Long::sum);
                 }
                 if (s.getScreenshots() != null) allScreenshots.addAll(s.getScreenshots());
                 if (StringUtils.hasText(s.getResultCsv()))  allResultCsvs.add(s.getResultCsv());
@@ -321,17 +321,21 @@ public class RunService {
         return runRepository.findById(id)
                 .orElseThrow(() -> new GlobalExceptionHandler.ResourceNotFoundException("Run not found: " + id));
     }
-    public Run overwriteRunResults(String id,boolean isBulk) {
+    public Run overwriteRunResults(String id, boolean isBulk) {
+
         Run existing = findRunOrThrow(id);
 
-        if(!isBulk && existing.getStatus()==RunStatus.RUNNING){
-            throw new GlobalExceptionHandler.BadRequestException("Run is already in RUNNING state");
+        if (!isBulk && existing.getStatus() == RunStatus.RUNNING) {
+            throw new GlobalExceptionHandler.BadRequestException(
+                    "Run is already in RUNNING state");
         }
 
         Run freshRun = new Run();
-        freshRun.setId(existing.getId()); // keep same run id
-//
-        // keep run-level info
+
+        // Keep same run id
+        freshRun.setId(existing.getId());
+
+        // Preserve run metadata
         freshRun.setRunName(existing.getRunName());
         freshRun.setCreatedBy(existing.getCreatedBy());
         freshRun.setProjectId(existing.getProjectId());
@@ -340,57 +344,102 @@ public class RunService {
         freshRun.setScenarioCount(existing.getScenarioCount());
         freshRun.setResultStatement(existing.getResultStatement());
         freshRun.setTags(existing.getTags());
-        // fresh state
+
+        // Reset run execution state
         freshRun.setStatus(RunStatus.RUNNING);
+        freshRun.setReason(null);
+
         freshRun.setCreatedAt(existing.getCreatedAt());
-        freshRun.setUpdatedAt(new Date().toInstant());
+        freshRun.setUpdatedAt(Instant.now());
 
         List<Scenario> freshScenarios = new ArrayList<>();
 
-        for (Scenario oldScenario : existing.getScenariosList()) {
-            Scenario s = new Scenario();
+        if (existing.getScenariosList() != null) {
 
-            // keep scenario input definition
-            s.setId(oldScenario.getId()); // keep if you want same scenario ids
-            s.setType(oldScenario.getType());
-            s.setSequenceNo(oldScenario.getSequenceNo());
-            s.setUrl(oldScenario.getUrl());
-            s.setCsv(oldScenario.getCsv());
-            s.setCssOpener(oldScenario.getCssOpener());
-            s.setValue(oldScenario.getValue());
-            s.setClickCss(oldScenario.getClickCss());
-            s.setApplyFilterBtn(oldScenario.getApplyFilterBtn());
+            for (Scenario oldScenario : existing.getScenariosList()) {
 
-            // keep assertion template only, remove old execution output
-            if (oldScenario.getAssertions() != null) {
-                List<AssertionDto> freshAssertions = new ArrayList<>();
-                for (AssertionDto oldAssertion : oldScenario.getAssertions()) {
-                    AssertionDto a = new AssertionDto();
-                    a.setType(oldAssertion.getType());
-                    a.setTableId(oldAssertion.getTableId());
+                Scenario s = new Scenario();
 
-                    // do not copy result fields
-                    // a.setAssertResult(null);
-                    // a.setErrorMessage(null);
+                // Preserve scenario definition
+                s.setId(oldScenario.getId());
+                s.setType(oldScenario.getType());
+                s.setSequenceNo(oldScenario.getSequenceNo());
+                s.setUrl(oldScenario.getUrl());
+                s.setCsv(oldScenario.getCsv());
+                s.setCssOpener(oldScenario.getCssOpener());
+                s.setValue(oldScenario.getValue());
+                s.setStatement(oldScenario.getStatement());
+                s.setClickCss(oldScenario.getClickCss());
+                s.setApplyFilterBtn(oldScenario.getApplyFilterBtn());
 
-                    freshAssertions.add(a);
+                // Copy filters
+                if (oldScenario.getFilters() != null) {
+                    List<FilterScenarioDto> filters =
+                            oldScenario.getFilters()
+                                    .stream()
+                                    .map(this::resetFilter)
+                                    .collect(Collectors.toList());
+
+                    s.setFilters(filters);
                 }
-                s.setAssertions(freshAssertions);
+
+                // Copy assertions and clear execution results
+                if (oldScenario.getAssertions() != null) {
+
+                    List<AssertionDto> assertions =
+                            oldScenario.getAssertions()
+                                    .stream()
+                                    .map(this::resetAssertion)
+                                    .collect(Collectors.toList());
+
+                    s.setAssertions(assertions);
+                }
+
+                // Clear scenario execution results
+                s.setResultCsv(null);
+                s.setScreenshots(null);
+                s.setScenarioStatus(null);
+
+                s.setCreatedAt(oldScenario.getCreatedAt());
+                s.setUpdatedAt(Instant.now());
+
+                freshScenarios.add(s);
             }
-
-            // do not set these old result fields at all
-            // s.setScenarioStatus(null);
-            // s.setResultCsv(null);
-
-            s.setCreatedAt(oldScenario.getCreatedAt());
-            s.setUpdatedAt(new Date().toInstant());
-
-            freshScenarios.add(s);
         }
 
         freshRun.setScenariosList(freshScenarios);
 
         return runRepository.save(freshRun);
+    }
+    private AssertionDto resetAssertion(AssertionDto old) {
+
+        return AssertionDto.builder()
+                .type(old.getType())
+                .locator(old.getLocator())
+                .expected(old.getExpected())
+                .columnName(old.getColumnName())
+                .tableId(old.getTableId())
+                .rowsBtn(old.getRowsBtn())
+                .order(old.getOrder())
+
+                // Clear execution results
+                .assertResult(null)
+                .errorMessage(null)
+                .reason(null)
+
+                .build();
+    }
+    private FilterScenarioDto resetFilter(FilterScenarioDto old) {
+
+        FilterScenarioDto filter = new FilterScenarioDto();
+
+        filter.setQuerySelector(old.getQuerySelector());
+        filter.setColumnName(old.getColumnName());
+        filter.setFilterType(old.getFilterType());
+        filter.setOperation(old.getOperation());
+        filter.setValue(old.getValue());
+
+        return filter;
     }
     private void assignScenarioIds(Run run) {
         if (run.getScenariosList() == null) return;
@@ -451,7 +500,7 @@ public class RunService {
                 .columnName(a.getColumnName())
                 .tableId(a.getTableId())
                 .rowsBtn(a.getRowsBtn())
-                .order(a.getOrder())   // ⚠️ THIS is your missing stability
+                .order(a.getOrder())
                 .build();
     }
 

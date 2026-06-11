@@ -27,7 +27,6 @@ public class RunResponse {
     private RunStatus status;
     private String runType;
     private int scenarioCount;
-    private boolean bulkRun;
 
     /**
      * Final assert message — lives on Run, passed as query param to runner.

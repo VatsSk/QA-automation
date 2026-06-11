@@ -19,7 +19,7 @@ public class RunResultsResponse {
     private String runName;
     private RunStatus runStatus;
     private int totalScenarios;
-    private Map<ScenarioStatus, Long> scenarioStatusCounts;
+    private Map<RunStatus, Long> scenarioStatusCounts;
     private List<String> allScreenshots;
     private List<String> allResultCsvs;
     /** resultStatement from the Run document */
