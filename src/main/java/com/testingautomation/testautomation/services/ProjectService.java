@@ -41,6 +41,14 @@ public class ProjectService {
         return mapper.toProjectResponse(findOrThrow(id));
     }
 
+    public ProjectResponse getLoginUrl(String id){
+        Project project =projectRepository.findLoginUrlById(id);
+        log.info("loginUrl :{} ",project.getLoginUrl());
+        ProjectResponse projectResponse = new ProjectResponse();
+        projectResponse.setLoginUrl(project.getLoginUrl());
+        return projectResponse;
+    }
+
     public ProjectResponse createProject(ProjectRequest request) {
         Project project = mapper.toProject(request);
         project.setCreatedAt(Instant.now());

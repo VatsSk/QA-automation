@@ -5,10 +5,14 @@ import com.testingautomation.testautomation.dto.requestDto.ProjectRequest;
 import com.testingautomation.testautomation.services.ProjectService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
 import java.util.List;
 
 @RestController
@@ -29,6 +33,11 @@ public class ProjectController {
     @GetMapping("/{id}")
     public ResponseEntity<ProjectResponse> getProject(@PathVariable String id) {
         return ResponseEntity.ok(projectService.getProjectById(id));
+    }
+
+    @GetMapping("/url/{id}")
+    public ResponseEntity<ProjectResponse> getLoginUrl(@PathVariable String id) {
+        return ResponseEntity.ok(projectService.getLoginUrl(id));
     }
 
     @PostMapping
