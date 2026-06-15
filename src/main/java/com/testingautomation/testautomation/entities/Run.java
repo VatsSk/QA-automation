@@ -51,7 +51,6 @@ public class Run {
     /** Optional run type label (e.g., "regression", "smoke") */
     private String runType;
 
-
     /** Count mirrors scenariosList.size() — kept for fast queries */
     private int scenarioCount;
 
@@ -70,7 +69,6 @@ public class Run {
      * Scenario.statement is text-indexed for search.
      */
     private List<Scenario> scenariosList;
-
 
     /** Freeform tags for filtering */
     private List<String> tags;
