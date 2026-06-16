@@ -310,15 +310,15 @@
               <div style="font-size:12px;opacity:0.7">Create tests using Defined Language syntax</div>
             </div>
           </button>
-<!--          <button class="btn btn-secondary btn-lg"-->
-<!--                  onclick="launchSmartRecorder()"-->
-<!--                  style="justify-content:flex-start;gap:12px">-->
-<!--            <span style="font-size:24px">📝</span>-->
-<!--            <div style="text-align:left">-->
-<!--              <div style="font-weight:600">Launch smart run recorder</div>-->
-<!--              <div style="font-size:12px;opacity:0.7">Create tests using web extension</div>-->
-<!--            </div>-->
-<!--          </button>-->
+          <button class="btn btn-secondary btn-lg"
+                  onclick="launchSmartRecorder()"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">📝</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Launch smart run recorder</div>
+              <div style="font-size:12px;opacity:0.7">Create tests using web extension</div>
+            </div>
+          </button>
         </div>
         <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
           <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -335,19 +335,49 @@
         closeModal();
         window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&mode=dl`;
     };
-    window.launchSmartRecorder = async function() {
-        const extensionId = "npkghjihpfafhealkocikaepfgpadpnf";
-        const response = await fetch(`/api/projects/url/${projectId}`);
+    // window.launchSmartRecorder = async function() {
+    //     const extensionId = "npkghjihpfafhealkocikaepfgpadpnf";
+    //     const response = await fetch(`/api/projects/url/${projectId}`);
+    //
+    //     if (!response.ok) {
+    //         throw new Error(`Failed to fetch project details: ${response.status}`);
+    //     }
+    //
+    //     const projectData = await response.json();
+    //
+    //     const loginUrl= projectData.loginUrl;
+    //     window.open(loginUrl, "_blank");
+    // }
 
-        if (!response.ok) {
-            throw new Error(`Failed to fetch project details: ${response.status}`);
-        }
+    window.launchSmartRecorder = async function () {
+        const response = await fetch(`/api/projects/url/${projectId}`);
+        if (!response.ok) throw new Error(`Failed to fetch project details: ${response.status}`);
 
         const projectData = await response.json();
+        const loginUrl = projectData.loginUrl;
 
-        const loginUrl= projectData.loginUrl;
-        window.open(loginUrl, "_blank");
-    }
+        const extensionId = "hcpgdicabbgbcnkijaphmmkbphbmciln";
+
+        console.log("inside launchsmart recorder")
+
+        chrome.runtime.sendMessage(
+            extensionId,
+            {
+                action: "START_RECORDING",
+                projectId,
+                moduleId,
+                createdBy:user.username
+            },
+            (res) => {
+                if (chrome.runtime.lastError) {
+                    console.error("Extension message failed:", chrome.runtime.lastError.message);
+                    return;
+                }
+                console.log("Extension ack:", res);
+                window.open(loginUrl, "_blank");
+            }
+        );
+    };
     window.viewRun   = id => window.location.href = `/run-detail.html?runId=${id}`;
     // window.editRun   = id => window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}`;
     window.editRun = function (id) {
