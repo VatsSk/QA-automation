@@ -6,7 +6,6 @@ import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.dto.ManageColumnItemDto;
 import com.testingautomation.testautomation.enums.RunStatus;
-import com.testingautomation.testautomation.enums.ScenarioStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -73,4 +72,9 @@ public class Scenario {
     private DateRangeNavDto dateRangeNavDto;
     private String saveBtnCss;
     private List<ManageColumnItemDto> columns;
+
+    private boolean isVerified;
+    private RunStatus verificationStatus;
+    private List<Verify> initialVerification;
+    private List<Verify> finalVerification;
 }

@@ -247,8 +247,9 @@ public class ScenarioOrchestratorService {
     public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
             , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) {
         List<FieldDescriptor> fields=null;
+
         try {
-           fields = scannerService.scanPage(current.getUrl(), driver);
+           fields = scannerService.scanPage(current.getUrl(), driver,current);
         } catch (Exception e) {
             throw new ScenarioExecutionException(
                     currScenarioIdx,
@@ -258,6 +259,7 @@ public class ScenarioOrchestratorService {
                     e
             );
         }
+        verifyScenarioPage(driver,current,current.getInitialVerification());
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO> testCases=null;
         try {
@@ -3434,5 +3436,121 @@ public class ScenarioOrchestratorService {
                 "Error occurred in FILTER_NAV at index"+currIdx+" ",
                 e);
     }
+    }
+
+
+    /**
+     * Verifies page elements for a scenario by running querySelector checks.
+     *
+     * <p>For each {@link Verify} item in the chosen verification list, this method
+     * executes {@code document.querySelector(cssSelector)} via JavaScript, retrieves
+     * the element's {@code textContent}, and compares it against the expected result.
+     * Each item's {@code status} and {@code message} are updated accordingly.</p>
+     *
+     * <p>After processing all items the scenario's {@code verificationStatus} is set to:
+     * <ul>
+     *   <li>{@code PASSED}  – every check matched</li>
+     *   <li>{@code FAILED}  – every check failed</li>
+     *   <li>{@code PARTIAL} – some passed, some failed</li>
+     * </ul>
+     *
+     * @param driver              the active Selenium WebDriver
+     * @param scenario            the scenario whose verification list to process
+     * @param verificationExtractor a function that extracts the desired verification list
+     *                             from the scenario (e.g. {@code Scenario::getInitialVerification}
+     *                             or {@code Scenario::getFinalVerification})
+     */
+    public void verifyScenarioPage(
+            WebDriver driver,
+            Scenario scenario,
+            List<Verify> verifications
+    ) {
+        // Short-circuit if already verified
+        if (scenario.isVerified()) {
+            logger.info("Scenario [{}] is already verified – skipping verification.", scenario.getId());
+            return;
+        }
+
+        if (verifications == null || verifications.isEmpty()) {
+            logger.info("Scenario [{}] has no verification items in the requested list – nothing to verify.",
+                    scenario.getId());
+            return;
+        }
+
+        logger.info("Scenario [{}] – starting page verification for {} items",
+                scenario.getId(), verifications.size());
+
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        int passCount = 0;
+        int failCount = 0;
+
+        for (Verify verify : verifications) {
+            String cssSelector = verify.getCssSelector();
+            String expected = verify.getExpectedResult();
+
+            if (cssSelector == null || cssSelector.isBlank()) {
+                verify.setStatus(false);
+                verify.setMessage("CSS selector is null or blank – cannot query element.");
+                failCount++;
+                logger.warn("Verification skipped – empty CSS selector. Expected: '{}'", expected);
+                continue;
+            }
+
+            try {
+                // Use document.querySelector to find the element and return its textContent
+                String actualText = (String) js.executeScript(
+                        "var el = document.querySelector(arguments[0]); "
+                        + "return el ? el.textContent.trim() : null;",
+                        cssSelector
+                );
+
+                if (actualText == null) {
+                    verify.setStatus(false);
+                    verify.setMessage(String.format(
+                            "Element not found for selector '%s'.", cssSelector));
+                    failCount++;
+                    logger.warn("Verification FAILED – element not found. Selector: '{}', Expected: '{}'",
+                            cssSelector, expected);
+                } else if (actualText.equals(expected)) {
+                    verify.setStatus(true);
+                    verify.setMessage(String.format(
+                            "Passed – text content matches. Expected: '%s', Actual: '%s'.",
+                            expected, actualText));
+                    passCount++;
+                    logger.info("Verification PASSED – Selector: '{}', Expected: '{}', Actual: '{}'",
+                            cssSelector, expected, actualText);
+                } else {
+                    verify.setStatus(false);
+                    verify.setMessage(String.format(
+                            "Failed – text content mismatch. Expected: '%s', Actual: '%s'.",
+                            expected, actualText));
+                    failCount++;
+                    logger.warn("Verification FAILED – Selector: '{}', Expected: '{}', Actual: '{}'",
+                            cssSelector, expected, actualText);
+                }
+            } catch (Exception e) {
+                verify.setStatus(false);
+                verify.setMessage(String.format(
+                        "Error while querying selector '%s': %s", cssSelector, e.getMessage()));
+                failCount++;
+                logger.error("Verification ERROR – Selector: '{}', Exception: {}",
+                        cssSelector, e.getMessage(), e);
+            }
+        }
+
+        // Determine overall verification status
+        if (passCount == verifications.size()) {
+            scenario.setVerificationStatus(RunStatus.PASSED);
+        } else if (failCount == verifications.size()) {
+            scenario.setVerificationStatus(RunStatus.FAILED);
+        } else {
+            scenario.setVerificationStatus(RunStatus.PARTIAL);
+        }
+
+        // Mark as verified so it won't re-run
+        scenario.setVerified(true);
+
+        logger.info("Scenario [{}] verification complete – Passed: {}, Failed: {}, Status: {}",
+                scenario.getId(), passCount, failCount, scenario.getVerificationStatus());
     }
 }

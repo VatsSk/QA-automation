@@ -1,11 +1,14 @@
 package com.testingautomation.testautomation.services;
 import com.testingautomation.testautomation.dto.FieldDescriptor;
+import com.testingautomation.testautomation.entities.Scenario;
 import io.github.bonigarcia.wdm.WebDriverManager;
 import org.openqa.selenium.*;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -13,6 +16,7 @@ import java.util.*;
 
 @Service
 public class UiScannerService {
+    Logger logger = LoggerFactory.getLogger(UiScannerService.class);
 
     public List<FieldDescriptor> scanPage(String url) {
         System.out.println("Scan Page");
@@ -105,7 +109,7 @@ public class UiScannerService {
         }
     }
 
-    public List<FieldDescriptor> scanPage(String url,WebDriver driver) {
+    public List<FieldDescriptor> scanPage(String url, WebDriver driver, Scenario currScenario) {
         System.out.println("Scan Page overloaded");
         try {
             driver.get(url);
@@ -133,9 +137,8 @@ public class UiScannerService {
 
             /* 4️⃣ Small stability wait for JS frameworks (React/Angular/Vue etc.) */
             Thread.sleep(1500);
+            logger.info("Verification step");
 
-            System.out.println("wait is over");
-//            System.out.println("wait is over");
 
             JavascriptExecutor js = (JavascriptExecutor) driver;
 

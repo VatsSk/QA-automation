@@ -164,6 +164,7 @@ public class SeleniumExecutor {
                 }
             }else{
                 logger.info("Not a scenario whose result needs to be justified with success message and also doesn't have expected column!");
+
             }
 
         }
