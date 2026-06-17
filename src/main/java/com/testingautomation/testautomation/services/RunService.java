@@ -371,6 +371,8 @@ public class RunService {
                 s.setStatement(oldScenario.getStatement());
                 s.setClickCss(oldScenario.getClickCss());
                 s.setApplyFilterBtn(oldScenario.getApplyFilterBtn());
+                s.setColumns(oldScenario.getColumns());
+                s.setSaveBtnCss(oldScenario.getSaveBtnCss());
 
                 // Copy filters
                 if (oldScenario.getFilters() != null) {
