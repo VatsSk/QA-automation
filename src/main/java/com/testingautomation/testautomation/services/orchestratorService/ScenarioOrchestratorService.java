@@ -22,6 +22,7 @@ import com.testingautomation.testautomation.services.screenShotsService.Screensh
 import com.testingautomation.testautomation.utils.TimestampUtil;
 import lombok.RequiredArgsConstructor;
 import org.openqa.selenium.*;
+import org.openqa.selenium.TimeoutException;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -339,14 +340,14 @@ public class ScenarioOrchestratorService {
             int currIdx,
             int modalFormTcIdx,
             Path navigationScreenshotDir,
-            String scenarioPrefix
+            String scenarioPrefix,
+            Map<String, List<TestCaseDTO>> scenarioResultsMap
     ) {
         try {
             return switch (currScenario.getType()) {
                 case URL_NAV -> {
                     urlNavigation(
                             currScenario,
-                            scenario,
                             driver,
                             modalFormTcIdx,
                             navigationScreenshotDir,
@@ -408,7 +409,7 @@ public class ScenarioOrchestratorService {
                     yield currIdx;
                 }
                 case MANAGE_COL_NAV -> {
-                    handleManageColumnScenario(currIdx, driver, wait, currScenario);
+                    handleManageColumnScenario(currIdx, driver, wait, currScenario,resultTestCase,scenarioPrefix,navigationScreenshotDir,scenarioResultsMap);
                     yield currIdx;
                 }
                 case ROW_COUNT_NAV -> {
@@ -490,7 +491,8 @@ public class ScenarioOrchestratorService {
                         currIdx,
                         modalFormTcIdx,
                         navigationScreenshotDir,
-                        scenarioPrefix
+                        scenarioPrefix,
+                        scenarioResultsMap
                 );
             }
             catch (ScenarioExecutionException ex) {
@@ -509,6 +511,7 @@ public class ScenarioOrchestratorService {
                 screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
                 throw ex;
             }
+            if(currScenario.getType()!=ScenarioType.MANAGE_COL_NAV){
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
 
@@ -518,7 +521,8 @@ public class ScenarioOrchestratorService {
                         scenarioResultsMap.get(scenarioPrefix).size());
                 logger.info("Current status of map: {}",scenarioResultsMap.get(scenarioPrefix));
 
-            run.getScenariosList().set(currIdx, scenario);
+            }
+//            run.getScenariosList().set(currIdx, scenario);
 
             currIdx++;
         }
@@ -1506,7 +1510,6 @@ public class ScenarioOrchestratorService {
     }
 
     private void urlNavigation(Scenario currScenario,
-                               Scenario scenario,
                                WebDriver driver,
                                int modalFormTcIdx,
                                Path navigationScreenshotDir,
@@ -1524,7 +1527,7 @@ public class ScenarioOrchestratorService {
                   scenarioPrefix
           );
 
-          scenario.setScenarioStatus(RunStatus.PASSED);
+          currScenario.setScenarioStatus(RunStatus.PASSED);
           resultTestCase.setResult("Passed");
       }  catch (WebDriverException | IllegalArgumentException e) {
 
@@ -2382,7 +2385,12 @@ public class ScenarioOrchestratorService {
             int currIdx,
             WebDriver driver,
             WebDriverWait wait,
-            Scenario currScenario
+            Scenario currScenario,
+            TestCaseDTO resultTestCase,
+            String scenarioPrefix,
+            Path navigationScreenshotDir,
+            Map<String, List<TestCaseDTO>> scenarioResultsMap
+
     )  {
     try {
         logger.info("===== START : handleManageColumnScenario =====");
@@ -2397,23 +2405,41 @@ public class ScenarioOrchestratorService {
             return;
         }
 
-        for (ManageColumnItemDto column : targetColumns) {
+        int counter=1;
+        List<TestCaseDTO> testDtos = new ArrayList<>();
 
+        for (ManageColumnItemDto column : targetColumns) {
+            int step=1;
             String columnSelector = column.getColumnName();
             Integer position = column.getPosition();
             ManageColumnAction action = column.getAction();
+            Map<String, String> valuesMap = new LinkedHashMap<>();
+            valuesMap.put("columnName", columnSelector);
+            valuesMap.put("action", action != null ? action.name() : "");
+            valuesMap.put("position",
+                    position != null ? String.valueOf(position) : "");
+            TestCaseDTO testCase = new TestCaseDTO(
+                    String.valueOf(counter),   // testcaseId = 1, 2, 3...
+                    valuesMap
+            );
+            testCase.setExpectedResult("Passed");
 
 
             logger.info(
                     "Processing columnSelector={}, action={}, position={}",
                     columnSelector, action, position
             );
+            WebElement label=null;
+            try{
+                label = wait.until(
+                        ExpectedConditions.presenceOfElementLocated(
+                                By.cssSelector(columnSelector)
+                        )
+                );
+            }catch(TimeoutException ex){
+                throw new ScenarioExecutionException(currIdx,currScenario.getType(),"MANAGE_COLUMN","element with this "+columnSelector+" is not found" ,ex);
+            }
 
-            WebElement label = wait.until(
-                    ExpectedConditions.presenceOfElementLocated(
-                            By.cssSelector(columnSelector)
-                    )
-            );
             String extractedColumn = label.getText().trim();
             column.setExtractedName(extractedColumn);
 
@@ -2441,9 +2467,20 @@ public class ScenarioOrchestratorService {
 
                     Thread.sleep(300);
                 }
+                screenshotService.takeScreenshot(
+                        driver,
+                        counter+"",
+                        "step_" + (step++),
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
+                counter++;
+                testCase.setResult("Passed");
+                testDtos.add(testCase);
 
                 continue; // no move allowed for hidden columns
             }
+
 
             /*
              * SHOW or NULL => ensure visible
@@ -2457,6 +2494,13 @@ public class ScenarioOrchestratorService {
 
                 Thread.sleep(300);
             }
+            screenshotService.takeScreenshot(
+                    driver,
+                    counter+"",
+                    "step_" + (step++),
+                    navigationScreenshotDir,
+                    scenarioPrefix
+            );
 
             /*
              * =========================
@@ -2474,7 +2518,18 @@ public class ScenarioOrchestratorService {
                 );
 
                 moveManageColumn(driver, columnTitle, position);
+                screenshotService.takeScreenshot(
+                        driver,
+                        counter+"",
+                        "step_" + (step++),
+                        navigationScreenshotDir,
+                        scenarioPrefix
+                );
             }
+            counter++;
+            testCase.setResult("Passed");
+            testDtos.add(testCase);
+
         }
 
 //     Click save
@@ -2488,16 +2543,41 @@ public class ScenarioOrchestratorService {
                 .executeScript("arguments[0].click();", saveBtn);
 
         Thread.sleep(1500);
+        resultTestCase.setResult("Passed");
+        currScenario.setScenarioStatus(RunStatus.PASSED);
 
         logger.info("===== END : handleManageColumnScenario =====");
+//        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
+//        try {
+//            Files.createDirectories(scenarioDir);
+//        } catch (IOException e) {
+//            logger.error("Failed to create scenario directory: {}", scenarioPrefix, e);
+//        }
+//        try {
+//            Path csvPath = csvLoader.writeScenarioCsv(testDtos,scenarioDir);
+//            String s3Key = scenarioPrefix;
+//            String finalCsvUrl = s3StorageService.uploadFile(csvPath, s3Key);
+//            currScenario.setResultCsv(finalCsvUrl);
+//        } catch (Exception e) {
+//            logger.error("exception encountered "+ e.getMessage());
+//            throw new ScenarioExecutionException(
+//                    currIdx,
+//                    currScenario.getType(),
+//                    "Problem while uploading csv to s3",
+//                    "Unable to load assertion results",
+//                    e
+//            );
+//        }
+        logger.info("list of columns : {}",testDtos);
+        scenarioResultsMap.put(scenarioPrefix,testDtos);
+
     } catch (Exception e) {
+        resultTestCase.setResult("Failed");
+        currScenario.setScenarioStatus(RunStatus.FAILED);
         throw new ScenarioExecutionException(
                 currIdx,
                 currScenario.getType(),
-                "MANAGE_COLUMN",
-                String.format(
-                        "Exception occured"+e.getMessage()
-                ),
+                "MANAGE_COLUMN", e.getMessage(),
                 e
         );
     }
