@@ -18,7 +18,7 @@ public interface ProjectRepository extends MongoRepository<Project, String> {
 
     @Query(
             value = "{'_id': ?0}",
-            fields = "{'_id' : 0,'loginUrl': 1}"
+            fields = "{'_id' : 0,'loginUrl': 1,'loginCredS3Path': 1}"
     )
     Project findLoginUrlById(String projectId);
 

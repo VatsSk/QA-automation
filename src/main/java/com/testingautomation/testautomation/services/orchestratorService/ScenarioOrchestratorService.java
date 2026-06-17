@@ -264,10 +264,10 @@ public class ScenarioOrchestratorService {
         }catch (Exception e) {
             logger.error("Error while loading testcases from s3", e);
             throw new ScenarioExecutionException(
-                    currScenarioIdx,
+                     currScenarioIdx,
                     current.getType(),
                     "UNABLE_TO_LOAD_CSV_FILE",
-                    "Unable to laod csv file ",
+                    "Unable to load csv file ",
                     e
             );
         }

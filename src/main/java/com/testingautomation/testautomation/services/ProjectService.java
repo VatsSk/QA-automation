@@ -46,6 +46,7 @@ public class ProjectService {
         log.info("loginUrl :{} ",project.getLoginUrl());
         ProjectResponse projectResponse = new ProjectResponse();
         projectResponse.setLoginUrl(project.getLoginUrl());
+        projectResponse.setLoginCredS3Path(project.getLoginCredS3Path());
         return projectResponse;
     }
 

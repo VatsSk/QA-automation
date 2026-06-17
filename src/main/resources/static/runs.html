@@ -66,7 +66,7 @@
 
     window.toggleTheme = toggleTheme;
 
-    const user = requireLogin();
+const user = requireLogin();
     if (!user) throw new Error('not logged in');
 
     initTheme();
@@ -355,8 +355,9 @@
 
         const projectData = await response.json();
         const loginUrl = projectData.loginUrl;
+        const loginCredPath=projectData.loginCredS3Path;
 
-        const extensionId = "hcpgdicabbgbcnkijaphmmkbphbmciln";
+        const extensionId = "fjgbpokpijddcggkndgcnmmkignmfpnk";
 
         console.log("inside launchsmart recorder")
 
@@ -366,7 +367,9 @@
                 action: "START_RECORDING",
                 projectId,
                 moduleId,
-                createdBy:user.username
+                createdBy:user.username,
+                url:loginUrl,
+                csvPath:loginCredPath
             },
             (res) => {
                 if (chrome.runtime.lastError) {
