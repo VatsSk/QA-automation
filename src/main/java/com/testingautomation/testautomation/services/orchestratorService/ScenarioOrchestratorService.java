@@ -259,6 +259,7 @@ public class ScenarioOrchestratorService {
                     e
             );
         }
+//        verifyScenarioPage(driver,current,current.getInitialVerification());
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO> testCases=null;
         try {
@@ -353,7 +354,8 @@ public class ScenarioOrchestratorService {
                             modalFormTcIdx,
                             navigationScreenshotDir,
                             scenarioPrefix,
-                            resultTestCase
+                            resultTestCase,
+                            scenarioResultsMap
                     );
                     yield currIdx;
                 }
@@ -1515,7 +1517,8 @@ public class ScenarioOrchestratorService {
                                int modalFormTcIdx,
                                Path navigationScreenshotDir,
                                String scenarioPrefix,
-                               TestCaseDTO resultTestCase) {
+                               TestCaseDTO resultTestCase,
+                               Map<String, List<TestCaseDTO>> scenarioResultsMap) {
       try {
           logger.info("Navigating to URL: {}", currScenario.getUrl());
 
@@ -1527,9 +1530,9 @@ public class ScenarioOrchestratorService {
                   navigationScreenshotDir,
                   scenarioPrefix
           );
-
+          List<Verify> afterVerifications=currScenario.getFinalVerify();
+          verifyScenarioPage(driver,currScenario,afterVerifications,resultTestCase,currScenario.getFinalVerifyResultMap(),false);
           currScenario.setScenarioStatus(RunStatus.PASSED);
-          resultTestCase.setResult("Passed");
       }  catch (WebDriverException | IllegalArgumentException e) {
 
           String reason = e.getMessage() != null
@@ -1894,6 +1897,8 @@ public class ScenarioOrchestratorService {
         // store modal scenario testcases in memory grouped by scenarioPrefix
         scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                 .addAll(testCases);
+
+
 
         logger.info("[{}] Stored {} modal testcases in scenarioResultsMap",
                 scenarioPrefix, testCases.size());
@@ -3463,15 +3468,16 @@ public class ScenarioOrchestratorService {
             WebDriver driver,
             Scenario scenario,
             List<Verify> verifications,
-            Map<Integer,List<Verify>> getInitialVerifyResultMap
+            TestCaseDTO resultTestCase,
+            Map<Integer,List<Verify>> verificationResultMap,boolean isInitial
     ) {
-        // Short-circuit if already verified
 
         if (verifications == null || verifications.isEmpty()) {
             logger.info("Scenario [{}] has no verification items in the requested list – nothing to verify.",
                     scenario.getId());
             return;
         }
+        Map<String,String> values=resultTestCase.getValues();
 
         logger.info("Scenario [{}] – starting page verification for {} items",
                 scenario.getId(), verifications.size());
@@ -3479,8 +3485,9 @@ public class ScenarioOrchestratorService {
         JavascriptExecutor js = (JavascriptExecutor) driver;
         int passCount = 0;
         int failCount = 0;
-//        List<Verify> verifyResult;
-        for (Verify verify : verifications) {
+
+        List<Verify> loopVerification=new ArrayList<>(verifications);
+        for (Verify verify : loopVerification) {
             String cssSelector = verify.getCssSelector();
             String expected = verify.getExpectedResult();
 
@@ -3532,20 +3539,33 @@ public class ScenarioOrchestratorService {
                 logger.error("Verification ERROR – Selector: '{}', Exception: {}",
                         cssSelector, e.getMessage(), e);
             }
-
         }
-
-        // Determine overall verification status
-        if (passCount == verifications.size()) {
-            scenario.setVerificationStatus(RunStatus.PASSED);
-        } else if (failCount == verifications.size()) {
-            scenario.setVerificationStatus(RunStatus.FAILED);
-        } else {
-            scenario.setVerificationStatus(RunStatus.PARTIAL);
+        verificationResultMap.put(Integer.parseInt(resultTestCase.getTestcaseId()),loopVerification);
+        if(isInitial){
+            // Determine overall verification status
+            if (passCount == verifications.size()) {
+                values.put("verificationStatus","Passed");
+            } else {
+                values.put("verificationStatus","Failed");
+            }
+        }else{
+            if (passCount == verifications.size()) {
+               resultTestCase.setResult("Passed");
+               if(scenario.getScenarioStatus() == RunStatus.DRAFT ){
+                   scenario.setScenarioStatus(RunStatus.PASSED);
+               }else if(scenario.getScenarioStatus()==RunStatus.FAILED){
+                   scenario.setScenarioStatus(RunStatus.PARTIAL);
+               }
+            } else {
+                resultTestCase.setResult("Failed");
+                if(scenario.getScenarioStatus()==RunStatus.PASSED){
+                    scenario.setScenarioStatus(RunStatus.PARTIAL);
+                }else if(scenario.getScenarioStatus()==RunStatus.DRAFT){
+                    scenario.setScenarioStatus(RunStatus.FAILED);
+                }
+            }
+//            if (failCount == verifications.size())
         }
-
-        // Mark as verified so it won't re-run
-        scenario.setVerified(true);
 
         logger.info("Scenario [{}] verification complete – Passed: {}, Failed: {}, Status: {}",
                 scenario.getId(), passCount, failCount, scenario.getVerificationStatus());
