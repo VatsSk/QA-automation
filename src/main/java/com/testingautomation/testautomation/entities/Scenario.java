@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Embedded document inside Run.scenariosList.
@@ -73,8 +74,9 @@ public class Scenario {
     private String saveBtnCss;
     private List<ManageColumnItemDto> columns;
 
-    private boolean isVerified;
     private RunStatus verificationStatus;
-    private List<Verify> initialVerification;
-    private List<Verify> finalVerification;
+    private List<Verify> initialVerify;
+    private List<Verify> finalVerify;
+    private Map<Integer ,List<Verify>> initialVerifyResultMap;
+    private Map<Integer ,List<Verify>> finalVerifyResultMap;
 }

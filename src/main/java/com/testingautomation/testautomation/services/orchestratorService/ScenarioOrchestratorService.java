@@ -259,7 +259,6 @@ public class ScenarioOrchestratorService {
                     e
             );
         }
-        verifyScenarioPage(driver,current,current.getInitialVerification());
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO> testCases=null;
         try {
@@ -286,7 +285,7 @@ public class ScenarioOrchestratorService {
 
         // 3) for each testcase -> generate steps & run
         for (TestCaseDTO tc : testCases) {
-            System.out.println("Test case "+ tc);
+//            System.out.println("Test case "+ tc);
 
             String tcRunId =tc.getTestcaseId();
             try {
@@ -296,7 +295,7 @@ public class ScenarioOrchestratorService {
                 logger.info("[{}] Executing {} steps", tcRunId, steps.size());
                 String expected = tc.getExpectedResult();
                 logger.info("EXPECTED results are : {}",expected);
-                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected,scenarioSize,currScenarioIdx);
+                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected,scenarioSize,currScenarioIdx,current);
                 if (expected != null) {
                     if(expected.equalsIgnoreCase(runResult.getStatus()) ){
                         tc.setResult("Passed");
@@ -3456,20 +3455,17 @@ public class ScenarioOrchestratorService {
      *
      * @param driver              the active Selenium WebDriver
      * @param scenario            the scenario whose verification list to process
-     * @param verificationExtractor a function that extracts the desired verification list
+//     * @param verificationExtractor a function that extracts the desired verification list
      *                             from the scenario (e.g. {@code Scenario::getInitialVerification}
      *                             or {@code Scenario::getFinalVerification})
      */
     public void verifyScenarioPage(
             WebDriver driver,
             Scenario scenario,
-            List<Verify> verifications
+            List<Verify> verifications,
+            Map<Integer,List<Verify>> getInitialVerifyResultMap
     ) {
         // Short-circuit if already verified
-        if (scenario.isVerified()) {
-            logger.info("Scenario [{}] is already verified – skipping verification.", scenario.getId());
-            return;
-        }
 
         if (verifications == null || verifications.isEmpty()) {
             logger.info("Scenario [{}] has no verification items in the requested list – nothing to verify.",
@@ -3483,7 +3479,7 @@ public class ScenarioOrchestratorService {
         JavascriptExecutor js = (JavascriptExecutor) driver;
         int passCount = 0;
         int failCount = 0;
-
+//        List<Verify> verifyResult;
         for (Verify verify : verifications) {
             String cssSelector = verify.getCssSelector();
             String expected = verify.getExpectedResult();
@@ -3536,6 +3532,7 @@ public class ScenarioOrchestratorService {
                 logger.error("Verification ERROR – Selector: '{}', Exception: {}",
                         cssSelector, e.getMessage(), e);
             }
+
         }
 
         // Determine overall verification status

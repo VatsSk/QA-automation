@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.services.executorService;
 
+import com.testingautomation.testautomation.services.orchestratorService.ScenarioOrchestratorService;
 import org.openqa.selenium.interactions.Actions;
 import java.time.Duration;
 import com.testingautomation.testautomation.dto.*;
@@ -45,14 +46,16 @@ public class SeleniumExecutor {
     private final LLMServices lLMServices;
     private final AIScreenshotService aiScreenshotService;
     private final TableSawService tableSawService;
+    private final ScenarioOrchestratorService scenarioOrchestratorService;
 
-    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, LLMServices lLMServices, AIScreenshotService aiScreenshotService, TableSawService tableSawService) {
+    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, LLMServices lLMServices, AIScreenshotService aiScreenshotService, TableSawService tableSawService, ScenarioOrchestratorService scenarioOrchestratorService) {
         this.resultsBaseDir = env.getProperty("autotest.results.base-dir", "./test-results");
         this.screenshotOnStep = Boolean.parseBoolean(env.getProperty("autotest.screenshot-on-step", "false"));
         this.screenshotService = screenshotService;
         this.lLMServices = lLMServices;
         this.aiScreenshotService = aiScreenshotService;
         this.tableSawService = tableSawService;
+        this.scenarioOrchestratorService = scenarioOrchestratorService;
     }
 
     /**
@@ -61,7 +64,8 @@ public class SeleniumExecutor {
      * containing results.csv and screenshots/.
      */
     public ResultRun run(WebDriver driver1, String startUrl, List<StepAction> steps, String testCaseId,
-                         String successMsg, Path scenarioDir, String scenarioPrefix,String expectedResult,int scenarioSize,int currScenarioIdx) {
+                         String successMsg, Path scenarioDir, String scenarioPrefix,String expectedResult,int scenarioSize,int currScenarioIdx,
+                         Scenario currScenario) {
         List<String> screenshotUrls = new ArrayList<>();
 
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));
@@ -89,6 +93,7 @@ public class SeleniumExecutor {
             driver1.get(startUrl);
 
             waitForPageToRender(driver1);
+            scenarioOrchestratorService.verifyScenarioPage(driver1,currScenario,currScenario.getInitialVerify(),currScenario.getInitialVerifyResultMap());
             logger.info("[{}] Page loaded: {}", testCaseId, driver1.getCurrentUrl());
             for (StepAction s : steps) {
                 stepNo++;
