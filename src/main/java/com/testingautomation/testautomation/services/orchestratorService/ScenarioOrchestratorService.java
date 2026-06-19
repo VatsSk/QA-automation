@@ -309,7 +309,6 @@ public class ScenarioOrchestratorService {
                     tc.setResult("Expected result not given !");
                     totalPasses++;
                 }
-                tc.setUrls(runResult.getScreenshots());
                 logger.info("[{}] Completed testcase {}", tcRunId, tc);
             } catch (Exception e) {
                 logger.error("[{}] testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
@@ -354,8 +353,7 @@ public class ScenarioOrchestratorService {
                             modalFormTcIdx,
                             navigationScreenshotDir,
                             scenarioPrefix,
-                            resultTestCase,
-                            scenarioResultsMap
+                            resultTestCase
                     );
                     yield currIdx;
                 }
@@ -363,7 +361,6 @@ public class ScenarioOrchestratorService {
                     handleModalNav(
                             driver,
                             currScenario,
-                            scenario,
                             resultTestCase,
                             modalFormTcIdx,
                             navigationScreenshotDir,
@@ -413,6 +410,7 @@ public class ScenarioOrchestratorService {
                 }
                 case MANAGE_COL_NAV -> {
                     handleManageColumnScenario(currIdx, driver, wait, currScenario,resultTestCase,scenarioPrefix,navigationScreenshotDir,scenarioResultsMap);
+
                     yield currIdx;
                 }
                 case ROW_COUNT_NAV -> {
@@ -497,6 +495,7 @@ public class ScenarioOrchestratorService {
                         scenarioPrefix,
                         scenarioResultsMap
                 );
+
             }
             catch (ScenarioExecutionException ex) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
@@ -514,7 +513,6 @@ public class ScenarioOrchestratorService {
                 screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
                 throw ex;
             }
-            if(currScenario.getType()!=ScenarioType.MANAGE_COL_NAV){
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
 
@@ -524,7 +522,6 @@ public class ScenarioOrchestratorService {
                         scenarioResultsMap.get(scenarioPrefix).size());
                 logger.info("Current status of map: {}",scenarioResultsMap.get(scenarioPrefix));
 
-            }
 //            run.getScenariosList().set(currIdx, scenario);
 
             currIdx++;
@@ -556,6 +553,9 @@ public class ScenarioOrchestratorService {
             // =====================================================
 
             String openerSelector = currScenario.getCssOpener();
+            Map<String,String> values=resultTestCase.getValues();
+            values.put("cssOpener",openerSelector);
+            values.put("value",currScenario.getValue());
 
             if (openerSelector == null || openerSelector.isBlank()) {
                 throw new ScenarioExecutionException(
@@ -746,8 +746,7 @@ public class ScenarioOrchestratorService {
             // SUCCESS
             // =====================================================
 
-            currScenario.setScenarioStatus(RunStatus.PASSED);
-            resultTestCase.setResult("Passed");
+            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
         }
         catch (ScenarioExecutionException ex) {
             throw ex;
@@ -803,11 +802,23 @@ public class ScenarioOrchestratorService {
 
         try {
 
+
             // =====================================================
             // VALIDATE CONFIG
             // =====================================================
 
             DateRangeNavDto dateRange = currScenario.getDateRangeNavDto();
+            Map<String,String> values = resultTestCase.getValues();
+            values.put("input selector", String.valueOf(dateRange.getInputSelector()));
+            values.put("selection type", String.valueOf(dateRange.getSelectionType()));
+            values.put("preset", String.valueOf(dateRange.getPreset()));
+            values.put("start date", String.valueOf(dateRange.getStartDate()));
+            values.put("end date", String.valueOf(dateRange.getEndDate()));
+            values.put("start time", String.valueOf(dateRange.getStartTime()));
+            values.put("end time", String.valueOf(dateRange.getEndTime()));
+            values.put("apply button selector", String.valueOf(dateRange.getApplyButtonSelector()));
+            values.put("calendar container selector", String.valueOf(dateRange.getCalendarContainerSelector()));
+            values.put("date format", String.valueOf(dateRange.getDateFormat()));
 
             if (dateRange == null) {
                 throw new ScenarioExecutionException(
@@ -1240,9 +1251,7 @@ public class ScenarioOrchestratorService {
             // =====================================================
             // SUCCESS
             // =====================================================
-
-            scenario.setScenarioStatus(RunStatus.PASSED);
-            resultTestCase.setResult("Passed");
+            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
         }
         catch (ScenarioExecutionException ex) {
             throw ex;
@@ -1267,7 +1276,6 @@ public class ScenarioOrchestratorService {
             Scenario scenario,
             int modalFormTcIdx
     ) {
-
         try {
 
             // =====================================================
@@ -1403,13 +1411,8 @@ public class ScenarioOrchestratorService {
             // SUCCESS FLOW
             // =====================================================
 
-            scenario.setScenarioStatus(
-                    RunStatus.PASSED
-            );
+            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
 
-            resultTestCase.setResult(
-                    "Passed"
-            );
 
             logger.info(
                     "Modal testcase '{}' executed successfully",
@@ -1434,8 +1437,7 @@ public class ScenarioOrchestratorService {
         }
     }
 
-    private void handleModalNav(WebDriver driver, Scenario currScenario, Scenario scenario, TestCaseDTO resultTestCase, int modalFormTcIdx, Path navigationScreenshotDir, String scenarioPrefix) {
-
+    private void handleModalNav(WebDriver driver, Scenario currScenario, TestCaseDTO resultTestCase, int modalFormTcIdx, Path navigationScreenshotDir, String scenarioPrefix) {
 
         logger.info("Opening modal using selector: {}", currScenario.getCssOpener());
         By openerBy;
@@ -1485,7 +1487,7 @@ public class ScenarioOrchestratorService {
                     logger.info("Unable to click "+ex.getMessage().split("\n")[0]);
 
                     throw new GlobalExceptionHandler.ScenarioExecutionException(
-                            scenario.getSequenceNo(),
+                            currScenario.getSequenceNo(),
                             currScenario.getType(),
                             "OPEN_MODAL",
                             String.format(
@@ -1508,8 +1510,7 @@ public class ScenarioOrchestratorService {
 
         logger.info("Modal opener clicked successfully");
 
-        scenario.setScenarioStatus(RunStatus.PASSED);
-        resultTestCase.setResult("Passed");
+        verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
     }
 
     private void urlNavigation(Scenario currScenario,
@@ -1517,8 +1518,7 @@ public class ScenarioOrchestratorService {
                                int modalFormTcIdx,
                                Path navigationScreenshotDir,
                                String scenarioPrefix,
-                               TestCaseDTO resultTestCase,
-                               Map<String, List<TestCaseDTO>> scenarioResultsMap) {
+                               TestCaseDTO resultTestCase) {
       try {
           logger.info("Navigating to URL: {}", currScenario.getUrl());
 
@@ -1867,7 +1867,6 @@ public class ScenarioOrchestratorService {
                     tc.setResult(resultRun.getStatus());
                     totalFails++;
                 }
-                tc.setUrls(resultRun.getScreenshots());
                 if(counterIdx<testCases.size())
                     try {
                         handleNavigation(driver, scenarios, currIdx, counterIdx, baseS3Prefix, run, scenarioResultsMap);
@@ -2145,6 +2144,8 @@ public class ScenarioOrchestratorService {
         // =========================
 
         List<FieldDescriptor> fields = scannerService.scanCurrentPage(driver);
+        verifyScenarioPage(driver,scenario,scenario.getInitialVerify(),tc,scenario.getInitialVerifyResultMap(),true);
+
 
         // create steps from fields + testcase
         List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
@@ -2398,75 +2399,94 @@ public class ScenarioOrchestratorService {
             Map<String, List<TestCaseDTO>> scenarioResultsMap
 
     )  {
-    try {
-        logger.info("===== START : handleManageColumnScenario =====");
+        try {
+            logger.info("===== START : handleManageColumnScenario =====");
 
-        List<ManageColumnItemDto> targetColumns =
-                currScenario.getColumns();
+            List<ManageColumnItemDto> targetColumns =
+                    currScenario.getColumns();
 
-        logger.info("Fetched target columns: {}", targetColumns);
+            logger.info("Fetched target columns: {}", targetColumns);
 
-        if (targetColumns == null || targetColumns.isEmpty()) {
-            logger.info("No target columns found. Exiting.");
-            return;
-        }
-
-        int counter=1;
-        List<TestCaseDTO> testDtos = new ArrayList<>();
-
-        for (ManageColumnItemDto column : targetColumns) {
-            int step=1;
-            String columnSelector = column.getColumnName();
-            Integer position = column.getPosition();
-            ManageColumnAction action = column.getAction();
-            Map<String, String> valuesMap = new LinkedHashMap<>();
-            valuesMap.put("columnName", columnSelector);
-            valuesMap.put("action", action != null ? action.name() : "");
-            valuesMap.put("position",
-                    position != null ? String.valueOf(position) : "");
-            TestCaseDTO testCase = new TestCaseDTO(
-                    String.valueOf(counter),   // testcaseId = 1, 2, 3...
-                    valuesMap
-            );
-            testCase.setExpectedResult("Passed");
-
-
-            logger.info(
-                    "Processing columnSelector={}, action={}, position={}",
-                    columnSelector, action, position
-            );
-            WebElement label=null;
-            try{
-                label = wait.until(
-                        ExpectedConditions.presenceOfElementLocated(
-                                By.cssSelector(columnSelector)
-                        )
-                );
-            }catch(TimeoutException ex){
-                throw new ScenarioExecutionException(currIdx,currScenario.getType(),"MANAGE_COLUMN","element with this "+columnSelector+" is not found" ,ex);
+            if (targetColumns == null || targetColumns.isEmpty()) {
+                logger.info("No target columns found. Exiting.");
+                return;
             }
 
-            String extractedColumn = label.getText().trim();
-            column.setExtractedName(extractedColumn);
+            int counter=1;
+            int stepCount=1;
+            Map<String,String> values=resultTestCase.getValues();
+            for (ManageColumnItemDto column : targetColumns) {
 
-            logger.info("Extracted column name: {}", extractedColumn);
+                int step=1;
+                String columnSelector = column.getColumnName();
+                Integer position = column.getPosition();
+                ManageColumnAction action = column.getAction();
+                String columnInfo =
+                        "columnName=" + columnSelector +
+                                "/action=" + action +
+                                "/position=" + position;
+                values.put("column-"+counter,columnInfo);
 
-            String forAttr = label.getAttribute("for");
+                logger.info(
+                        "Processing columnSelector={}, action={}, position={}",
+                        columnSelector, action, position
+                );
+                WebElement label=null;
+                try{
+                    label = wait.until(
+                            ExpectedConditions.presenceOfElementLocated(
+                                    By.cssSelector(columnSelector)
+                            )
+                    );
+                }catch(TimeoutException ex){
+                    throw new ScenarioExecutionException(currIdx,currScenario.getType(),"MANAGE_COLUMN","element with this "+columnSelector+" is not found" ,ex);
+                }
 
-            WebElement checkbox = driver.findElement(By.id(forAttr));
+                String extractedColumn = label.getText().trim();
+                column.setExtractedName(extractedColumn);
 
-            boolean isSelected = checkbox.isSelected();
+                logger.info("Extracted column name: {}", extractedColumn);
 
-            /*
-             * =========================
-             * HANDLE ACTION
-             * =========================
-             */
-            if (action == ManageColumnAction.HIDE) {
+                String forAttr = label.getAttribute("for");
 
-                if (isSelected) {
+                WebElement checkbox = driver.findElement(By.id(forAttr));
 
-                    logger.info("Hiding column: {}", columnSelector);
+                boolean isSelected = checkbox.isSelected();
+
+                /*
+                 * =========================
+                 * HANDLE ACTION
+                 * =========================
+                 */
+                if (action == ManageColumnAction.HIDE) {
+
+                    if (isSelected) {
+
+                        logger.info("Hiding column: {}", columnSelector);
+
+                        ((JavascriptExecutor) driver)
+                                .executeScript("arguments[0].click();", checkbox);
+
+                        Thread.sleep(300);
+                    }
+                    screenshotService.takeScreenshot(
+                            driver,
+                            resultTestCase.getTestcaseId(),
+                            "step_" + (stepCount++),
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                    counter++;
+                    continue; // no move allowed for hidden columns
+                }
+
+
+                /*
+                 * SHOW or NULL => ensure visible
+                 */
+                if (!isSelected) {
+
+                    logger.info("Ensuring column is visible: {}", columnSelector);
 
                     ((JavascriptExecutor) driver)
                             .executeScript("arguments[0].click();", checkbox);
@@ -2475,118 +2495,65 @@ public class ScenarioOrchestratorService {
                 }
                 screenshotService.takeScreenshot(
                         driver,
-                        counter+"",
-                        "step_" + (step++),
+                        resultTestCase.getTestcaseId(),
+                        "step_" + (stepCount++),
                         navigationScreenshotDir,
                         scenarioPrefix
                 );
+
+                /*
+                 * =========================
+                 * HANDLE POSITION (MOVE)
+                 * =========================
+                 */
+                if (position != null) {
+
+                    String columnTitle = label.getText().trim();
+
+                    logger.info(
+                            "Moving column [{}] to position [{}]",
+                            columnTitle,
+                            position
+                    );
+
+                    moveManageColumn(driver, columnTitle, position);
+                    screenshotService.takeScreenshot(
+                            driver,
+                            resultTestCase.getTestcaseId(),
+                            "step_" + (stepCount++),
+                            navigationScreenshotDir,
+                            scenarioPrefix
+                    );
+                }
                 counter++;
-                testCase.setResult("Passed");
-                testDtos.add(testCase);
-
-                continue; // no move allowed for hidden columns
             }
 
-
-            /*
-             * SHOW or NULL => ensure visible
-             */
-            if (!isSelected) {
-
-                logger.info("Ensuring column is visible: {}", columnSelector);
-
-                ((JavascriptExecutor) driver)
-                        .executeScript("arguments[0].click();", checkbox);
-
-                Thread.sleep(300);
-            }
-            screenshotService.takeScreenshot(
-                    driver,
-                    counter+"",
-                    "step_" + (step++),
-                    navigationScreenshotDir,
-                    scenarioPrefix
+    //     Click save
+            WebElement saveBtn = wait.until(
+                    ExpectedConditions.elementToBeClickable(
+                            By.cssSelector(currScenario.getSaveBtnCss())
+                    )
             );
 
-            /*
-             * =========================
-             * HANDLE POSITION (MOVE)
-             * =========================
-             */
-            if (position != null) {
+            ((JavascriptExecutor) driver)
+                    .executeScript("arguments[0].click();", saveBtn);
 
-                String columnTitle = label.getText().trim();
+            Thread.sleep(1500);
+            resultTestCase.setResult("Passed");
+            currScenario.setScenarioStatus(RunStatus.PASSED);
 
-                logger.info(
-                        "Moving column [{}] to position [{}]",
-                        columnTitle,
-                        position
-                );
-
-                moveManageColumn(driver, columnTitle, position);
-                screenshotService.takeScreenshot(
-                        driver,
-                        counter+"",
-                        "step_" + (step++),
-                        navigationScreenshotDir,
-                        scenarioPrefix
-                );
-            }
-            counter++;
-            testCase.setResult("Passed");
-            testDtos.add(testCase);
-
+            logger.info("===== END : handleManageColumnScenario =====");
+            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+        } catch (Exception e) {
+            resultTestCase.setResult("Failed");
+            currScenario.setScenarioStatus(RunStatus.FAILED);
+            throw new ScenarioExecutionException(
+                    currIdx,
+                    currScenario.getType(),
+                    "MANAGE_COLUMN", e.getMessage(),
+                    e
+            );
         }
-
-//     Click save
-        WebElement saveBtn = wait.until(
-                ExpectedConditions.elementToBeClickable(
-                        By.cssSelector(currScenario.getSaveBtnCss())
-                )
-        );
-
-        ((JavascriptExecutor) driver)
-                .executeScript("arguments[0].click();", saveBtn);
-
-        Thread.sleep(1500);
-        resultTestCase.setResult("Passed");
-        currScenario.setScenarioStatus(RunStatus.PASSED);
-
-        logger.info("===== END : handleManageColumnScenario =====");
-//        Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
-//        try {
-//            Files.createDirectories(scenarioDir);
-//        } catch (IOException e) {
-//            logger.error("Failed to create scenario directory: {}", scenarioPrefix, e);
-//        }
-//        try {
-//            Path csvPath = csvLoader.writeScenarioCsv(testDtos,scenarioDir);
-//            String s3Key = scenarioPrefix;
-//            String finalCsvUrl = s3StorageService.uploadFile(csvPath, s3Key);
-//            currScenario.setResultCsv(finalCsvUrl);
-//        } catch (Exception e) {
-//            logger.error("exception encountered "+ e.getMessage());
-//            throw new ScenarioExecutionException(
-//                    currIdx,
-//                    currScenario.getType(),
-//                    "Problem while uploading csv to s3",
-//                    "Unable to load assertion results",
-//                    e
-//            );
-//        }
-        logger.info("list of columns : {}",testDtos);
-        scenarioResultsMap.put(scenarioPrefix,testDtos);
-
-    } catch (Exception e) {
-        resultTestCase.setResult("Failed");
-        currScenario.setScenarioStatus(RunStatus.FAILED);
-        throw new ScenarioExecutionException(
-                currIdx,
-                currScenario.getType(),
-                "MANAGE_COLUMN", e.getMessage(),
-                e
-        );
-    }
     }
     public void handleSelect2Dropdown(WebDriver driver, String openerCss, String value) {
 
@@ -3050,9 +3017,9 @@ public class ScenarioOrchestratorService {
                     logger.info("Could not close dropdown using body click, continuing");
                 }
             }
-
-            scenario.setScenarioStatus(RunStatus.PASSED);
-            resultTestCase.setResult("Passed");
+            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+//            scenario.setScenarioStatus(RunStatus.PASSED);
+//            resultTestCase.setResult("Passed");
             return currIdx;
         } catch (ScenarioExecutionException ex) {
             throw ex;
@@ -3080,8 +3047,19 @@ public class ScenarioOrchestratorService {
         logger.info("Executing FILTER_NAV scenario");
 
         List<FilterScenarioDto> filters = currScenario.getFilters();
-
+        int counter=1;
+        Map<String,String> values=resultTestCase.getValues();
         for (FilterScenarioDto filter : filters) {
+
+            String filterInfo =
+                    "querySelector=" + filter.getQuerySelector() +
+                            "/columnName=" + filter.getColumnName() +
+                            "/filterType=" + filter.getFilterType() +
+                            "/operation=" + filter.getOperation() +
+                            "/valueSelector=" + filter.getValueSelector() +
+                            "/value=" + filter.getValue() +
+                            "/logicalOperator=" + filter.getLogicalOperator();
+            values.put("filter-"+(counter++),filterInfo);
 
             logger.info("Processing filter: {}", filter);
 
@@ -3383,6 +3361,7 @@ public class ScenarioOrchestratorService {
                             () -> true
                     )
             );
+
         }
 
         // =====================================================
@@ -3432,8 +3411,9 @@ public class ScenarioOrchestratorService {
                 )
         );
 
-        scenario.setScenarioStatus(RunStatus.PASSED);
-        resultTestCase.setResult("Passed");
+        verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+//        scenario.setScenarioStatus(RunStatus.PASSED);
+//        resultTestCase.setResult("Passed");
     } catch (Exception e) {
         throw new ScenarioExecutionException(currIdx,scenario.getType(),
                 "FILTER_NAV",
@@ -3469,12 +3449,15 @@ public class ScenarioOrchestratorService {
             Scenario scenario,
             List<Verify> verifications,
             TestCaseDTO resultTestCase,
-            Map<Integer,List<Verify>> verificationResultMap,boolean isInitial
+            Map<Integer,List<Verify>> verificationResultMap,
+            boolean isInitial
     ) {
 
         if (verifications == null || verifications.isEmpty()) {
             logger.info("Scenario [{}] has no verification items in the requested list – nothing to verify.",
                     scenario.getId());
+            resultTestCase.setResult("Passed");
+            scenario.setScenarioStatus(RunStatus.PASSED);
             return;
         }
         Map<String,String> values=resultTestCase.getValues();
@@ -3541,6 +3524,7 @@ public class ScenarioOrchestratorService {
             }
         }
         verificationResultMap.put(Integer.parseInt(resultTestCase.getTestcaseId()),loopVerification);
+
         if(isInitial){
             // Determine overall verification status
             if (passCount == verifications.size()) {
@@ -3551,6 +3535,7 @@ public class ScenarioOrchestratorService {
         }else{
             if (passCount == verifications.size()) {
                resultTestCase.setResult("Passed");
+               resultTestCase.setActual("Passed");
                if(scenario.getScenarioStatus() == RunStatus.DRAFT ){
                    scenario.setScenarioStatus(RunStatus.PASSED);
                }else if(scenario.getScenarioStatus()==RunStatus.FAILED){
@@ -3558,13 +3543,13 @@ public class ScenarioOrchestratorService {
                }
             } else {
                 resultTestCase.setResult("Failed");
+                resultTestCase.setActual("Failed");
                 if(scenario.getScenarioStatus()==RunStatus.PASSED){
                     scenario.setScenarioStatus(RunStatus.PARTIAL);
                 }else if(scenario.getScenarioStatus()==RunStatus.DRAFT){
                     scenario.setScenarioStatus(RunStatus.FAILED);
                 }
             }
-//            if (failCount == verifications.size())
         }
 
         logger.info("Scenario [{}] verification complete – Passed: {}, Failed: {}, Status: {}",

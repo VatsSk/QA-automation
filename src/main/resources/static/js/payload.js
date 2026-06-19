@@ -42,7 +42,18 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
             loginScenario,
             ...filtered.map((s, i) => ({
                 ...s,
-                sequenceNo: i + 2 // shift because login is #1
+                sequenceNo: i + 2, // shift because login is #1
+
+                // INITIAL & FINAL VERIFICATIONS
+                initialVerify: (s.initialVerifications || []).map(v => ({
+                    cssSelector: v.locator || null,
+                    expectedResult: v.value || null
+                })),
+
+                finalVerify: (s.finalVerifications || []).map(v => ({
+                    cssSelector: v.locator || null,
+                    expectedResult: v.value || null
+                }))
             }))
         ];
 
@@ -145,6 +156,17 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
                     dateFormat: s.dateFormat || null
                 }
                 : undefined,
+
+            // INITIAL & FINAL VERIFICATIONS
+            initialVerify: (s.initialVerifications || []).map(v => ({
+                cssSelector: v.locator || null,
+                expectedResult: v.value || null
+            })),
+
+            finalVerify: (s.finalVerifications || []).map(v => ({
+                cssSelector: v.locator || null,
+                expectedResult: v.value || null
+            }))
         }))
     };
 }

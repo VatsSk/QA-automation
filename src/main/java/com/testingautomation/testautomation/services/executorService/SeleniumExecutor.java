@@ -46,16 +46,14 @@ public class SeleniumExecutor {
     private final LLMServices lLMServices;
     private final AIScreenshotService aiScreenshotService;
     private final TableSawService tableSawService;
-    private final ScenarioOrchestratorService scenarioOrchestratorService;
 
-    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, LLMServices lLMServices, AIScreenshotService aiScreenshotService, TableSawService tableSawService, ScenarioOrchestratorService scenarioOrchestratorService) {
+    public SeleniumExecutor(org.springframework.core.env.Environment env, ScreenshotService screenshotService, LLMServices lLMServices, AIScreenshotService aiScreenshotService, TableSawService tableSawService) {
         this.resultsBaseDir = env.getProperty("autotest.results.base-dir", "./test-results");
         this.screenshotOnStep = Boolean.parseBoolean(env.getProperty("autotest.screenshot-on-step", "false"));
         this.screenshotService = screenshotService;
         this.lLMServices = lLMServices;
         this.aiScreenshotService = aiScreenshotService;
         this.tableSawService = tableSawService;
-        this.scenarioOrchestratorService = scenarioOrchestratorService;
     }
 
     /**
@@ -93,7 +91,6 @@ public class SeleniumExecutor {
             driver1.get(startUrl);
 
             waitForPageToRender(driver1);
-            scenarioOrchestratorService.verifyScenarioPage(driver1,currScenario,currScenario.getInitialVerify(),currScenario.getInitialVerifyResultMap());
             logger.info("[{}] Page loaded: {}", testCaseId, driver1.getCurrentUrl());
             for (StepAction s : steps) {
                 stepNo++;

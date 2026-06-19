@@ -75,10 +75,10 @@
                             <label class="lbl">Tags <small style="font-weight:400;text-transform:none">(comma-separated)</small></label>
                             <input id="f-tags" class="inp" placeholder="smoke, auth, critical">
                         </div>
-                        <div class="field" style="margin:0">
-                            <label class="lbl">Assert Statement</label>
-                            <input id="f-resultStatement" class="inp" placeholder="e.g. Login successful">
-                        </div>
+<!--                        <div class="field" style="margin:0">-->
+<!--                            <label class="lbl">Assert Statement</label>-->
+<!--                            <input id="f-resultStatement" class="inp" placeholder="e.g. Login successful">-->
+<!--                        </div>-->
                     </div>
                 </div>
             </div>
@@ -99,7 +99,7 @@
 <script type="module">
     import * as api      from './js/api.js';
     import * as assrtFunc      from './js/assertions_functions.js';
-    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES,DATE_SELECTION_TYPES,DATE_PRESET_TYPES,MANAGE_COLUMN_ACTIONS} from './js/config.js';
+    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES,DATE_SELECTION_TYPES,DATE_PRESET_TYPES,MANAGE_COLUMN_ACTIONS, SCENARIO_DEFAULTS} from './js/config.js';
     import { esc, toast, openModal, closeModal,
         requireLogin, initTheme, toggleTheme } from './js/utils.js';
     import {buildPayload} from './js/payload.js';
@@ -138,6 +138,9 @@
         }
         return scenario.assertions;
     }
+
+
+
     // DL Editor
     async  function initDLEditorMode() {
         document.getElementById('crumb-cur').textContent =editMode==="dl"?'Edit DL Run' : 'New DL Run';
@@ -180,7 +183,7 @@
             document.getElementById('f-runName').value         = r.runName        || '';
             document.getElementById('f-runType').value         = r.runType        || '';
             document.getElementById('f-tags').value            = (r.tags || []).join(', ');
-            document.getElementById('f-resultStatement').value = r.resultStatement || '';
+            // document.getElementById('f-resultStatement').value = r.resultStatement || '';
 
             const dlScript = generateDLScript(r.scenariosList);
 
@@ -922,7 +925,7 @@
                 document.getElementById('f-runName').value         = r.runName        || '';
                 document.getElementById('f-runType').value         = r.runType        || '';
                 document.getElementById('f-tags').value            = (r.tags || []).join(', ');
-                document.getElementById('f-resultStatement').value = r.resultStatement || '';
+                // document.getElementById('f-resultStatement').value = r.resultStatement || '';
 
                 scenarios = (r.scenariosList || []).map(s => ({
                     _key:            ++scKey,
@@ -971,7 +974,19 @@
                     endDate: s.dateRangeNavDto?.endDate || '',
                     applyButtonSelector: s.dateRangeNavDto?.applyButtonSelector || '',
                     calendarContainerSelector: s.dateRangeNavDto?.calendarContainerSelector || '',
-                    dateFormat: s.dateRangeNavDto?.dateFormat || ''
+                    dateFormat: s.dateRangeNavDto?.dateFormat || '',
+
+                    // INITIAL & FINAL VERIFICATIONS
+                    // Backend: initialVerify[].cssSelector + .expectedResult
+                    // UI:      initialVerifications[].locator + .value
+                    initialVerifications: (s.initialVerify || []).map(v => ({
+                        locator: v.cssSelector    || '',
+                        value:   v.expectedResult || ''
+                    })),
+                    finalVerifications: (s.finalVerify || []).map(v => ({
+                        locator: v.cssSelector    || '',
+                        value:   v.expectedResult || ''
+                    }))
                 }));
                 renderSidebar();
                 renderPanel();
@@ -1125,6 +1140,9 @@
             oninput="updateField(${scIdx}, 'url', this.value)">
         </div>` : ''}
 
+        <!-- ── Initial Verification (URL scenario only — after URL input) ── -->
+        ${s.type === 'URL' ? renderInitialVerificationSection(scIdx, s) : ''}
+
         <!-- ── CSS Selector (shown for MODAL, MODAL_NAV, SEARCH_NAV, FORM_MODAL) ── -->
         ${cfg.fields.includes('cssSelector') ? `
         <div class="field">
@@ -1207,6 +1225,9 @@
             oninput="updateField(${scIdx}, 'clickCss', this.value)">
         </div>` : ''}
 
+        <!-- ── Initial Verification (FORM_MODAL only — before test data) ── -->
+        ${s.type === 'FORM_MODAL' ? renderInitialVerificationSection(scIdx, s) : ''}
+
         <!-- ── Test data (only URL, MODAL, and FORM_MODAL have test data) ── -->
         ${cfg.hasData ? renderDataSection(scIdx, s, tab) : ''}
 
@@ -1216,6 +1237,9 @@
         ${s.type === 'FILTER_NAV' ? renderFiltersSection(scIdx, s) : ''}
         ${s.type === 'DATE_RANGE_NAV'?renderDateSection(scIdx,s):''}
         ${s.type === 'MANAGE_COL_NAV'?renderManageColSection(scIdx,s):''}
+
+        <!-- ── Final Verification (all scenarios except ASSERT) ── -->
+        ${s.type !== 'ASSERT' ? renderFinalVerificationSection(scIdx, s) : ''}
 
       </div>
     </div>`;
@@ -1765,6 +1789,136 @@
         f.value[key] = val;
     };
 
+    // ── Initial Verification ───────────────────────────────────────────────
+
+    /**
+     * Renders the Initial Verification section inside the scenario panel.
+     * Each entry has a Locator field and a Value field.
+     */
+    function renderInitialVerificationSection(idx, s) {
+        const items = s.initialVerifications || [];
+        return `
+    <div class="sc-section">Initial Verification</div>
+    <div style="display:flex;flex-direction:column;gap:12px" id="initial-verif-list-${idx}">
+        ${items.map((v, vi) => `
+        <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r);background:var(--sur2)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div class="field">
+                    <label class="lbl">Locator *</label>
+                    <input class="inp inp-mono"
+                        value="${esc(v.locator || '')}"
+                        placeholder="#element-selector"
+                        oninput="updateInitialVerification(${idx}, ${vi}, 'locator', this.value)">
+                </div>
+                <div class="field">
+                    <label class="lbl">Value *</label>
+                    <input class="inp"
+                        value="${esc(v.value || '')}"
+                        placeholder="Expected text or value"
+                        oninput="updateInitialVerification(${idx}, ${vi}, 'value', this.value)">
+                </div>
+            </div>
+            <div style="text-align:right;margin-top:6px">
+                <button class="btn btn-danger btn-xs"
+                    onclick="removeInitialVerification(${idx}, ${vi})">Remove</button>
+            </div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="addInitialVerification(${idx})">
+            + Add Initial Verification
+        </button>
+    </div>`;
+    }
+
+    /** Adds a new empty initial-verification entry to the scenario. */
+    window.addInitialVerification = function (scIdx) {
+        if (!scenarios[scIdx]) return;
+        if (!Array.isArray(scenarios[scIdx].initialVerifications)) {
+            scenarios[scIdx].initialVerifications = [];
+        }
+        scenarios[scIdx].initialVerifications.push({ locator: '', value: '' });
+        renderPanel();
+    };
+
+    /** Removes an initial-verification entry by index. */
+    window.removeInitialVerification = function (scIdx, vi) {
+        scenarios[scIdx].initialVerifications.splice(vi, 1);
+        renderPanel();
+    };
+
+    /** Updates a single field of an initial-verification entry (no re-render). */
+    window.updateInitialVerification = function (scIdx, vi, field, val) {
+        if (scenarios[scIdx]?.initialVerifications?.[vi] !== undefined) {
+            scenarios[scIdx].initialVerifications[vi][field] = val;
+        }
+    };
+
+    // ── Final Verification ─────────────────────────────────────────────────
+
+    /**
+     * Renders the Final Verification section inside the scenario panel.
+     * Each entry has a Locator field and a Value field.
+     */
+    function renderFinalVerificationSection(idx, s) {
+        const items = s.finalVerifications || [];
+        return `
+    <div class="sc-section">Final Verification</div>
+    <div style="display:flex;flex-direction:column;gap:12px" id="final-verif-list-${idx}">
+        ${items.map((v, vi) => `
+        <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r);background:var(--sur2)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div class="field">
+                    <label class="lbl">Locator *</label>
+                    <input class="inp inp-mono"
+                        value="${esc(v.locator || '')}"
+                        placeholder="#element-selector"
+                        oninput="updateFinalVerification(${idx}, ${vi}, 'locator', this.value)">
+                </div>
+                <div class="field">
+                    <label class="lbl">Value *</label>
+                    <input class="inp"
+                        value="${esc(v.value || '')}"
+                        placeholder="Expected text or value"
+                        oninput="updateFinalVerification(${idx}, ${vi}, 'value', this.value)">
+                </div>
+            </div>
+            <div style="text-align:right;margin-top:6px">
+                <button class="btn btn-danger btn-xs"
+                    onclick="removeFinalVerification(${idx}, ${vi})">Remove</button>
+            </div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="addFinalVerification(${idx})">
+            + Add Final Verification
+        </button>
+    </div>`;
+    }
+
+    /** Adds a new empty final-verification entry to the scenario. */
+    window.addFinalVerification = function (scIdx) {
+        if (!scenarios[scIdx]) return;
+        if (!Array.isArray(scenarios[scIdx].finalVerifications)) {
+            scenarios[scIdx].finalVerifications = [];
+        }
+        scenarios[scIdx].finalVerifications.push({ locator: '', value: '' });
+        renderPanel();
+    };
+
+    /** Removes a final-verification entry by index. */
+    window.removeFinalVerification = function (scIdx, vi) {
+        scenarios[scIdx].finalVerifications.splice(vi, 1);
+        renderPanel();
+    };
+
+    /** Updates a single field of a final-verification entry (no re-render). */
+    window.updateFinalVerification = function (scIdx, vi, field, val) {
+        if (scenarios[scIdx]?.finalVerifications?.[vi] !== undefined) {
+            scenarios[scIdx].finalVerifications[vi][field] = val;
+        }
+    };
+
     // ── Test data section (CSV upload or manual entry) ─────────────────────
     function renderDataSection(idx, s, tab) {
         const tcs = s.manualTestCases || [];
@@ -1992,6 +2146,7 @@
 
     window.addScenario = function (type) {
         const newScenario = {
+            ...SCENARIO_DEFAULTS,   // initialVerifications: [], finalVerifications: []
             _key:            ++scKey,
             id:              undefined,
             type,

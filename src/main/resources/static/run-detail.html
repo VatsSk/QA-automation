@@ -198,7 +198,7 @@
 
         const s3Path = sc.resultCsv;
         if (!s3Path) {
-            throw new Error('Result CSV path not found for this scenario');
+            throw new Error('Result is not received right now!');
         }
 
         // backend returns parsed rows directly
@@ -290,13 +290,6 @@
                         <div class="rmi-label">Last Updated</div>
                         <div class="rmi-val" style="font-size:12px">${timeAgo(run.updatedAt || run.createdAt)}</div>
                     </div>
-                   ${run.resultStatement ? `
-                            <div>
-                                <div class="rmi-label">Assert Statement</div>
-                                <div class="rmi-val" style="color:var(--gr)">${esc(run.resultStatement)}</div>
-                            </div>
-                        ` : ''}
-
                         ${run.reason ? `
                             <div>
                                 <div class="rmi-label">Reason</div>

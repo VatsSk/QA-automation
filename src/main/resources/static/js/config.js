@@ -9,7 +9,29 @@
  *   MODAL_NAV  → cssSelector only         (no test data)
  *   SEARCH_NAV → cssSelector + value      (no test data)
  *   VERIFY_PAGE→ url + cssSelector        (no test data)
+ *
+ * Common fields present on EVERY scenario (regardless of type):
+ *   initialVerifications → List<Verify>  { locator, value }
+ *                          Maps to backend: initialVerify  { cssSelector, expectedResult }
+ *                          Verifications run BEFORE the scenario executes.
+ *
+ *   finalVerifications   → List<Verify>  { locator, value }
+ *                          Maps to backend: finalVerify    { cssSelector, expectedResult }
+ *                          Verifications run AFTER the scenario executes.
  */
+
+/**
+ * Base default fields shared by every new scenario.
+ * Spread this when creating a new scenario so that initialVerifications
+ * and finalVerifications are always initialised as empty arrays.
+ *
+ * @example
+ * const newScenario = { ...SCENARIO_DEFAULTS, type, url: '' };
+ */
+export const SCENARIO_DEFAULTS = {
+    initialVerifications: [],   // Verify[] — runs before scenario  → backend: initialVerify
+    finalVerifications:   [],   // Verify[] — runs after  scenario  → backend: finalVerify
+};
 
 export const TYPES = {
     URL: {

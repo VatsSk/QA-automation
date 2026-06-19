@@ -4,6 +4,7 @@ import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.dto.ManageColumnItemDto;
+import com.testingautomation.testautomation.entities.Verify;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
@@ -14,6 +15,7 @@ import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response DTO for a Scenario embedded in a Run.
@@ -47,5 +49,9 @@ public class ScenarioResponse {
     private Instant createdAt;
     private Instant updatedAt;
     private String scenarioBasePath;
-    private RunStatus scenarioStatus; 
+    private RunStatus scenarioStatus;
+    private List<Verify> initialVerify;
+    private List<Verify> finalVerify;
+    private Map<Integer ,List<Verify>> initialVerifyResultMap;
+    private Map<Integer ,List<Verify>> finalVerifyResultMap;
 }

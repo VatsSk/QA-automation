@@ -13,5 +13,6 @@ public class FilterScenarioDto {
     private Operator operation;
     private String valueSelector;
     private String value;
-    private String logicalOperator;    //if not empty then OR else AND
+    private String logicalOperator;
+    //if not empty then OR else AND
 }

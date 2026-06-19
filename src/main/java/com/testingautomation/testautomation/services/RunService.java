@@ -373,6 +373,11 @@ public class RunService {
                 s.setApplyFilterBtn(oldScenario.getApplyFilterBtn());
                 s.setColumns(oldScenario.getColumns());
                 s.setSaveBtnCss(oldScenario.getSaveBtnCss());
+                s.setFinalVerify(oldScenario.getFinalVerify());
+                s.setInitialVerify(oldScenario.getInitialVerify());
+                s.setFinalVerifyResultMap(oldScenario.getFinalVerifyResultMap());
+                s.setInitialVerifyResultMap(oldScenario.getInitialVerifyResultMap());
+
 
                 // Copy filters
                 if (oldScenario.getFilters() != null) {

@@ -4,11 +4,13 @@ import com.testingautomation.testautomation.dto.AssertionDto;
 import com.testingautomation.testautomation.dto.DateRangeNavDto;
 import com.testingautomation.testautomation.dto.FilterScenarioDto;
 import com.testingautomation.testautomation.dto.ManageColumnItemDto;
+import com.testingautomation.testautomation.entities.Verify;
 import com.testingautomation.testautomation.enums.ScenarioType;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Request DTO for creating/updating a Scenario inside a Run.
@@ -41,4 +43,8 @@ public class ScenarioRequest {
     private DateRangeNavDto dateRangeNavDto;
     private String saveBtnCss;
     private List<ManageColumnItemDto> columns;
+    private List<Verify> initialVerify;
+    private List<Verify> finalVerify;
+    private Map<Integer ,List<Verify>> initialVerifyResultMap;
+    private Map<Integer ,List<Verify>> finalVerifyResultMap;
 }
