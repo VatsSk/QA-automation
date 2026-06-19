@@ -7,6 +7,7 @@ import com.testingautomation.testautomation.enums.DateSelectionType;
 import com.testingautomation.testautomation.enums.ManageColumnAction;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
+import com.testingautomation.testautomation.services.VerificationService;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
 import com.testingautomation.testautomation.services.fallback.FallbackExecutor;
 import com.testingautomation.testautomation.services.s3Service.StorageService;
@@ -71,6 +72,7 @@ public class ScenarioOrchestratorService {
     private final MongoTemplate mongoTemplate;
     private final S3StorageService s3StorageService;
     private final StorageService storageService;
+    private final VerificationService verificationService;
 
 
     /**
@@ -99,7 +101,6 @@ public class ScenarioOrchestratorService {
                     runUrlGeneric(
                             driver,
                             current,
-                            run.getResultStatement(),
                             scenarioPrefix,
                             scenarioResultsMap,
                             scenarios.size(),
@@ -244,7 +245,7 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
-    public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
+    public void runUrlGeneric(WebDriver driver,Scenario current,String scenarioPrefix
             , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) {
         List<FieldDescriptor> fields=null;
 
@@ -259,7 +260,6 @@ public class ScenarioOrchestratorService {
                     e
             );
         }
-//        verifyScenarioPage(driver,current,current.getInitialVerification());
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO> testCases=null;
         try {
@@ -283,39 +283,65 @@ public class ScenarioOrchestratorService {
 
         int totalPasses = 0;
         int totalFails = 0;
-
-        // 3) for each testcase -> generate steps & run
         for (TestCaseDTO tc : testCases) {
-//            System.out.println("Test case "+ tc);
 
-            String tcRunId =tc.getTestcaseId();
             try {
-                logger.info("[{}] Generating steps for testcase {}", tcRunId, tc.getTestcaseId());
+                logger.info("[{}] Generating steps for testcase {}", tc.getTestcaseId(), tc.getTestcaseId());
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
                 logger.info("generated steps are : {}",steps);
-                logger.info("[{}] Executing {} steps", tcRunId, steps.size());
-                String expected = tc.getExpectedResult();
-                logger.info("EXPECTED results are : {}",expected);
-                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected,scenarioSize,currScenarioIdx,current);
-                if (expected != null) {
-                    if(expected.equalsIgnoreCase(runResult.getStatus()) ){
-                        tc.setResult("Passed");
-                        totalPasses++;
-                    }else{
-                        tc.setResult(runResult.getStatus());
-                        totalFails++;
-                    }
-                }else{
-                    tc.setResult("Expected result not given !");
+                logger.info("[{}] Executing {} steps",  tc.getTestcaseId(), steps.size());
+
+                executor.run(driver, current.getUrl(), steps,  tc.getTestcaseId(),scenarioDir,scenarioPrefix,currScenarioIdx,current,tc);
+                boolean verifyResult=verificationService.verifyScenario(
+                                    driver,
+                                    current,
+                                    current.getFinalVerify(),
+                                    tc,
+                                    current.getFinalVerifyResultMap()
+                                    );
+                if(tc.getExpectedResult().isEmpty()) {
+                    tc.setResult("Passed");
+                    tc.setActual("Passed");
                     totalPasses++;
+                }else {
+                    if (verifyResult) {
+                        tc.setActual("Passed");
+                        if ("Passed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Passed");
+                            totalPasses++;
+                        } else if ("Failed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Failed");
+                            totalFails++;
+                        }
+                    } else {
+                        tc.setActual("Failed");
+                        if ("Failed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Passed");
+                            totalFails++;
+                        } else if("Passed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Failed");
+                            totalFails++;
+                        }
+                    }
                 }
-                tc.setUrls(runResult.getScreenshots());
-                logger.info("[{}] Completed testcase {}", tcRunId, tc);
             } catch (Exception e) {
-                logger.error("[{}] testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
+                logger.error("[{}] testcase failed, continuing: {}", tc.getTestcaseId(), e.getMessage(), e);
+                tc.setActual("Error");
+                tc.setResult("Failed");
+                totalFails++;
+            }
+            scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
+            if(scenarioSize!=1 && tc.getResult().equals("Failed")) {
+                current.setScenarioStatus(RunStatus.FAILED);
+                throw new ScenarioExecutionException(
+                        currScenarioIdx,
+                        current.getType(),
+                        "URL",
+                        "URL FAILED : Invalid Credentials",
+                        new Exception("Url failed")
+                );
             }
         }
-        scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
 
         logger.info("[{}] Stored {} URL testcases in scenarioResultsMap",
                 scenarioPrefix, testCases.size());
@@ -1523,16 +1549,13 @@ public class ScenarioOrchestratorService {
           logger.info("Navigating to URL: {}", currScenario.getUrl());
 
           driver.get(currScenario.getUrl());
-          String url = screenshotService.takeScreenshot(
+          screenshotService.takeScreenshot(
                   driver,
                   (modalFormTcIdx + 1) + "",
                   "step passed",
                   navigationScreenshotDir,
                   scenarioPrefix
           );
-          List<Verify> afterVerifications=currScenario.getFinalVerify();
-          verifyScenarioPage(driver,currScenario,afterVerifications,resultTestCase,currScenario.getFinalVerifyResultMap(),false);
-          currScenario.setScenarioStatus(RunStatus.PASSED);
       }  catch (WebDriverException | IllegalArgumentException e) {
 
           String reason = e.getMessage() != null
@@ -1858,16 +1881,16 @@ public class ScenarioOrchestratorService {
 
                 List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                 logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-                String expected = tc.getExpectedResult();
-                ResultRun resultRun =executor.runOnRenderedPage(driver, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
-                if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
-                    tc.setResult("Passed");
-                    totalPasses++;
-                } else {
-                    tc.setResult(resultRun.getStatus());
-                    totalFails++;
-                }
-                tc.setUrls(resultRun.getScreenshots());
+//                String expected = tc.getExpectedResult();
+                ResultRun resultRun =executor.runOnRenderedPage(driver, steps,tc, tcRunId,scenarioDir,scenarioPrefix,currModal);
+//                if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
+//                    tc.setResult("Passed");
+//                    totalPasses++;
+//                } else {
+//                    tc.setResult(resultRun.getStatus());
+//                    totalFails++;
+//                }
+                tc.setSsUrls(resultRun.getScreenshots());
                 if(counterIdx<testCases.size())
                     try {
                         handleNavigation(driver, scenarios, currIdx, counterIdx, baseS3Prefix, run, scenarioResultsMap);
@@ -2156,11 +2179,11 @@ public class ScenarioOrchestratorService {
         executor.runOnRenderedPage(
                 driver,
                 steps,
+                tc,
                 tc.getTestcaseId(),
                 null,
-                navigationScreenshotDir,
                 scenarioPrefix,
-                tc.getExpectedResult()
+                scenario
 
         );
     }
@@ -3442,132 +3465,4 @@ public class ScenarioOrchestratorService {
     }
     }
 
-
-    /**
-     * Verifies page elements for a scenario by running querySelector checks.
-     *
-     * <p>For each {@link Verify} item in the chosen verification list, this method
-     * executes {@code document.querySelector(cssSelector)} via JavaScript, retrieves
-     * the element's {@code textContent}, and compares it against the expected result.
-     * Each item's {@code status} and {@code message} are updated accordingly.</p>
-     *
-     * <p>After processing all items the scenario's {@code verificationStatus} is set to:
-     * <ul>
-     *   <li>{@code PASSED}  – every check matched</li>
-     *   <li>{@code FAILED}  – every check failed</li>
-     *   <li>{@code PARTIAL} – some passed, some failed</li>
-     * </ul>
-     *
-     * @param driver              the active Selenium WebDriver
-     * @param scenario            the scenario whose verification list to process
-//     * @param verificationExtractor a function that extracts the desired verification list
-     *                             from the scenario (e.g. {@code Scenario::getInitialVerification}
-     *                             or {@code Scenario::getFinalVerification})
-     */
-    public void verifyScenarioPage(
-            WebDriver driver,
-            Scenario scenario,
-            List<Verify> verifications,
-            TestCaseDTO resultTestCase,
-            Map<Integer,List<Verify>> verificationResultMap,boolean isInitial
-    ) {
-
-        if (verifications == null || verifications.isEmpty()) {
-            logger.info("Scenario [{}] has no verification items in the requested list – nothing to verify.",
-                    scenario.getId());
-            return;
-        }
-        Map<String,String> values=resultTestCase.getValues();
-
-        logger.info("Scenario [{}] – starting page verification for {} items",
-                scenario.getId(), verifications.size());
-
-        JavascriptExecutor js = (JavascriptExecutor) driver;
-        int passCount = 0;
-        int failCount = 0;
-
-        List<Verify> loopVerification=new ArrayList<>(verifications);
-        for (Verify verify : loopVerification) {
-            String cssSelector = verify.getCssSelector();
-            String expected = verify.getExpectedResult();
-
-            if (cssSelector == null || cssSelector.isBlank()) {
-                verify.setStatus(false);
-                verify.setMessage("CSS selector is null or blank – cannot query element.");
-                failCount++;
-                logger.warn("Verification skipped – empty CSS selector. Expected: '{}'", expected);
-                continue;
-            }
-
-            try {
-                // Use document.querySelector to find the element and return its textContent
-                String actualText = (String) js.executeScript(
-                        "var el = document.querySelector(arguments[0]); "
-                        + "return el ? el.textContent.trim() : null;",
-                        cssSelector
-                );
-
-                if (actualText == null) {
-                    verify.setStatus(false);
-                    verify.setMessage(String.format(
-                            "Element not found for selector '%s'.", cssSelector));
-                    failCount++;
-                    logger.warn("Verification FAILED – element not found. Selector: '{}', Expected: '{}'",
-                            cssSelector, expected);
-                } else if (actualText.equals(expected)) {
-                    verify.setStatus(true);
-                    verify.setMessage(String.format(
-                            "Passed – text content matches. Expected: '%s', Actual: '%s'.",
-                            expected, actualText));
-                    passCount++;
-                    logger.info("Verification PASSED – Selector: '{}', Expected: '{}', Actual: '{}'",
-                            cssSelector, expected, actualText);
-                } else {
-                    verify.setStatus(false);
-                    verify.setMessage(String.format(
-                            "Failed – text content mismatch. Expected: '%s', Actual: '%s'.",
-                            expected, actualText));
-                    failCount++;
-                    logger.warn("Verification FAILED – Selector: '{}', Expected: '{}', Actual: '{}'",
-                            cssSelector, expected, actualText);
-                }
-            } catch (Exception e) {
-                verify.setStatus(false);
-                verify.setMessage(String.format(
-                        "Error while querying selector '%s': %s", cssSelector, e.getMessage()));
-                failCount++;
-                logger.error("Verification ERROR – Selector: '{}', Exception: {}",
-                        cssSelector, e.getMessage(), e);
-            }
-        }
-        verificationResultMap.put(Integer.parseInt(resultTestCase.getTestcaseId()),loopVerification);
-        if(isInitial){
-            // Determine overall verification status
-            if (passCount == verifications.size()) {
-                values.put("verificationStatus","Passed");
-            } else {
-                values.put("verificationStatus","Failed");
-            }
-        }else{
-            if (passCount == verifications.size()) {
-               resultTestCase.setResult("Passed");
-               if(scenario.getScenarioStatus() == RunStatus.DRAFT ){
-                   scenario.setScenarioStatus(RunStatus.PASSED);
-               }else if(scenario.getScenarioStatus()==RunStatus.FAILED){
-                   scenario.setScenarioStatus(RunStatus.PARTIAL);
-               }
-            } else {
-                resultTestCase.setResult("Failed");
-                if(scenario.getScenarioStatus()==RunStatus.PASSED){
-                    scenario.setScenarioStatus(RunStatus.PARTIAL);
-                }else if(scenario.getScenarioStatus()==RunStatus.DRAFT){
-                    scenario.setScenarioStatus(RunStatus.FAILED);
-                }
-            }
-//            if (failCount == verifications.size())
-        }
-
-        logger.info("Scenario [{}] verification complete – Passed: {}, Failed: {}, Status: {}",
-                scenario.getId(), passCount, failCount, scenario.getVerificationStatus());
-    }
 }
