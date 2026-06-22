@@ -100,6 +100,7 @@ public class RunService {
         run.setUpdatedAt(Instant.now());
         assignScenarioIds(run);
         run.setScenarioCount(run.getScenariosList() != null ? run.getScenariosList().size() : 0);
+        run.getScenariosList().forEach(scenario -> scenario.setScenarioStatus(RunStatus.DRAFT));
 
         Run saved = runRepository.save(run);
         log.info("Created run {} in project={} module={}", saved.getId(), projectId, moduleId);
@@ -377,6 +378,7 @@ public class RunService {
                 s.setInitialVerify(oldScenario.getInitialVerify());
                 s.setFinalVerifyResultMap(oldScenario.getFinalVerifyResultMap());
                 s.setInitialVerifyResultMap(oldScenario.getInitialVerifyResultMap());
+                s.setScenarioStatus(RunStatus.DRAFT);
 
 
                 // Copy filters
@@ -445,6 +447,10 @@ public class RunService {
                 .statement(original.getStatement())
                 .csv(original.getCsv())
                 .manualTestCases(original.getManualTestCases())
+                .scenarioStatus(RunStatus.DRAFT)
+                .finalVerify(original.getFinalVerify())
+                .initialVerify(original.getInitialVerify())
+                .verificationStatus(RunStatus.DRAFT)
                 // ✅ FIX: clone filters
                 .filters(
                         original.getFilters() != null

@@ -7,6 +7,7 @@ import com.testingautomation.testautomation.enums.DateSelectionType;
 import com.testingautomation.testautomation.enums.ManageColumnAction;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.enums.ScenarioType;
+import com.testingautomation.testautomation.services.VerificationService;
 import com.testingautomation.testautomation.services.executorService.SeleniumExecutor;
 import com.testingautomation.testautomation.services.fallback.FallbackExecutor;
 import com.testingautomation.testautomation.services.s3Service.StorageService;
@@ -71,6 +72,7 @@ public class ScenarioOrchestratorService {
     private final MongoTemplate mongoTemplate;
     private final S3StorageService s3StorageService;
     private final StorageService storageService;
+    private final VerificationService verificationService;
 
 
     /**
@@ -99,7 +101,6 @@ public class ScenarioOrchestratorService {
                     runUrlGeneric(
                             driver,
                             current,
-                            run.getResultStatement(),
                             scenarioPrefix,
                             scenarioResultsMap,
                             scenarios.size(),
@@ -244,7 +245,7 @@ public class ScenarioOrchestratorService {
      * - load testcases from csvPath
      * - loop over each testcase, generate steps and execute using executor.run(...)
      */
-    public void runUrlGeneric(WebDriver driver,Scenario current,String successMsg,String scenarioPrefix
+    public void runUrlGeneric(WebDriver driver,Scenario current,String scenarioPrefix
             , Map<String, List<TestCaseDTO>> scenarioResultsMap,int scenarioSize,int currScenarioIdx) {
         List<FieldDescriptor> fields=null;
 
@@ -259,7 +260,6 @@ public class ScenarioOrchestratorService {
                     e
             );
         }
-//        verifyScenarioPage(driver,current,current.getInitialVerification());
         logger.info("$$$$$$$$ CURRENT CSV FILEEE $$$$$$$$"+current.getCsv());
         List<TestCaseDTO> testCases=null;
         try {
@@ -283,38 +283,66 @@ public class ScenarioOrchestratorService {
 
         int totalPasses = 0;
         int totalFails = 0;
-
-        // 3) for each testcase -> generate steps & run
         for (TestCaseDTO tc : testCases) {
-//            System.out.println("Test case "+ tc);
 
-            String tcRunId =tc.getTestcaseId();
             try {
-                logger.info("[{}] Generating steps for testcase {}", tcRunId, tc.getTestcaseId());
+                logger.info("[{}] Generating steps for testcase {}", tc.getTestcaseId(), tc.getTestcaseId());
                 List<StepAction> steps = stepGenerator.generateSteps(fields, tc);
                 logger.info("generated steps are : {}",steps);
-                logger.info("[{}] Executing {} steps", tcRunId, steps.size());
-                String expected = tc.getExpectedResult();
-                logger.info("EXPECTED results are : {}",expected);
-                ResultRun runResult =executor.run(driver, current.getUrl(), steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected,scenarioSize,currScenarioIdx,current);
-                if (expected != null) {
-                    if(expected.equalsIgnoreCase(runResult.getStatus()) ){
-                        tc.setResult("Passed");
-                        totalPasses++;
-                    }else{
-                        tc.setResult(runResult.getStatus());
-                        totalFails++;
-                    }
-                }else{
-                    tc.setResult("Expected result not given !");
+                logger.info("[{}] Executing {} steps",  tc.getTestcaseId(), steps.size());
+
+                executor.run(driver, current.getUrl(), steps,  tc.getTestcaseId(),scenarioDir,scenarioPrefix,currScenarioIdx,current,tc);
+                boolean verifyResult=verificationService.verifyScenario(
+                                    driver,
+                                    current,
+                                    current.getFinalVerify(),
+                                    tc,
+                                    current.getFinalVerifyResultMap()
+                                    );
+                if(tc.getExpectedResult().isEmpty()) {
+                    tc.setResult("Passed");
+                    tc.setActual("Passed");
                     totalPasses++;
+                }else {
+                    if (verifyResult) {
+                        tc.setActual("Passed");
+                        if ("Passed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Passed");
+                            totalPasses++;
+                        } else if ("Failed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Failed");
+                            totalFails++;
+                        }
+                    } else {
+                        tc.setActual("Failed");
+                        if ("Failed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Passed");
+                            totalFails++;
+                        } else if("Passed".equals(tc.getExpectedResult())) {
+                            tc.setResult("Failed");
+                            totalFails++;
+                        }
+                    }
                 }
-                logger.info("[{}] Completed testcase {}", tcRunId, tc);
+                logger.info("[{}] Completed testcase {}", tc.getTestcaseId(), tc);
             } catch (Exception e) {
-                logger.error("[{}] testcase failed, continuing: {}", tcRunId, e.getMessage(), e);
+                logger.error("[{}] testcase failed, continuing: {}", tc.getTestcaseId(), e.getMessage(), e);
+                tc.setActual("Error");
+                tc.setResult("Failed");
+                totalFails++;
+            }
+            scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
+            if(scenarioSize!=1 && tc.getResult().equals("Failed")) {
+                current.setScenarioStatus(RunStatus.FAILED);
+                throw new ScenarioExecutionException(
+                        currScenarioIdx,
+                        current.getType(),
+                        "URL",
+                        "URL FAILED : Invalid Credentials",
+                        new Exception("Url failed")
+                );
             }
         }
-        scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
 
         logger.info("[{}] Stored {} URL testcases in scenarioResultsMap",
                 scenarioPrefix, testCases.size());
@@ -410,7 +438,6 @@ public class ScenarioOrchestratorService {
                 }
                 case MANAGE_COL_NAV -> {
                     handleManageColumnScenario(currIdx, driver, wait, currScenario,resultTestCase,scenarioPrefix,navigationScreenshotDir,scenarioResultsMap);
-
                     yield currIdx;
                 }
                 case ROW_COUNT_NAV -> {
@@ -495,7 +522,6 @@ public class ScenarioOrchestratorService {
                         scenarioPrefix,
                         scenarioResultsMap
                 );
-
             }
             catch (ScenarioExecutionException ex) {
                 scenario.setScenarioStatus(RunStatus.FAILED);
@@ -1523,7 +1549,7 @@ public class ScenarioOrchestratorService {
           logger.info("Navigating to URL: {}", currScenario.getUrl());
 
           driver.get(currScenario.getUrl());
-          String url = screenshotService.takeScreenshot(
+          screenshotService.takeScreenshot(
                   driver,
                   (modalFormTcIdx + 1) + "",
                   "step passed",
@@ -1532,8 +1558,8 @@ public class ScenarioOrchestratorService {
           );
           List<Verify> afterVerifications=currScenario.getFinalVerify();
           verifyScenarioPage(driver,currScenario,afterVerifications,resultTestCase,currScenario.getFinalVerifyResultMap(),false);
-          currScenario.setScenarioStatus(RunStatus.PASSED);
       }  catch (WebDriverException | IllegalArgumentException e) {
+          currScenario.setScenarioStatus(RunStatus.FAILED);
 
           String reason = e.getMessage() != null
                   ? e.getMessage()
@@ -1858,15 +1884,16 @@ public class ScenarioOrchestratorService {
 
                 List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                 logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-                String expected = tc.getExpectedResult();
-                ResultRun resultRun =executor.runOnRenderedPage(driver, steps, tcRunId,successMsg,scenarioDir,scenarioPrefix,expected);
-                if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
-                    tc.setResult("Passed");
-                    totalPasses++;
-                } else {
-                    tc.setResult(resultRun.getStatus());
-                    totalFails++;
-                }
+//                String expected = tc.getExpectedResult();
+                ResultRun resultRun =executor.runOnRenderedPage(driver, steps,tc, tcRunId,scenarioDir,scenarioPrefix,currModal);
+//                if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
+//                    tc.setResult("Passed");
+//                    totalPasses++;
+//                } else {
+//                    tc.setResult(resultRun.getStatus());
+//                    totalFails++;
+//                }
+                tc.setSsUrls(resultRun.getScreenshots());
                 if(counterIdx<testCases.size())
                     try {
                         handleNavigation(driver, scenarios, currIdx, counterIdx, baseS3Prefix, run, scenarioResultsMap);
@@ -2157,11 +2184,11 @@ public class ScenarioOrchestratorService {
         executor.runOnRenderedPage(
                 driver,
                 steps,
+                tc,
                 tc.getTestcaseId(),
-                null,
                 navigationScreenshotDir,
                 scenarioPrefix,
-                tc.getExpectedResult()
+                scenario
 
         );
     }
@@ -3484,11 +3511,11 @@ public class ScenarioOrchestratorService {
 
             try {
                 // Use document.querySelector to find the element and return its textContent
-                String actualText = (String) js.executeScript(
-                        "var el = document.querySelector(arguments[0]); "
-                        + "return el ? el.textContent.trim() : null;",
-                        cssSelector
-                );
+                WebElement element = driver.findElement(By.cssSelector(cssSelector));
+
+                String actualText = element.isDisplayed()
+                        ? element.getText().trim()
+                        : null;
 
                 if (actualText == null) {
                     verify.setStatus(false);
@@ -3529,8 +3556,20 @@ public class ScenarioOrchestratorService {
             // Determine overall verification status
             if (passCount == verifications.size()) {
                 values.put("verificationStatus","Passed");
+                if(scenario.getScenarioStatus() == RunStatus.DRAFT ){
+                    scenario.setScenarioStatus(RunStatus.PASSED);
+                }else if(scenario.getScenarioStatus()==RunStatus.FAILED){
+                    scenario.setScenarioStatus(RunStatus.PARTIAL);
+                }
             } else {
                 values.put("verificationStatus","Failed");
+                if(scenario.getScenarioStatus()==RunStatus.PASSED){
+                    scenario.setScenarioStatus(RunStatus.PARTIAL);
+                }else if(scenario.getScenarioStatus()==RunStatus.DRAFT){
+                    scenario.setScenarioStatus(RunStatus.FAILED);
+                }
+//                throw new GlobalExceptionHandler.ScenarioExecutionException(scenario.getSequenceNo(),scenario.getType()
+//                ,"")
             }
         }else{
             if (passCount == verifications.size()) {

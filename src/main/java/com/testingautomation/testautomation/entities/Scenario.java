@@ -13,6 +13,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -77,6 +78,6 @@ public class Scenario {
     private RunStatus verificationStatus;
     private List<Verify> initialVerify;
     private List<Verify> finalVerify;
-    private Map<Integer ,List<Verify>> initialVerifyResultMap;
-    private Map<Integer ,List<Verify>> finalVerifyResultMap;
+    private Map<Integer ,List<Verify>> initialVerifyResultMap=new HashMap<>();
+    private Map<Integer ,List<Verify>> finalVerifyResultMap=new HashMap<>();
 }

@@ -65,7 +65,6 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
             runType: document.getElementById('f-runType').value.trim(),
             tags: document.getElementById('f-tags').value
                 .split(',').map(t => t.trim()).filter(Boolean),
-            resultStatement: document.getElementById('f-resultStatement').value.trim(),
             createdBy: user.username,
 
             scenariosList: finalScenarios
@@ -74,13 +73,16 @@ export function buildPayload(mode, toast, user, scenarios,projectData) {
 
     // ✅ Existing manual flow (unchanged)
     console.log("All scenarios before payload:", JSON.stringify(scenarios, null, 2));
+    console.log("runName", document.getElementById('f-runName'));
+    console.log("runType", document.getElementById('f-runType'));
+    console.log("tags", document.getElementById('f-tags'));
+    console.log("resultStatement", document.getElementById('f-resultStatement'));
 
     return {
         runName: document.getElementById('f-runName').value.trim(),
         runType: document.getElementById('f-runType').value.trim(),
         tags: document.getElementById('f-tags').value
             .split(',').map(t => t.trim()).filter(Boolean),
-        resultStatement: document.getElementById('f-resultStatement').value.trim(),
         createdBy: user.username,
 
         scenariosList: scenarios.map((s, i) => ({

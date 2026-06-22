@@ -186,6 +186,7 @@ public class CsvTestCaseLoader {
             headers.add("testCaseId");
             headers.addAll(first.getValues().keySet());
             headers.add("expectedResult");
+            headers.add("actualResult");
             headers.add("Result");
 
             writer.write(String.join(",", headers));
@@ -201,7 +202,9 @@ public class CsvTestCaseLoader {
                 }
 
                 row.add(safe(tc.getExpectedResult()));
+                row.add(safe(tc.getActual()));
                 row.add(safe(tc.getResult()));
+
 
                 writer.write(String.join(",", row));
                 writer.newLine();
