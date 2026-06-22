@@ -407,7 +407,6 @@ public class RunService {
                 // Clear scenario execution results
                 s.setResultCsv(null);
                 s.setScreenshots(null);
-                s.setScenarioStatus(null);
 
                 s.setCreatedAt(oldScenario.getCreatedAt());
                 s.setUpdatedAt(Instant.now());

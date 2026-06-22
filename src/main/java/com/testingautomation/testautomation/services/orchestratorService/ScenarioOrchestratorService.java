@@ -3476,122 +3476,301 @@ public class ScenarioOrchestratorService {
             Scenario scenario,
             List<Verify> verifications,
             TestCaseDTO resultTestCase,
-            Map<Integer,List<Verify>> verificationResultMap,
+            Map<Integer, List<Verify>> verificationResultMap,
             boolean isInitial
     ) {
+        logger.info("scenario status' initial status for scenario type {} is {} ",scenario.getType(),scenario.getScenarioStatus());
+
+        logger.info("========== VERIFY SCENARIO PAGE START ==========");
+        logger.info(
+                "ScenarioId={}, TestCaseId={}, VerificationCount={}, IsInitial={}",
+                scenario.getId(),
+                resultTestCase.getTestcaseId(),
+                verifications != null ? verifications.size() : 0,
+                isInitial
+        );
 
         if (verifications == null || verifications.isEmpty()) {
-            logger.info("Scenario [{}] has no verification items in the requested list – nothing to verify.",
-                    scenario.getId());
+            logger.info(
+                    "Scenario [{}] has no verification items. Marking as PASSED.",
+                    scenario.getId()
+            );
+
             resultTestCase.setResult("Passed");
             scenario.setScenarioStatus(RunStatus.PASSED);
+
+            logger.info(
+                    "Scenario [{}] status updated to {}",
+                    scenario.getId(),
+                    scenario.getScenarioStatus()
+            );
+
             return;
         }
-        Map<String,String> values=resultTestCase.getValues();
 
-        logger.info("Scenario [{}] – starting page verification for {} items",
-                scenario.getId(), verifications.size());
+        Map<String, String> values = resultTestCase.getValues();
+
+        logger.info(
+                "Scenario [{}] - Starting verification for {} items",
+                scenario.getId(),
+                verifications.size()
+        );
 
         JavascriptExecutor js = (JavascriptExecutor) driver;
+
         int passCount = 0;
         int failCount = 0;
 
-        List<Verify> loopVerification=new ArrayList<>(verifications);
+        List<Verify> loopVerification = new ArrayList<>(verifications);
+
+        logger.debug("Created local copy of verification list. Size={}", loopVerification.size());
+
         for (Verify verify : loopVerification) {
+
+            logger.info("----------------------------------------");
+            logger.info(
+                    "Starting verification. Selector={}, ExpectedResult={}",
+                    verify.getCssSelector(),
+                    verify.getExpectedResult()
+            );
+
             String cssSelector = verify.getCssSelector();
             String expected = verify.getExpectedResult();
 
             if (cssSelector == null || cssSelector.isBlank()) {
+
+                logger.warn(
+                        "Invalid selector detected. Selector='{}'",
+                        cssSelector
+                );
+
                 verify.setStatus(false);
                 verify.setMessage("CSS selector is null or blank – cannot query element.");
+
                 failCount++;
-                logger.warn("Verification skipped – empty CSS selector. Expected: '{}'", expected);
+
+                logger.info(
+                        "Verification marked FAILED. PassCount={}, FailCount={}",
+                        passCount,
+                        failCount
+                );
+
                 continue;
             }
 
             try {
-                // Use document.querySelector to find the element and return its textContent
+
+                logger.info(
+                        "Searching element using CSS selector: {}",
+                        cssSelector
+                );
+
                 WebElement element = driver.findElement(By.cssSelector(cssSelector));
+
+                logger.info(
+                        "Element located successfully. Displayed={}",
+                        element.isDisplayed()
+                );
 
                 String actualText = element.isDisplayed()
                         ? element.getText().trim()
                         : null;
 
-                if (actualText == null) {
-                    verify.setStatus(false);
-                    verify.setMessage(String.format(
-                            "Element not found for selector '%s'.", cssSelector));
-                    failCount++;
-                    logger.warn("Verification FAILED – element not found. Selector: '{}', Expected: '{}'",
-                            cssSelector, expected);
-                } else if (actualText.equals(expected)) {
-                    verify.setStatus(true);
-                    verify.setMessage(String.format(
-                            "Passed – text content matches. Expected: '%s', Actual: '%s'.",
-                            expected, actualText));
-                    passCount++;
-                    logger.info("Verification PASSED – Selector: '{}', Expected: '{}', Actual: '{}'",
-                            cssSelector, expected, actualText);
-                } else {
-                    verify.setStatus(false);
-                    verify.setMessage(String.format(
-                            "Failed – text content mismatch. Expected: '%s', Actual: '%s'.",
-                            expected, actualText));
-                    failCount++;
-                    logger.warn("Verification FAILED – Selector: '{}', Expected: '{}', Actual: '{}'",
-                            cssSelector, expected, actualText);
-                }
-            } catch (Exception e) {
-                verify.setStatus(false);
-                verify.setMessage(String.format(
-                        "Error while querying selector '%s': %s", cssSelector, e.getMessage()));
-                failCount++;
-                logger.error("Verification ERROR – Selector: '{}', Exception: {}",
-                        cssSelector, e.getMessage(), e);
-            }
-        }
-        verificationResultMap.put(Integer.parseInt(resultTestCase.getTestcaseId()),loopVerification);
+                logger.info(
+                        "Retrieved text. Actual='{}', Expected='{}'",
+                        actualText,
+                        expected
+                );
 
-        if(isInitial){
-            // Determine overall verification status
+                if (actualText == null) {
+
+                    verify.setStatus(false);
+                    verify.setMessage(
+                            String.format(
+                                    "Element not found for selector '%s'.",
+                                    cssSelector
+                            )
+                    );
+
+                    failCount++;
+
+                    logger.warn(
+                            "Verification FAILED. Element text is null. Selector={}",
+                            cssSelector
+                    );
+
+                } else if (actualText.equals(expected)) {
+
+                    verify.setStatus(true);
+
+                    verify.setMessage(
+                            String.format(
+                                    "Passed – text content matches. Expected: '%s', Actual: '%s'.",
+                                    expected,
+                                    actualText
+                            )
+                    );
+
+                    passCount++;
+
+                    logger.info(
+                            "Verification PASSED. Selector={}, Expected={}, Actual={}",
+                            cssSelector,
+                            expected,
+                            actualText
+                    );
+
+                } else {
+
+                    verify.setStatus(false);
+
+                    verify.setMessage(
+                            String.format(
+                                    "Failed – text content mismatch. Expected: '%s', Actual: '%s'.",
+                                    expected,
+                                    actualText
+                            )
+                    );
+
+                    failCount++;
+
+                    logger.warn(
+                            "Verification FAILED. Selector={}, Expected={}, Actual={}",
+                            cssSelector,
+                            expected,
+                            actualText
+                    );
+                }
+
+            } catch (Exception e) {
+
+                logger.error(
+                        "Exception while verifying selector={}",
+                        cssSelector,
+                        e
+                );
+
+                verify.setStatus(false);
+
+                verify.setMessage(
+                        String.format(
+                                "Error while querying selector '%s': %s",
+                                cssSelector,
+                                e.getMessage()
+                        )
+                );
+
+                failCount++;
+            }
+
+            logger.info(
+                    "Verification completed. Current PassCount={}, FailCount={}",
+                    passCount,
+                    failCount
+            );
+        }
+
+        logger.info(
+                "Updating verification result map for TestCaseId={}",
+                resultTestCase.getTestcaseId()
+        );
+
+        verificationResultMap.put(
+                Integer.parseInt(resultTestCase.getTestcaseId()),
+                loopVerification
+        );
+
+        logger.info(
+                "Verification result map updated successfully."
+        );
+
+        logger.info(
+                "Evaluating overall result. PassCount={}, Total={}",
+                passCount,
+                verifications.size()
+        );
+
+        RunStatus previousStatus = scenario.getScenarioStatus();
+
+        if (isInitial) {
+
+            logger.info("Processing INITIAL verification flow.");
+
             if (passCount == verifications.size()) {
-                values.put("verificationStatus","Passed");
-                if(scenario.getScenarioStatus() == RunStatus.DRAFT ){
+
+                values.put("verificationStatus", "Passed");
+
+                logger.info("All verifications passed.");
+
+                if (scenario.getScenarioStatus() == RunStatus.DRAFT) {
                     scenario.setScenarioStatus(RunStatus.PASSED);
-                }else if(scenario.getScenarioStatus()==RunStatus.FAILED){
+                } else if (scenario.getScenarioStatus() == RunStatus.FAILED) {
                     scenario.setScenarioStatus(RunStatus.PARTIAL);
                 }
+
             } else {
-                values.put("verificationStatus","Failed");
-                if(scenario.getScenarioStatus()==RunStatus.PASSED){
+
+                values.put("verificationStatus", "Failed");
+
+                logger.warn(
+                        "Verification failures detected. Passed={}, Failed={}",
+                        passCount,
+                        failCount
+                );
+
+                if (scenario.getScenarioStatus() == RunStatus.PASSED) {
                     scenario.setScenarioStatus(RunStatus.PARTIAL);
-                }else if(scenario.getScenarioStatus()==RunStatus.DRAFT){
+                } else if (scenario.getScenarioStatus() == RunStatus.DRAFT) {
                     scenario.setScenarioStatus(RunStatus.FAILED);
                 }
-//                throw new GlobalExceptionHandler.ScenarioExecutionException(scenario.getSequenceNo(),scenario.getType()
-//                ,"")
             }
-        }else{
+
+        } else {
+
+            logger.info("Processing NORMAL verification flow.");
+
             if (passCount == verifications.size()) {
-               resultTestCase.setResult("Passed");
-               resultTestCase.setActual("Passed");
-               if(scenario.getScenarioStatus() == RunStatus.DRAFT ){
-                   scenario.setScenarioStatus(RunStatus.PASSED);
-               }else if(scenario.getScenarioStatus()==RunStatus.FAILED){
-                   scenario.setScenarioStatus(RunStatus.PARTIAL);
-               }
+
+                resultTestCase.setResult("Passed");
+                resultTestCase.setActual("Passed");
+
+                logger.info("Test case marked PASSED.");
+
+                if (scenario.getScenarioStatus() == RunStatus.DRAFT) {
+                    scenario.setScenarioStatus(RunStatus.PASSED);
+                } else if (scenario.getScenarioStatus() == RunStatus.FAILED) {
+                    scenario.setScenarioStatus(RunStatus.PARTIAL);
+                }
+
             } else {
+
                 resultTestCase.setResult("Failed");
                 resultTestCase.setActual("Failed");
-                if(scenario.getScenarioStatus()==RunStatus.PASSED){
+
+                logger.warn("Test case marked FAILED.");
+
+                if (scenario.getScenarioStatus() == RunStatus.PASSED) {
                     scenario.setScenarioStatus(RunStatus.PARTIAL);
-                }else if(scenario.getScenarioStatus()==RunStatus.DRAFT){
+                } else if (scenario.getScenarioStatus() == RunStatus.DRAFT) {
                     scenario.setScenarioStatus(RunStatus.FAILED);
                 }
             }
         }
 
-        logger.info("Scenario [{}] verification complete – Passed: {}, Failed: {}, Status: {}",
-                scenario.getId(), passCount, failCount, scenario.getVerificationStatus());
+        logger.info(
+                "Scenario status changed from {} to {}",
+                previousStatus,
+                scenario.getScenarioStatus()
+        );
+
+        logger.info(
+                "Verification Summary -> ScenarioId={}, Passed={}, Failed={}, FinalStatus={}",
+                scenario.getId(),
+                passCount,
+                failCount,
+                scenario.getScenarioStatus()
+        );
+
+        logger.info("========== VERIFY SCENARIO PAGE END ==========");
     }
 }
