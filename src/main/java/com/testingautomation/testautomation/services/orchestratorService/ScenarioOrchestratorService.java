@@ -20,6 +20,7 @@ import com.testingautomation.testautomation.services.UiScannerService;
 import com.testingautomation.testautomation.services.stepGeneratorService.AssertionStepGenerator;
 import com.testingautomation.testautomation.services.s3Service.S3StorageService;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
+import com.testingautomation.testautomation.utils.StatusChangeUtils;
 import com.testingautomation.testautomation.utils.TimestampUtil;
 import lombok.RequiredArgsConstructor;
 import org.openqa.selenium.*;
@@ -524,8 +525,8 @@ public class ScenarioOrchestratorService {
                 );
             }
             catch (ScenarioExecutionException ex) {
-                scenario.setScenarioStatus(RunStatus.FAILED);
-                resultTestCase.setResult("Failed "+ex.getMessage());
+//                scenario.setScenarioStatus(RunStatus.FAILED);
+//                resultTestCase.setResult("Failed "+ex.getMessage());
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
 
@@ -1539,6 +1540,10 @@ public class ScenarioOrchestratorService {
         verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
     }
 
+
+
+
+
     private void urlNavigation(Scenario currScenario,
                                WebDriver driver,
                                int modalFormTcIdx,
@@ -1556,10 +1561,18 @@ public class ScenarioOrchestratorService {
                   navigationScreenshotDir,
                   scenarioPrefix
           );
-          List<Verify> afterVerifications=currScenario.getFinalVerify();
-          verifyScenarioPage(driver,currScenario,afterVerifications,resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+          boolean verified=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+          StatusChangeUtils.testCaseResultSetter(verified,resultTestCase);
+          StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
+
+          if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+              throw new ScenarioExecutionException(currScenario.getSequenceNo(),currScenario.getType(),"NavigationVerification","Verification Failed at url navigation",null);
+          }
+//          verifyScenarioPage(driver,currScenario,afterVerifications,resultTestCase,currScenario.getFinalVerifyResultMap(),false);
       }  catch (WebDriverException | IllegalArgumentException e) {
-          currScenario.setScenarioStatus(RunStatus.FAILED);
+          resultTestCase.setActual("Failed due to error");
+          resultTestCase.setResult("Failed");
+          StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
 
           String reason = e.getMessage() != null
                   ? e.getMessage()
