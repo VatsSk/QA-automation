@@ -1901,6 +1901,7 @@ public class ScenarioOrchestratorService {
     public void runModalGeneric(WebDriver driver,List<Scenario> scenarios,String successMsg,int currIdx,String baseS3Prefix,Run run
             , Map<String, List<TestCaseDTO>> scenarioResultsMap) {
         List<TestCaseDTO> testCases=null;
+        boolean hasSkippableException=false;
 
         int currEle=-1;
 
@@ -1909,6 +1910,9 @@ public class ScenarioOrchestratorService {
         }catch (ScenarioExecutionException ex){
             logger.info("Got Exception {}",ex.getMessage());
             throw ex;
+        }catch(SkipTestCaseException ex){
+            logger.info("Got Exception {}",ex.getMessage());
+            hasSkippableException=true;
         }
         String scenarioPrefix =
                 baseS3Prefix + "/" + (currEle+1);
@@ -1941,33 +1945,41 @@ public class ScenarioOrchestratorService {
             logger.info("[{}] loaded {} modal testcases from", scenarioPrefix, testCases.size());
 
             for (TestCaseDTO tc : testCases) {
-                String tcRunId = tc.getTestcaseId();
-                List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
-                logger.info("[{}] scanned {} modal fields", scenarioPrefix, modalFields.size());
-                counterIdx++;
+                if(!hasSkippableException) {
+                    String tcRunId = tc.getTestcaseId();
+                    List<FieldDescriptor> modalFields = scannerService.scanCurrentPage(driver);
+                    logger.info("[{}] scanned {} modal fields", scenarioPrefix, modalFields.size());
+                    counterIdx++;
 
-                List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
-                logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-                boolean passedStatus=false;
-                try {
-                    executor.runOnRenderedPage(driver, steps, tcRunId, scenarioDir, scenarioPrefix);
-                    passedStatus = verificationService.verifyScenario(driver, currModal, currModal.getFinalVerify(), tc, currModal.getFinalVerifyResultMap());
-                    StatusChangeUtils.testCaseResultSetter(passedStatus,tc);
-                }catch (Exception ex){
-                    tc.setActual("Failed due to error");
+                    List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
+                    logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
+                    boolean passedStatus = false;
+                    try {
+                        executor.runOnRenderedPage(driver, steps, tcRunId, scenarioDir, scenarioPrefix);
+                        passedStatus = verificationService.verifyScenario(driver, currModal, currModal.getFinalVerify(), tc, currModal.getFinalVerifyResultMap());
+                        StatusChangeUtils.testCaseResultSetter(passedStatus, tc);
+                    } catch (Exception ex) {
+                        tc.setActual("Failed due to error");
+                        tc.setResult("Failed");
+                        logger.info("[{}] failed executing {} modal steps", tcRunId, steps.size());
+                    }
+                    StatusChangeUtils.scenarioStatusSetter(tc, currModal);
+                }else{
+                    tc.setActual("Failed due to above scenario");
                     tc.setResult("Failed");
-                    logger.info("[{}] failed executing {} modal steps", tcRunId, steps.size());
+                    StatusChangeUtils.scenarioStatusSetter(tc, currModal);
                 }
-                StatusChangeUtils.scenarioStatusSetter(tc,currModal);
-
                 if(counterIdx<testCases.size())
                     try {
                         handleNavigation(driver, scenarios, currIdx, counterIdx, baseS3Prefix, run, scenarioResultsMap);
+                        hasSkippableException=false;
+                    }catch (SkipTestCaseException ex){
+                        logger.info("Got Skip Exception {}",ex.getMessage());
+                        hasSkippableException=true;
                     }catch (ScenarioExecutionException ex){
                         throw ex;
                     }
-                logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
-
+//                logger.info("[{}] Completed modal testcase {}", tcRunId, tc);
             }
 
         }
