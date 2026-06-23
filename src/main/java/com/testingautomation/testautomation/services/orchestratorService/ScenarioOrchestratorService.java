@@ -522,13 +522,9 @@ public class ScenarioOrchestratorService {
                 StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
             }
             catch (ScenarioExecutionException ex) {
-                logger.info("Catched here ");
                 resultTestCase.setActual("Failed due to error");
                 resultTestCase.setResult("Failed");
                 StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
-//                logger.info("resultTestCase : {}",resultTestCase);
-//                scenario.setScenarioStatus(RunStatus.FAILED);
-//                resultTestCase.setResult("Failed "+ex.getMessage());
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
 
@@ -542,13 +538,12 @@ public class ScenarioOrchestratorService {
                 screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
                 throw ex;
             }
-            catch(FinalVerificationException ex){
+            catch(InitialVerificationException ex){
                 StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
-
                 logger.error(
-                        "Scenario stopped at index {} type {} message {}",
+                        "Scenario as Initial verification failed at index {} type {} message {}",
                         currIdx,
                         currScenario.getType(),
                         ex.getMessage().split("\n")[0]
@@ -556,6 +551,36 @@ public class ScenarioOrchestratorService {
 
                 screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
                 throw new ScenarioExecutionException(ex.getScenarioIndex(),ex.getScenarioType(),ex.getStep(),ex.getUserMessage(),ex);
+            }
+            catch(FinalVerificationException ex){
+                StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
+                scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                        .add(resultTestCase);
+
+                logger.error(
+                        "Scenario as final verification failed at index {} type {} message {}",
+                        currIdx,
+                        currScenario.getType(),
+                        ex.getMessage().split("\n")[0]
+                );
+
+                screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
+                throw new ScenarioExecutionException(ex.getScenarioIndex(),ex.getScenarioType(),ex.getStep(),ex.getUserMessage(),ex);
+            }
+            catch(SkipTestCaseException ex){
+                StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
+                scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                        .add(resultTestCase);
+
+                logger.error(
+                        "final verification failed at index {} type {} message {}",
+                        currIdx,
+                        currScenario.getType(),
+                        ex.getMessage().split("\n")[0]
+                );
+
+                screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
+                throw ex;
             }
 
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
@@ -1465,7 +1490,8 @@ public class ScenarioOrchestratorService {
             boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
             StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
             if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
-                throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"formModalFinalVerification","Final Verification Failed at Form Modal",null);
+//                throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"formModalFinalVerification","Final Verification Failed at Form Modal",null);
+                throw new SkipTestCaseException(resultTestCase.getTestcaseId(),currScenario.getType(),"Final verification failed",null);
             }
 //            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
 
@@ -2215,7 +2241,7 @@ public class ScenarioOrchestratorService {
         StatusChangeUtils.initialVerificationStatus(verifyStatus,tc);
         if(!verifyStatus){
             //kill the execution
-            throw new ScenarioExecutionException(scenario.getSequenceNo(),scenario.getType(),"formModal initial verification","Initial Verification Failed at Form Modal",null);
+            throw new InitialVerificationException(scenario.getSequenceNo(),scenario.getType(),"formModal initial verification","Initial Verification Failed at Form Modal",null);
         }
 //        verifyScenarioPage(driver,scenario,scenario.getInitialVerify(),tc,scenario.getInitialVerifyResultMap(),true);
 

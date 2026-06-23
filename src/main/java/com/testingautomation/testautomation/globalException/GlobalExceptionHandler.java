@@ -205,10 +205,10 @@ public class GlobalExceptionHandler {
 
     }
     public static class SkipTestCaseException extends AutomationException{
-        private final int testCaseNo;
+        private final String testCaseNo;
         private final ScenarioType scenarioType;
         private final String message;
-        public SkipTestCaseException(int testCaseNo,ScenarioType scenarioType,String message,Exception cause){
+        public SkipTestCaseException(String testCaseNo,ScenarioType scenarioType,String message,Exception cause){
             super(message,cause);
             this.testCaseNo=testCaseNo;
             this.scenarioType=scenarioType;

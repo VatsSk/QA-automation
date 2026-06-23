@@ -7,6 +7,7 @@ import com.testingautomation.testautomation.enums.RunStatus;
 public class StatusChangeUtils {
     public static void testCaseResultSetter(boolean verifyStatus, TestCaseDTO resultTestCase){
         if (verifyStatus) {
+            resultTestCase.getValues().put("FinalVerificationStatus","Passed");
             resultTestCase.setActual("Passed");
             if ("Passed".equals(resultTestCase.getExpectedResult())) {
                 resultTestCase.setResult("Passed");
@@ -14,6 +15,7 @@ public class StatusChangeUtils {
                 resultTestCase.setResult("Failed");
             }
         } else {
+            resultTestCase.getValues().put("FinalVerificationStatus","Failed");
             resultTestCase.setActual("Failed");
             if ("Failed".equals(resultTestCase.getExpectedResult())) {
                 resultTestCase.setResult("Passed");
@@ -28,6 +30,8 @@ public class StatusChangeUtils {
            resultTestCase.getValues().put("initialVerificationStatus","Passed");
         } else {
             resultTestCase.getValues().put("initialVerificationStatus","Failed");
+            resultTestCase.setActual("Initial verification Failed");
+            resultTestCase.setResult("Failed");
         }
     }
 
