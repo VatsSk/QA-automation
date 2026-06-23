@@ -96,6 +96,7 @@ public class SeleniumExecutor {
             if(!verificationService.verifyScenario(driver1,
                     currScenario,currScenario.getInitialVerify(),
                     testCaseDTO,currScenario.getInitialVerifyResultMap())){
+                testCaseDTO.getValues().put("InitialVerificationStatus","Failed");
                 throw new GlobalExceptionHandler.ScenarioExecutionException(
                         currScenarioIdx,
                         currScenario.getType(),
@@ -104,6 +105,7 @@ public class SeleniumExecutor {
                         new Exception("initial verification failed")
                 );
             }
+            testCaseDTO.getValues().put("InitialVerificationStatus","Passed");
             logger.info("[{}] Page loaded: {}", testCaseId, driver1.getCurrentUrl());
             for (StepAction s : steps) {
                 stepNo++;
@@ -146,24 +148,16 @@ public class SeleniumExecutor {
         }
     }
 
-    public ResultRun runOnRenderedPage(WebDriver driver1,
+    public void runOnRenderedPage(WebDriver driver1,
                                        List<StepAction> steps,
-                                       TestCaseDTO testCaseDTO,
                                        String testCaseId,
                                        Path scenarioDir,
-                                       String scenarioPrefix,
-                                       Scenario currScenario) {
+                                       String scenarioPrefix) {
 
         List<String> screenshotUrls = new ArrayList<>();
-        logger.info("array created");
-
         String timestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HHmm"));
-        logger.info("resolving runDir");
-
         Path runDir = scenarioDir.resolve(testCaseId + "_" + timestamp);
-        logger.info("resolved rundir");
         Path screenshotsDir = runDir.resolve("screenshots");
-        logger.info("ssPath");
 
         try {
             Files.createDirectories(screenshotsDir);
@@ -175,10 +169,8 @@ public class SeleniumExecutor {
 
         logger.info("[{}] Executing on CURRENT UI (no navigation)", testCaseId);
 
-        boolean testPassed = true;
         int stepNo = 0;
 
-        try {
 
             try {
                 driver1.manage().window().setSize(new Dimension(1366, 900));
@@ -217,7 +209,7 @@ public class SeleniumExecutor {
                             screenshotUrls.add(screenshotUrl);
                     }
 
-                } catch (RuntimeException ex) {
+                } catch (Exception ex) {
 
                     if ("SKIPPED".equals(ex.getMessage())) {
                         logger.info("[{}] Step {} skipped", testCaseId, stepNo);
@@ -226,7 +218,7 @@ public class SeleniumExecutor {
 
                     logger.error("[{}] Step {} failed: {}", testCaseId, stepNo, ex.getMessage());
 
-                    String screenshotUrl = screenshotService.takeScreenshot(
+                    screenshotService.takeScreenshot(
                             driver1,
                             testCaseId,
                             "step" + stepNo,
@@ -234,57 +226,9 @@ public class SeleniumExecutor {
                             scenarioPrefix
                     );
 
-                    if (screenshotUrl != null)
-                        screenshotUrls.add(screenshotUrl);
-
-                    testPassed = false;
-                    break;
+                    throw new RuntimeException("Exception Occurred while entering values");
                 }
             }
-//            verificationService.verifyScenarioPageFinal(driver1,currScenario,currScenario.getFinalVerify(),testCaseDTO,currScenario.getFinalVerifyResultMap(),false);
-
-            // final success message check
-//            if (expectedResult!=null && successMsg != null && !successMsg.trim().isEmpty()) {
-//
-//                boolean foundVisible = isTextVisibleInViewport(driver1, successMsg);
-//
-////                String screenshotUrl = screenshotService.takeScreenshot(
-////                        driver1,
-////                        testCaseId,
-////                        "final_check",
-////                        screenshotsDir,
-////                        scenarioPrefix
-////                );
-////
-////                if (screenshotUrl != null)
-////                    screenshotUrls.add(screenshotUrl);
-//
-//                if (!foundVisible) {
-//                    testPassed = false;
-//
-//                    logger.warn("[{}] Success message NOT visible in viewport: '{}'", testCaseId, successMsg);
-//                } else {
-//
-//                    logger.info("[{}] Success message visible in viewport: '{}' test passed",
-//                            testCaseId, successMsg);
-//                }
-//            }else{
-//                logger.info("Not a scenario whose result needs to be justified with success message and also doesn't have expected column!");
-//            }
-
-        } catch (Exception e) {
-
-            testPassed = false;
-
-            logger.error("[{}] Test run failed: {}", testCaseId, e.getMessage(), e);
-        }
-
-        ResultRun resultRun = new ResultRun(
-                testPassed ? "PASSED" : "FAILED",
-                screenshotUrls
-        );
-
-        return resultRun;
     }
 
 

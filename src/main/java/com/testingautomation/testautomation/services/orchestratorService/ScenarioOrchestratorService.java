@@ -220,7 +220,6 @@ public class ScenarioOrchestratorService {
                         scenarioDir,
                         scenarioPrefix
                 );
-                logger.info("Failure screenshot taken: {}", failScreenshot);
             }
 
         } catch (Exception e) {
@@ -531,7 +530,7 @@ public class ScenarioOrchestratorService {
                         .add(resultTestCase);
 
                 logger.error(
-                        "Scenario stopped at index {} type {}",
+                        "Scenario stopped at index {} type {} message {}",
                         currIdx,
                         currScenario.getType(),
                         ex.getMessage().split("\n")[0]
@@ -1882,8 +1881,6 @@ public class ScenarioOrchestratorService {
         }
 
         int counterIdx=0;
-        int totalPasses = 0;
-        int totalFails = 0;
         try {
             // load modal testcases
             testCases = csvLoader.loadFromS3(currModal.getCsv());
@@ -1897,16 +1894,18 @@ public class ScenarioOrchestratorService {
 
                 List<StepAction> steps = stepGenerator.generateSteps(modalFields, tc);
                 logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
-//                String expected = tc.getExpectedResult();
-                ResultRun resultRun =executor.runOnRenderedPage(driver, steps,tc, tcRunId,scenarioDir,scenarioPrefix,currModal);
-//                if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
-//                    tc.setResult("Passed");
-//                    totalPasses++;
-//                } else {
-//                    tc.setResult(resultRun.getStatus());
-//                    totalFails++;
-//                }
-                tc.setSsUrls(resultRun.getScreenshots());
+                boolean passedStatus=false;
+                try {
+                    executor.runOnRenderedPage(driver, steps, tcRunId, scenarioDir, scenarioPrefix);
+                    passedStatus = verificationService.verifyScenario(driver, currModal, currModal.getFinalVerify(), tc, currModal.getFinalVerifyResultMap());
+                    StatusChangeUtils.testCaseResultSetter(passedStatus,tc);
+                }catch (Exception ex){
+                    tc.setActual("Failed due to error");
+                    tc.setResult("Failed");
+                    logger.info("[{}] failed executing {} modal steps", tcRunId, steps.size());
+                }
+                StatusChangeUtils.scenarioStatusSetter(tc,currModal);
+
                 if(counterIdx<testCases.size())
                     try {
                         handleNavigation(driver, scenarios, currIdx, counterIdx, baseS3Prefix, run, scenarioResultsMap);
@@ -1933,27 +1932,15 @@ public class ScenarioOrchestratorService {
                     ex
             );
         }
-        // store modal scenario testcases in memory grouped by scenarioPrefix
-        scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
-                .addAll(testCases);
+        finally{
+            // store modal scenario testcases in memory grouped by scenarioPrefix
+            scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                    .addAll(testCases);
 
-
-
+        }
         logger.info("[{}] Stored {} modal testcases in scenarioResultsMap",
                 scenarioPrefix, testCases.size());
 
-//        ScenarioTestDto scenarioTestDto = new ScenarioTestDto(testCases, null);
-
-        if (totalPasses == testCases.size()) {
-            currModal.setScenarioStatus(RunStatus.PASSED);
-        }
-        else if (totalFails == testCases.size()) {
-            currModal.setScenarioStatus(RunStatus.FAILED);
-        }
-        else {
-            currModal.setScenarioStatus(RunStatus.PARTIAL);
-        }
-        logger.info("Total testcase "+testCases.size()+" passes "+totalPasses+" fails "+totalFails);
     }
 
     public void runAssertionGeneric(
@@ -2197,12 +2184,9 @@ public class ScenarioOrchestratorService {
         executor.runOnRenderedPage(
                 driver,
                 steps,
-                tc,
                 tc.getTestcaseId(),
                 navigationScreenshotDir,
-                scenarioPrefix,
-                scenario
-
+                scenarioPrefix
         );
     }
     private void handleSelect2(WebDriver driver, WebElement selectElement, String value,int[]stepCounter,Path navigationScreenshotDir, String scenarioPrefix) {
