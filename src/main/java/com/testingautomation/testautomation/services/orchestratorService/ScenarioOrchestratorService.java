@@ -363,7 +363,6 @@ public class ScenarioOrchestratorService {
     private int executeScenarioByType(
             WebDriver driver,
             WebDriverWait wait,
-            Run run,
             Scenario currScenario,
             Scenario scenario,
             TestCaseDTO resultTestCase,
@@ -415,7 +414,6 @@ public class ScenarioOrchestratorService {
                             resultTestCase,
                             scenarioPrefix,
                             navigationScreenshotDir,
-                            scenario,
                             modalFormTcIdx
                     );
                     yield currIdx;
@@ -513,7 +511,6 @@ public class ScenarioOrchestratorService {
                 currIdx = executeScenarioByType(
                         driver,
                         wait,
-                        run,
                         currScenario,
                         scenario,
                         resultTestCase,
@@ -523,15 +520,21 @@ public class ScenarioOrchestratorService {
                         scenarioPrefix,
                         scenarioResultsMap
                 );
+                StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
             }
             catch (ScenarioExecutionException ex) {
+                logger.info("Catched here ");
+                resultTestCase.setActual("Failed due to error");
+                resultTestCase.setResult("Failed");
+                StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
+//                logger.info("resultTestCase : {}",resultTestCase);
 //                scenario.setScenarioStatus(RunStatus.FAILED);
 //                resultTestCase.setResult("Failed "+ex.getMessage());
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
 
                 logger.error(
-                        "Scenario stopped at index {} type {}",
+                        "Scenario stopped at index {} type {} message {}",
                         currIdx,
                         currScenario.getType(),
                         ex.getMessage().split("\n")[0]
@@ -540,6 +543,22 @@ public class ScenarioOrchestratorService {
                 screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
                 throw ex;
             }
+            catch(FinalVerificationException ex){
+                StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
+                scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
+                        .add(resultTestCase);
+
+                logger.error(
+                        "Scenario stopped at index {} type {} message {}",
+                        currIdx,
+                        currScenario.getType(),
+                        ex.getMessage().split("\n")[0]
+                );
+
+                screenshotService.takeScreenshot(driver,(modalFormTcIdx+1)+"","error",navigationScreenshotDir,scenarioPrefix);
+                throw new ScenarioExecutionException(ex.getScenarioIndex(),ex.getScenarioType(),ex.getStep(),ex.getUserMessage(),ex);
+            }
+
                 scenarioResultsMap.computeIfAbsent(scenarioPrefix, k -> new ArrayList<>())
                         .add(resultTestCase);
 
@@ -773,7 +792,11 @@ public class ScenarioOrchestratorService {
             // SUCCESS
             // =====================================================
 
-            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+            boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+            StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+            if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+                throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"FilterNavVerification","Verification Failed at Filter Nav",null);
+            }
         }
         catch (ScenarioExecutionException ex) {
             throw ex;
@@ -1278,7 +1301,11 @@ public class ScenarioOrchestratorService {
             // =====================================================
             // SUCCESS
             // =====================================================
-            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+            boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+            StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+            if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+                throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"FilterNavVerification","Verification Failed at Filter Nav",null);
+            }
         }
         catch (ScenarioExecutionException ex) {
             throw ex;
@@ -1300,7 +1327,6 @@ public class ScenarioOrchestratorService {
             TestCaseDTO resultTestCase,
             String scenarioPrefix,
             Path navigationScreenshotDir,
-            Scenario scenario,
             int modalFormTcIdx
     ) {
         try {
@@ -1437,8 +1463,12 @@ public class ScenarioOrchestratorService {
             // =====================================================
             // SUCCESS FLOW
             // =====================================================
-
-            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+            boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+            StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+            if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+                throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"formModalFinalVerification","Final Verification Failed at Form Modal",null);
+            }
+//            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
 
 
             logger.info(
@@ -1503,14 +1533,15 @@ public class ScenarioOrchestratorService {
 
                     clicked = true;
 
-                    logger.info(
-                            "Modal opened using smartClick"
-                    );
+                    logger.info("Modal opened using smartClick");
                     wait(1000);
+                    boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+                    StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+                    if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+                        throw new ScenarioExecutionException(currScenario.getSequenceNo(),currScenario.getType(),"NavModalVerification","Verification failed at modal nav",null);
+                    }
                 }
-                catch (
-                        Exception ex
-                ) {
+                catch (Exception ex) {
                     logger.info("Unable to click "+ex.getMessage().split("\n")[0]);
 
                     throw new GlobalExceptionHandler.ScenarioExecutionException(
@@ -1537,7 +1568,7 @@ public class ScenarioOrchestratorService {
 
         logger.info("Modal opener clicked successfully");
 
-        verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+//        verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
     }
 
 
@@ -1563,16 +1594,13 @@ public class ScenarioOrchestratorService {
           );
           boolean verified=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
           StatusChangeUtils.testCaseResultSetter(verified,resultTestCase);
-          StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
 
           if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
-              throw new ScenarioExecutionException(currScenario.getSequenceNo(),currScenario.getType(),"NavigationVerification","Verification Failed at url navigation",null);
+              throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"NavigationVerification","Verification Failed at url navigation",null);
           }
 //          verifyScenarioPage(driver,currScenario,afterVerifications,resultTestCase,currScenario.getFinalVerifyResultMap(),false);
       }  catch (WebDriverException | IllegalArgumentException e) {
-          resultTestCase.setActual("Failed due to error");
-          resultTestCase.setResult("Failed");
-          StatusChangeUtils.scenarioStatusSetter(resultTestCase,currScenario);
+
 
           String reason = e.getMessage() != null
                   ? e.getMessage()
@@ -1899,13 +1927,6 @@ public class ScenarioOrchestratorService {
                 logger.info("[{}] Executing {} modal steps", tcRunId, steps.size());
 //                String expected = tc.getExpectedResult();
                 ResultRun resultRun =executor.runOnRenderedPage(driver, steps,tc, tcRunId,scenarioDir,scenarioPrefix,currModal);
-//                if (expected != null && expected.equalsIgnoreCase(resultRun.getStatus())) {
-//                    tc.setResult("Passed");
-//                    totalPasses++;
-//                } else {
-//                    tc.setResult(resultRun.getStatus());
-//                    totalFails++;
-//                }
                 tc.setSsUrls(resultRun.getScreenshots());
                 if(counterIdx<testCases.size())
                     try {
@@ -2184,7 +2205,13 @@ public class ScenarioOrchestratorService {
         // =========================
 
         List<FieldDescriptor> fields = scannerService.scanCurrentPage(driver);
-        verifyScenarioPage(driver,scenario,scenario.getInitialVerify(),tc,scenario.getInitialVerifyResultMap(),true);
+        boolean verifyStatus=verificationService.verifyScenario(driver,scenario,scenario.getInitialVerify(),tc,scenario.getInitialVerifyResultMap());
+        StatusChangeUtils.initialVerificationStatus(verifyStatus,tc);
+        if(!verifyStatus){
+            //kill the execution
+            throw new ScenarioExecutionException(scenario.getSequenceNo(),scenario.getType(),"formModal initial verification","Initial Verification Failed at Form Modal",null);
+        }
+//        verifyScenarioPage(driver,scenario,scenario.getInitialVerify(),tc,scenario.getInitialVerifyResultMap(),true);
 
 
         // create steps from fields + testcase
@@ -2583,7 +2610,11 @@ public class ScenarioOrchestratorService {
             currScenario.setScenarioStatus(RunStatus.PASSED);
 
             logger.info("===== END : handleManageColumnScenario =====");
-            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+            boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+            StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+            if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+                throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"FilterNavVerification","Verification Failed at Filter Nav",null);
+            }
         } catch (Exception e) {
             resultTestCase.setResult("Failed");
             currScenario.setScenarioStatus(RunStatus.FAILED);
@@ -3057,9 +3088,12 @@ public class ScenarioOrchestratorService {
                     logger.info("Could not close dropdown using body click, continuing");
                 }
             }
-            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
-//            scenario.setScenarioStatus(RunStatus.PASSED);
-//            resultTestCase.setResult("Passed");
+            boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+            StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+            if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+                throw new ScenarioExecutionException(scenario.getSequenceNo(),scenario.getType(),"SearchVerification","Verification failed at search navigation",null);
+            }
+//            verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
             return currIdx;
         } catch (ScenarioExecutionException ex) {
             throw ex;
@@ -3451,7 +3485,11 @@ public class ScenarioOrchestratorService {
                 )
         );
 
-        verifyScenarioPage(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap(),false);
+        boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+        StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+        if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+            throw new FinalVerificationException(currScenario.getSequenceNo(),currScenario.getType(),"FilterNavVerification","Verification Failed at Filter Nav",null);
+        }
 //        scenario.setScenarioStatus(RunStatus.PASSED);
 //        resultTestCase.setResult("Passed");
     } catch (Exception e) {
