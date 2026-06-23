@@ -23,6 +23,13 @@ public class StatusChangeUtils {
             }
         }
     }
+    public static void initialVerificationStatus(boolean verifyStatus, TestCaseDTO resultTestCase){
+        if (verifyStatus) {
+           resultTestCase.getValues().put("initialVerificationStatus","Passed");
+        } else {
+            resultTestCase.getValues().put("initialVerificationStatus","Failed");
+        }
+    }
 
     public static void scenarioStatusSetter(TestCaseDTO resultTestCase, Scenario currScenario){
         if("Failed".equalsIgnoreCase(resultTestCase.getResult())){

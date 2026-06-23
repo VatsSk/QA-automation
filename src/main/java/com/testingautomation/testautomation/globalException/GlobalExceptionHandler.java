@@ -82,7 +82,139 @@ public class GlobalExceptionHandler {
         }
 
     }
+    public static class FinalVerificationException extends AutomationException {
 
+        private final int scenarioIndex;
+
+        private final ScenarioType scenarioType;
+
+        private final String step;
+
+        private final String userMessage;
+
+        public FinalVerificationException(
+
+                int scenarioIndex,
+
+                ScenarioType scenarioType,
+
+                String step,
+
+                String userMessage,
+
+                Throwable cause
+
+        ) {
+
+            super(userMessage, cause);
+
+            this.scenarioIndex = scenarioIndex;
+
+            this.scenarioType = scenarioType;
+
+            this.step = step;
+
+            this.userMessage = userMessage;
+
+        }
+
+        public int getScenarioIndex() {
+
+            return scenarioIndex;
+
+        }
+
+        public ScenarioType getScenarioType() {
+
+            return scenarioType;
+
+        }
+
+        public String getStep() {
+
+            return step;
+
+        }
+
+        public String getUserMessage() {
+
+            return userMessage;
+
+        }
+
+    }
+    public static class InitialVerificationException extends AutomationException {
+
+        private final int scenarioIndex;
+
+        private final ScenarioType scenarioType;
+
+        private final String step;
+
+        private final String userMessage;
+
+        public InitialVerificationException(
+
+                int scenarioIndex,
+
+                ScenarioType scenarioType,
+
+                String step,
+
+                String userMessage,
+
+                Throwable cause
+
+        ) {
+
+            super(userMessage, cause);
+
+            this.scenarioIndex = scenarioIndex;
+
+            this.scenarioType = scenarioType;
+
+            this.step = step;
+
+            this.userMessage = userMessage;
+
+        }
+
+        public int getScenarioIndex() {
+
+            return scenarioIndex;
+
+        }
+
+        public ScenarioType getScenarioType() {
+
+            return scenarioType;
+
+        }
+
+        public String getStep() {
+
+            return step;
+
+        }
+
+        public String getUserMessage() {
+
+            return userMessage;
+
+        }
+
+    }
+    public static class SkipTestCaseException extends AutomationException{
+        private final int testCaseNo;
+        private final ScenarioType scenarioType;
+        private final String message;
+        public SkipTestCaseException(int testCaseNo,ScenarioType scenarioType,String message,Exception cause){
+            super(message,cause);
+            this.testCaseNo=testCaseNo;
+            this.scenarioType=scenarioType;
+            this.message=message;
+        }
+    }
     public static class AssertionExecutionException extends AutomationException {
         private final String assertionType;
         private final String userMessage;
@@ -153,6 +285,7 @@ public class GlobalExceptionHandler {
 
     // ── Handlers ──────────────────────────────────────────────────────
 
+
     @ExceptionHandler(ScenarioExecutionException.class)
     public ResponseEntity<ErrorResponse> handleScenarioExecution(
             ScenarioExecutionException ex
@@ -186,6 +319,7 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(body);
     }
+
 
 
     @ExceptionHandler(AssertionExecutionException.class)
