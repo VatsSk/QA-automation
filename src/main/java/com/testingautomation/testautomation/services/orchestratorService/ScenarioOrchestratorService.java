@@ -592,8 +592,6 @@ public class ScenarioOrchestratorService {
                         scenarioResultsMap.get(scenarioPrefix).size());
                 logger.info("Current status of map: {}",scenarioResultsMap.get(scenarioPrefix));
 
-//            run.getScenariosList().set(currIdx, scenario);
-
             currIdx++;
         }
 
@@ -1526,7 +1524,7 @@ public class ScenarioOrchestratorService {
         try {
          openerBy  = By.cssSelector(currScenario.getCssOpener());
         }catch (Exception ex) {
-            logger.error("Failed to open modal using selector: {}", currScenario.getCssOpener(), ex.getMessage().split("\n")[0]);
+            logger.error("Failed {} to open modal using selector: {}",  ex.getMessage().split("\n")[0],currScenario.getCssOpener());
             throw new ScenarioExecutionException(
                     modalFormTcIdx,
                     currScenario.getType(),
@@ -1545,6 +1543,12 @@ public class ScenarioOrchestratorService {
             safeClick(driver, openerBy);
             clicked = true;
             logger.info("Modal opened using safeClick");
+            boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
+            StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+            logger.info("Data in current testcase {}",resultTestCase);
+            if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
+                throw new ScenarioExecutionException(currScenario.getSequenceNo(),currScenario.getType(),"NavModalVerification","Verification failed at modal nav",null);
+            }
         } catch (Exception safeEx) {
             logger.warn("safeClick failed, falling back to smartClick. Reason: {}",safeEx.getMessage().split("\n")[0]);
         }
@@ -1562,6 +1566,7 @@ public class ScenarioOrchestratorService {
                     wait(1000);
                     boolean verifyStatus=verificationService.verifyScenario(driver,currScenario,currScenario.getFinalVerify(),resultTestCase,currScenario.getFinalVerifyResultMap());
                     StatusChangeUtils.testCaseResultSetter(verifyStatus,resultTestCase);
+                    logger.info("Data in current testcase {}",resultTestCase);
                     if(resultTestCase.getResult().equalsIgnoreCase("Failed")){
                         throw new ScenarioExecutionException(currScenario.getSequenceNo(),currScenario.getType(),"NavModalVerification","Verification failed at modal nav",null);
                     }
