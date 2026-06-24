@@ -5,12 +5,17 @@ import com.testingautomation.testautomation.entities.Scenario;
 import com.testingautomation.testautomation.entities.Verify;
 import com.testingautomation.testautomation.enums.RunStatus;
 import com.testingautomation.testautomation.services.orchestratorService.ScenarioOrchestratorService;
+import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -19,7 +24,31 @@ import java.util.Map;
 public class VerificationService {
 
     private final Logger logger = LoggerFactory.getLogger(VerificationService.class);
+    private boolean isActuallyVisible(WebDriver driver, WebElement element) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
 
+        return Boolean.TRUE.equals(js.executeScript("""
+        const el = arguments[0];
+
+        if (!el) return false;
+
+        const rect = el.getBoundingClientRect();
+
+        if (
+            rect.width === 0 ||
+            rect.height === 0
+        ) {
+            return false;
+        }
+
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+
+        const topElement = document.elementFromPoint(centerX, centerY);
+
+        return topElement === el || el.contains(topElement);
+    """, element));
+    }
     public boolean verifyScenario(
             WebDriver driver,
             Scenario scenario,
@@ -53,11 +82,20 @@ public class VerificationService {
 
             try {
                 // Use document.querySelector to find the element and return its textContent
-                String actualText = (String) js.executeScript(
-                        "var el = document.querySelector(arguments[0]); "
-                                + "return el ? el.textContent.trim() : null;",
-                        cssSelector
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(3));
+                WebElement element = wait.until(
+                        ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector))
                 );
+
+//                String actualText = element.isDisplayed()
+//                        ? element.getText().trim()
+//                        : null;
+                String actualText =
+                        element.isDisplayed() &&
+                                isActuallyVisible(driver, element)
+                                ? element.getText().trim()
+                                : null;
+                logger.info("actualText : {}",actualText);
                 if(actualText ==  null && expected==null) {
                     verify.setStatus(true);
                 } else if (actualText == null) {
