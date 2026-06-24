@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 
 import static com.testingautomation.testautomation.utils.ExceptionUtil.getUserFriendlyErrorMessage;
 import static com.testingautomation.testautomation.globalException.GlobalExceptionHandler.*;
+import static com.testingautomation.testautomation.utils.UtilServices.unwrapFrameworkElement;
 
 @Service
 @RequiredArgsConstructor
@@ -2127,9 +2128,7 @@ public class ScenarioOrchestratorService {
             Path navigationScreenshotDir
     ) {
         int stepCounter = 1;
-        logger.info("Css selector before normalization {}",scenario.getCssOpener());
-        String cssSelector = UtilServices.normalizeCssSelectorForSelect2(scenario.getCssOpener());
-        logger.info("Css selector after normalization {}",cssSelector);
+        String cssSelector = scenario.getCssOpener();
         String value = scenario.getValue();
         boolean isClick =scenario.getClickCss()!=null;
         logger.info("is click : {}",isClick);
@@ -2141,8 +2140,22 @@ public class ScenarioOrchestratorService {
 
 
             WebElement element = wait.until(
-//                ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector))
                     ExpectedConditions.presenceOfElementLocated(by)
+            );
+            logger.info(
+                    "Earlier element -> tag={}, id={}, class={}",
+                    element.getTagName(),
+                    element.getAttribute("id"),
+                    element.getAttribute("class")
+            );
+            // unwrap framework wrappers if any
+            element = unwrapFrameworkElement(driver, element);
+
+            logger.info(
+                    "Resolved element -> tag={}, id={}, class={}",
+                    element.getTagName(),
+                    element.getAttribute("id"),
+                    element.getAttribute("class")
             );
             logger.info("FORM_MODAL scenario details -> openerCss='{}', value='{}', clickCss='{}', isClick={}, isSearch={}, clickCss='{}'",
                     cssSelector,
@@ -2211,6 +2224,7 @@ public class ScenarioOrchestratorService {
                 WebElement container = wait.until(
                         ExpectedConditions.presenceOfElementLocated(By.cssSelector(secondId))
                 );
+                container = unwrapFrameworkElement(driver, container);
 
                 // 🔥 find actual clickable child (a/button)
                 WebElement clickable = container.findElement(By.xpath(".//a | .//button"));
