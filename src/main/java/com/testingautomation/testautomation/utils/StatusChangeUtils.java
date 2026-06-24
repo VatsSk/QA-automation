@@ -3,7 +3,9 @@ package com.testingautomation.testautomation.utils;
 import com.testingautomation.testautomation.dto.TestCaseDTO;
 import com.testingautomation.testautomation.entities.Scenario;
 import com.testingautomation.testautomation.enums.RunStatus;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 public class StatusChangeUtils {
     public static void testCaseResultSetter(boolean verifyStatus, TestCaseDTO resultTestCase){
         if (verifyStatus) {
@@ -24,6 +26,7 @@ public class StatusChangeUtils {
 
             }
         }
+        log.info("testCaseDto inside testCaseResultSatatus {}",resultTestCase);
     }
     public static void initialVerificationStatus(boolean verifyStatus, TestCaseDTO resultTestCase){
         if (verifyStatus) {
