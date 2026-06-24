@@ -55,7 +55,7 @@ public class VerificationService {
             List<Verify> verifications,
             TestCaseDTO resultTestCase,
             Map<Integer,List<Verify>> verificationResultMap
-    ) {
+    )  {
 //        logger.info();
         if (verifications == null || verifications.isEmpty()) {
             logger.info("Scenario [{}] has no verification items in the requested list – nothing to verify.",
@@ -82,7 +82,7 @@ public class VerificationService {
 
             try {
                 // Use document.querySelector to find the element and return its textContent
-                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(3));
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
                 WebElement element = wait.until(
                         ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector))
                 );
@@ -96,14 +96,20 @@ public class VerificationService {
                                 ? element.getText().trim()
                                 : null;
                 logger.info("actualText : {}",actualText);
+                logger.info("Displayed = {}", element.isDisplayed());
+                logger.info("ActuallyVisible = {}", isActuallyVisible(driver, element));
+                logger.info("getText = [{}]", element.getText());
+                logger.info("innerText = [{}]", element.getAttribute("innerText"));
+                logger.info("textContent = [{}]", element.getAttribute("textContent"));
+                logger.info("OuterHTML = {}", element.getAttribute("outerHTML"));
                 if(actualText ==  null && expected==null) {
                     verify.setStatus(true);
                 } else if (actualText == null) {
                     verify.setStatus(false);
                     verify.setMessage(String.format(
                             "Element not found for selector '%s'.", cssSelector));
-                    logger.warn("Verification FAILED – element not found. Selector: '{}', Expected: '{}'",
-                            cssSelector, expected);
+                    logger.warn("Verification FAILED – element not found. Selector: '{}', Expected: '{}', Actual: '{}'",
+                            cssSelector, expected,actualText);
                 } else if (actualText.equals(expected)) {
                     verify.setStatus(true);
                     verify.setMessage(String.format(

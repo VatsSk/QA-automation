@@ -22,6 +22,7 @@ import com.testingautomation.testautomation.services.s3Service.S3StorageService;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
 import com.testingautomation.testautomation.utils.StatusChangeUtils;
 import com.testingautomation.testautomation.utils.TimestampUtil;
+import com.testingautomation.testautomation.utils.UtilServices;
 import lombok.RequiredArgsConstructor;
 import org.openqa.selenium.*;
 import org.openqa.selenium.TimeoutException;
@@ -306,6 +307,7 @@ public class ScenarioOrchestratorService {
                 }else {
                     if (verifyResult) {
                         tc.setActual("Passed");
+                        tc.getValues().put("FinalVerificationStatus", "Passed");
                         if ("Passed".equals(tc.getExpectedResult())) {
                             tc.setResult("Passed");
                             totalPasses++;
@@ -315,6 +317,7 @@ public class ScenarioOrchestratorService {
                         }
                     } else {
                         tc.setActual("Failed");
+                        tc.getValues().put("FinalVerificationStatus", "Failed");
                         if ("Failed".equals(tc.getExpectedResult())) {
                             tc.setResult("Passed");
                             totalFails++;
@@ -329,6 +332,7 @@ public class ScenarioOrchestratorService {
                 logger.error("[{}] testcase failed, continuing: {}", tc.getTestcaseId(), e.getMessage(), e);
                 tc.setActual("Error");
                 tc.setResult("Failed");
+                tc.getValues().put("FinalVerificationStatus", "Failed");
                 totalFails++;
             }
             scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
@@ -2123,8 +2127,9 @@ public class ScenarioOrchestratorService {
             Path navigationScreenshotDir
     ) {
         int stepCounter = 1;
-
-        String cssSelector = scenario.getCssOpener();
+        logger.info("Css selector before normalization {}",scenario.getCssOpener());
+        String cssSelector = UtilServices.normalizeCssSelectorForSelect2(scenario.getCssOpener());
+        logger.info("Css selector after normalization {}",cssSelector);
         String value = scenario.getValue();
         boolean isClick =scenario.getClickCss()!=null;
         logger.info("is click : {}",isClick);
