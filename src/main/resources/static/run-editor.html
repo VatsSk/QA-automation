@@ -1143,16 +1143,6 @@
         <!-- ── Initial Verification (URL scenario only — after URL input) ── -->
         ${s.type === 'URL' ? renderInitialVerificationSection(scIdx, s) : ''}
 
-        <!-- ── CSS Selector (shown for MODAL, MODAL_NAV, SEARCH_NAV, FORM_MODAL) ── -->
-        ${cfg.fields.includes('cssSelector') ? `
-        <div class="field">
-          <label class="lbl">CSS Selector *</label>
-          <input class="inp inp-mono" id="sc-css"
-            value="${esc(s.cssSelector)}"
-            placeholder=".modal-trigger, #open-btn"
-            oninput="updateField(${scIdx}, 'cssSelector', this.value)">
-        </div>` : ''}
-
         <!-- ── Value (for SEARCH_NAV and FORM_MODAL) ── -->
        ${cfg.fields.includes('value') ? `
         <div class="field">

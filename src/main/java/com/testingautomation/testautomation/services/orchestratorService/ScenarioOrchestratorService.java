@@ -149,8 +149,8 @@ public class ScenarioOrchestratorService {
     }
 
     private void runVerifyPageGenric(WebDriver driver, Scenario current, String baseS3Prefix,Map<String, List<TestCaseDTO>> scenarioResultsMap) {
-        logger.info("Executing VERIFY_PAGE scenario - URL: {}, CSS Selector: {}",
-                current.getUrl(), current.getCssOpener());
+        logger.info("Executing VERIFY_PAGE scenario - URL: {}",
+                current.getUrl());
 
         String scenarioPrefix = baseS3Prefix + "/" + current.getSequenceNo();
         Path scenarioDir = Paths.get(resultsBaseDir, scenarioPrefix);
@@ -164,6 +164,8 @@ public class ScenarioOrchestratorService {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         List<TestCaseDTO> testCases = new ArrayList<>();
         TestCaseDTO verifyResult = new TestCaseDTO("1", new HashMap<>());
+        verifyResult.setExpectedResult("Passed");
+        boolean isVisible=true;
         try {
             // Navigate to the URL
             logger.info("Navigating to URL: {}", current.getUrl());
@@ -179,65 +181,29 @@ public class ScenarioOrchestratorService {
             );
             logger.info("Navigation screenshot taken: {}", navScreenshot);
 
-            // Check if CSS selector exists in DOM
-            logger.info("Checking if element exists with CSS selector: {}", current.getCssOpener());
-
-            try {
-                WebElement verifyElement = wait.until(ExpectedConditions.presenceOfElementLocated(
-                        By.cssSelector(current.getCssOpener())
-                ));
-
-                // Check if element is visible
-                boolean isVisible = verifyElement.isDisplayed();
-                logger.info("VERIFY_PAGE element found - tag: {}, visible: {}, text: '{}'",
-                        verifyElement.getTagName(), isVisible, verifyElement.getText());
-
-                // Take screenshot after verification
-                String verifyScreenshot = screenshotService.takeScreenshot(
+            // Check if element is visible
+            isVisible= verificationService.verifyScenario(driver,current,current.getFinalVerify(),verifyResult,current.getFinalVerifyResultMap());
+            // Take screenshot after verification
+            screenshotService.takeScreenshot(
                         driver,
                         "1",
                         "step "+2,
                         scenarioDir,
                         scenarioPrefix
-                );
-                logger.info("Verification screenshot taken: {}", verifyScreenshot);
-
-                if (isVisible) {
-                    verifyResult.setResult("Passed");
-                    logger.info("VERIFY_PAGE scenario PASSED - element is visible");
-                } else {
-                    verifyResult.setResult("Failed - Element exists but not visible");
-                    logger.warn("VERIFY_PAGE scenario FAILED - element exists but not visible");
-                }
-
-            } catch (GlobalExceptionHandler.TimeoutException e) {
-                logger.error("VERIFY_PAGE FAILED - element not found with selector: {}", current.getCssOpener());
-                verifyResult.setResult("Failed - Element not found: " + current.getCssOpener());
-
-                // Take screenshot of failure
-                String failScreenshot = screenshotService.takeScreenshot(
-                        driver,
-                        "1",
-                        "step "+ 3,
-                        scenarioDir,
-                        scenarioPrefix
-                );
-            }
+            );
+            logger.info("Verification screenshot taken");
 
         } catch (Exception e) {
+            isVisible=false;
             logger.error("VERIFY_PAGE scenario failed with unexpected error", e);
-            verifyResult.setResult("Failed - " + e.getMessage());
         }
+        StatusChangeUtils.testCaseResultSetter(isVisible,verifyResult);
+        StatusChangeUtils.scenarioStatusSetter(verifyResult,current);
         testCases.add(verifyResult);
         scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
         logger.info("[{}] Stored VERIFY_PAGE testcase(s) in scenarioResultsMap. Count={}",
                 scenarioPrefix, testCases.size());
         current.setScenarioBasePath(scenarioPrefix);
-        if (verifyResult.getResult().equals("Passed")) {
-            current.setScenarioStatus(RunStatus.PASSED);
-        } else {
-            current.setScenarioStatus(RunStatus.FAILED);
-        }
     }
 
 

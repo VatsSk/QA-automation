@@ -26,7 +26,6 @@ public class VerificationService {
     private final Logger logger = LoggerFactory.getLogger(VerificationService.class);
     private boolean isActuallyVisible(WebDriver driver, WebElement element) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
-
         return Boolean.TRUE.equals(js.executeScript("""
         const el = arguments[0];
 
@@ -83,18 +82,19 @@ public class VerificationService {
             try {
                 // Use document.querySelector to find the element and return its textContent
                 WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-                WebElement element = wait.until(
-                        ExpectedConditions.presenceOfElementLocated(By.cssSelector(cssSelector))
-                );
 
-//                String actualText = element.isDisplayed()
-//                        ? element.getText().trim()
-//                        : null;
-                String actualText =
-                        element.isDisplayed() &&
-                                isActuallyVisible(driver, element)
-                                ? element.getText().trim()
-                                : null;
+                WebElement element = wait.until(driver1 -> {
+                    WebElement e = driver1.findElement(By.cssSelector(cssSelector));
+
+                    if (!e.isDisplayed()) {
+                        return null;
+                    }
+
+                    return isActuallyVisible(driver1, e) ? e : null;
+                });
+
+                String actualText = element.getText().trim();
+
                 logger.info("actualText : {}",actualText);
                 logger.info("Displayed = {}", element.isDisplayed());
                 logger.info("ActuallyVisible = {}", isActuallyVisible(driver, element));

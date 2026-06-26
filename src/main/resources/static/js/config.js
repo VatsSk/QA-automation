@@ -267,7 +267,6 @@ export const ASSERT_TYPES = {
         required: ['tableId']
     }
 
-
 };
 export const MANAGE_COLUMN_ACTIONS = [
     { value: '', label: 'Default' },   // null action
@@ -340,7 +339,7 @@ export const REQUIRED = {
     URL_NAV:    ['url'],
     MODAL_NAV:  ['cssSelector'],
     SEARCH_NAV: ['cssSelector', 'value'],
-    VERIFY_PAGE: ['url', 'cssSelector'],
+    VERIFY_PAGE: ['url'],
     FORM_MODAL:  [],
     ASSERT:     [],
     FILTER_NAV: ['applyBtnCss'],
