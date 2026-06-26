@@ -1,1 +1,4 @@
-rootProject.name = 'testing-automation'
+rootProject.name = 'qa-automation'
+include 'qa-common'
+include 'qa-backend'
+include 'qa-agent'

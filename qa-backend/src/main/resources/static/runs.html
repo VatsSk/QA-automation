@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Runs</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div id="toasts"></div>
+
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <div class="main-col">
+
+        <div class="topbar">
+            <div class="crumb">
+                <a class="crumb-link" href="/projects.html">Projects</a>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-link" id="crumb-proj" style="cursor:pointer">…</span>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-cur" id="crumb-mod">…</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+            </div>
+        </div>
+
+        <div class="main-scroll">
+            <div class="page">
+
+                <div class="page-header row-between">
+                    <div>
+                        <div class="page-title" id="page-title">Runs</div>
+                        <div class="page-sub"  id="page-sub">Loading…</div>
+                    </div>
+                    <button class="btn btn-success" onclick="newRun()">+ New Run</button>
+                </div>
+
+                <!-- Filter bar -->
+                <div class="filter-bar">
+                    <div class="status-filters" id="status-filters"></div>
+                    <div class="filter-sep"></div>
+                    <input class="inp inp-sm" style="width:220px" id="search-inp"
+                           placeholder="🔍 Search by name…">
+                </div>
+
+                <!-- Table -->
+                <div id="runs-content">
+                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module" >
+    import * as api from './js/api.js';
+
+    import { esc, statusBadge, timeAgo, toast,
+        requireLogin, logout, initTheme, toggleTheme,
+        buildSidebar, paginationHTML, debounce, openModal, closeModal } from './js/utils.js';
+
+    window.toggleTheme = toggleTheme;
+
+const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+
+    initTheme();
+    buildSidebar('runs', api);
+
+    const params    = new URLSearchParams(location.search);
+    const projectId = params.get('projectId');
+    const moduleId  = params.get('moduleId');
+    if (!projectId || !moduleId) { window.location.href = '/projects.html'; }
+
+    const STATUSES = ['', 'DRAFT', 'RUNNING', 'PASSED', 'FAILED', 'PARTIAL'];
+    const STATUS_LABELS = { '': 'All', DRAFT: 'Draft', RUNNING: 'Running', PASSED: 'Passed', FAILED: 'Failed', PARTIAL: 'Partial' };
+
+    let filter = { status: '', search: '', page: 0, size: 20 };
+    let runPage = { content: [], number: 0, totalPages: 1, totalElements: 0 };
+    let allRunsCache = null; // cache of all runs fetched from backend
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    async function boot() {
+        try {
+            const [proj, mod] = await Promise.all([
+                api.projects.get(projectId),
+                api.modules.get(moduleId),
+            ]);
+            document.getElementById('crumb-proj').textContent = proj.name;
+            document.getElementById('crumb-proj').onclick = () =>
+                window.location.href = `/modules.html?projectId=${projectId}`;
+            document.getElementById('crumb-mod').textContent  = mod.name;
+            document.getElementById('page-title').textContent = mod.name;
+            document.title = `${mod.name} — QA Studio`;
+        } catch { /* breadcrumbs stay as '…' */ }
+
+        buildStatusFilters();
+        wireSearch();
+        await ensureAllRunsLoaded(); // fetch all runs once
+        renderFiltered();
+    }
+
+    // ── Fetch ALL runs (paged, safe) ───────────────────────────────────────────
+    async function fetchAllRuns() {
+        // If backend supports a single huge page, set size very large (not assumed), so we page loop
+        const pageSize = 100; // adjust if your backend supports larger page sizes
+        let page = 0;
+        let all = [];
+
+        while (true) {
+            const resp = await api.runs.list(projectId, moduleId, { page, size: pageSize });
+            const data = resp?.results ? resp : (resp?.data?.results ? resp.data : resp);
+            const items = data?.results ?? [];
+            all.push(...items);
+
+            // If backend provides totalPages we can stop when page >= totalPages-1
+            if (data?.totalPages !== undefined) {
+                if (page >= (data.totalPages - 1)) break;
+            } else {
+                // fallback: if returned less than pageSize, we are at last page
+                if (items.length < pageSize) break;
+            }
+            page++;
+        }
+
+        return all;
+    }
+
+    async function ensureAllRunsLoaded(force = false) {
+        if (allRunsCache && !force) return allRunsCache;
+        try {
+            document.getElementById('runs-content').innerHTML = `<div class="empty"><div class="ei">⏳</div><h3>Loading runs…</h3></div>`;
+            const all = await fetchAllRuns();
+            allRunsCache = all;
+            console.log(`Fetched ${all.length} runs into cache.`);
+            return allRunsCache;
+        } catch (e) {
+            console.error('Fetch all runs failed:', e);
+            allRunsCache = [];
+            throw e;
+        }
+    }
+
+    // ── Status filter UI ──────────────────────────────────────────────────────
+    function buildStatusFilters() {
+        const bar = document.getElementById('status-filters');
+        bar.innerHTML = STATUSES.map(s => {
+            const cls = filter.status === s ? `sel-${(s || 'all').toLowerCase()}` : '';
+            return `<button class="sf-btn ${cls}" data-status="${s}"
+        onclick="setStatus('${s}')">${STATUS_LABELS[s] || s}</button>`;
+        }).join('');
+    }
+
+    window.setStatus = function (s) {
+        filter.status = s;
+        filter.page   = 0;
+        buildStatusFilters();
+        renderFiltered();
+    };
+
+    // ── Search wiring (now client-side) ───────────────────────────────────────
+    function wireSearch() {
+        const inp = document.getElementById('search-inp');
+        inp.addEventListener('input', debounce(e => {
+            filter.search = e.target.value.trim();
+            filter.page   = 0;
+            renderFiltered();
+        }, 350));
+    }
+
+    // ── Client-side filtering + pagination + render ───────────────────────────
+    function matchesSearch(r, q) {
+        if (!q) return true;
+        q = q.toLowerCase();
+        // search fields: runName, runType, tags, status, id
+        if ((r.runName || '').toLowerCase().includes(q)) return true;
+        if ((r.runType || '').toLowerCase().includes(q)) return true;
+        if ((r.status || '').toLowerCase().includes(q)) return true;
+        if ((r.id || r._id || '').toString().toLowerCase().includes(q)) return true;
+        if (Array.isArray(r.tags)) {
+            for (const t of r.tags) if ((t || '').toLowerCase().includes(q)) return true;
+        }
+        return false;
+    }
+
+    function applyFiltersToAll(allRuns) {
+        return allRuns.filter(r => {
+            if (filter.status && r.status !== filter.status) return false;
+            if (!matchesSearch(r, filter.search)) return false;
+            return true;
+        });
+    }
+
+    function renderFiltered() {
+        const all = allRunsCache || [];
+        const filtered = applyFiltersToAll(all);
+
+        const total = filtered.length;
+        const size  = filter.size || 20;
+        const totalPages = Math.max(1, Math.ceil(total / size));
+        const page = Math.max(0, Math.min(filter.page || 0, totalPages - 1));
+
+        const start = page * size;
+        const end   = start + size;
+        const pageItems = filtered.slice(start, end);
+
+        runPage = {
+            content: pageItems,
+            number: page,
+            totalPages,
+            totalElements: total,
+            size,
+            hasNext: page < (totalPages - 1),
+            hasPrevious: page > 0
+        };
+
+        // update count subtitle
+        document.getElementById('page-sub').textContent =
+            `${total} run${total !== 1 ? 's' : ''}`;
+
+        // render table or empty
+        const content = document.getElementById('runs-content');
+        const runs = runPage.content || [];
+
+        if (!runs.length) {
+            content.innerHTML = `
+        <div class="empty">
+          <div class="ei">▶</div>
+          <h3>No runs found</h3>
+          <p>${filter.search || filter.status ? 'Try adjusting your filters.' : 'Create your first run to start testing.'}</p>
+          ${!filter.search && !filter.status ? `<button class="btn btn-success" onclick="newRun()">+ New Run</button>` : ''}
+        </div>`;
+            return;
+        }
+
+        const rows = runs.map(r => {
+            const rid  = r.id || r._id;
+            const tags = (r.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+            return `
+        <tr>
+          <td>
+            <span class="run-name-link" onclick="viewRun('${rid}')">${esc(r.runName || '—')}</span>
+          </td>
+          <td>${statusBadge(r.status)}</td>
+          <td><span class="mono-sm">${esc(r.runType || '—')}</span></td>
+          <td><span class="mono-sm">${timeAgo(r.updatedAt || r.createdAt)}</span></td>
+          <td><div style="display:flex;flex-wrap:wrap;gap:3px">${tags}</div></td>
+          <td>
+            <div class="actions-cell">
+              <button class="btn btn-ghost btn-xs" onclick="viewRun('${rid}')"  title="View">👁</button>
+              <button class="btn btn-ghost btn-xs" onclick="editRun('${rid}')"  title="Edit">✏️</button>
+              <button class="btn btn-ghost btn-xs" onclick="cloneRun('${rid}')" title="Clone">📋</button>
+              <button class="btn btn-amber btn-xs" onclick="runNow('${rid}')"   title="Run">▶</button>
+              <button class="btn btn-danger btn-xs" onclick="deleteRun('${rid}')" title="Delete">🗑️</button>
+            </div>
+          </td>
+        </tr>`;
+        }).join('');
+
+        const pag = paginationHTML(runPage.number, runPage.totalPages, 'goPage');
+
+        content.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Run Name</th>
+              <th>Status</th>
+              <th>Type</th>
+              <th>Last Updated</th>
+              <th>Tags</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${pag}`;
+    }
+
+    // ── Navigation helpers now operate only on UI state ───────────────────────
+    window.newRun = function() {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🚀 Create New Run</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+          <button class="btn btn-primary btn-lg" 
+                  onclick="createManualRun()" 
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">✏️</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Manual Run Creation</div>
+              <div style="font-size:12px;opacity:0.7">Create test scenarios manually using the visual editor</div>
+            </div>
+          </button>
+          <button class="btn btn-secondary btn-lg" 
+                  onclick="createDLRun()" 
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">📝</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">DL (Defined Language) Run Creation</div>
+              <div style="font-size:12px;opacity:0.7">Create tests using Defined Language syntax</div>
+            </div>
+          </button>
+          <button class="btn btn-secondary btn-lg"
+                  onclick="launchSmartRecorder()"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">📝</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Launch smart run recorder</div>
+              <div style="font-size:12px;opacity:0.7">Create tests using web extension</div>
+            </div>
+          </button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>`);
+    };
+    
+    window.createManualRun = function() {
+        closeModal();
+        window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}`;
+    };
+    
+    window.createDLRun = function() {
+        closeModal();
+        window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&mode=dl`;
+    };
+    // window.launchSmartRecorder = async function() {
+    //     const extensionId = "npkghjihpfafhealkocikaepfgpadpnf";
+    //     const response = await fetch(`/api/projects/url/${projectId}`);
+    //
+    //     if (!response.ok) {
+    //         throw new Error(`Failed to fetch project details: ${response.status}`);
+    //     }
+    //
+    //     const projectData = await response.json();
+    //
+    //     const loginUrl= projectData.loginUrl;
+    //     window.open(loginUrl, "_blank");
+    // }
+
+    window.launchSmartRecorder = async function () {
+        const response = await fetch(`/api/projects/url/${projectId}`);
+        if (!response.ok) throw new Error(`Failed to fetch project details: ${response.status}`);
+
+        const projectData = await response.json();
+        const loginUrl = projectData.loginUrl;
+        const loginCredPath=projectData.loginCredS3Path;
+
+        const extensionId = "fjgbpokpijddcggkndgcnmmkignmfpnk";
+
+        console.log("inside launchsmart recorder")
+
+        chrome.runtime.sendMessage(
+            extensionId,
+            {
+                action: "START_RECORDING",
+                projectId,
+                moduleId,
+                createdBy:user.username,
+                url:loginUrl,
+                csvPath:loginCredPath
+            },
+            (res) => {
+                if (chrome.runtime.lastError) {
+                    console.error("Extension message failed:", chrome.runtime.lastError.message);
+                    return;
+                }
+                console.log("Extension ack:", res);
+                window.open(loginUrl, "_blank");
+            }
+        );
+    };
+    window.viewRun   = id => window.location.href = `/run-detail.html?runId=${id}`;
+    // window.editRun   = id => window.location.href = `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}`;
+    window.editRun = function (id) {
+        console.log("Clicked on edit btn");
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>Edit Run</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+
+          <button class="btn btn-primary"
+              onclick="editManual('${id}')">
+            ✏️ Manual Mode
+          </button>
+
+          <button class="btn btn-secondary"
+              onclick="editDL('${id}')">
+            📝 DL Mode
+          </button>
+
+          <button class="btn btn-secondary"
+              onclick="editSmart('${id}')">
+            🎯 Smart Recorder
+          </button>
+
+        </div>
+      </div>
+    `);
+    };
+
+    window.editManual = function(id) {
+        closeModal();
+        window.location.href =
+            `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}`;
+    };
+
+    window.editDL = function(id) {
+        closeModal();
+        window.location.href =
+            `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}&editMode=dl`;
+    };
+
+    window.editSmart = async function(id) {
+        closeModal();
+        try {
+            const [projectData, runData] = await Promise.all([
+                fetch(`/api/projects/url/${projectId}`).then(r => { if (!r.ok) throw new Error('Failed to fetch project'); return r.json(); }),
+                api.runs.get(id)
+            ]);
+
+            const extensionId = "fjgbpokpijddcggkndgcnmmkignmfpnk";
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                {
+                    action: "START_RECORDING",
+                    projectId,
+                    moduleId,
+                    runId: id,
+                    createdBy: user.username,
+                    url: projectData.loginUrl,
+                    csvPath: projectData.loginCredS3Path,
+                    existingRun: runData
+                },
+                (res) => {
+                    if (chrome.runtime.lastError) {
+                        console.error("Extension message failed:", chrome.runtime.lastError.message);
+                        toast('Failed to connect to extension', 'error');
+                        return;
+                    }
+                    console.log("Extension ack:", res);
+                    window.open(projectData.loginUrl, "_blank");
+                }
+            );
+        } catch (e) {
+            toast('Smart recorder failed: ' + e.message, 'error');
+        }
+    };
+
+    window.goPage    = p  => { filter.page = p; renderFiltered(); };
+
+    // ── Mutating actions: call server, then invalidate cache and reload ───────
+    async function refreshCacheAndRender() {
+        allRunsCache = null;
+        await ensureAllRunsLoaded(true);
+        renderFiltered();
+    }
+
+    window.cloneRun = async function (id) {
+        try {
+            const c = await api.runs.clone(id);
+            toast(`Cloned as "${c.runName}"`, 'success');
+            await refreshCacheAndRender();
+        } catch (e) { toast('Clone failed: ' + e.message, 'error'); }
+    };
+
+    window.runNow = async function (id) {
+        try {
+            toast('Starting run…', 'info', 2000);
+            await api.runs.execute(id);
+            toast('Run Executed!', 'success');
+            await refreshCacheAndRender();
+        } catch (e) { toast('Execute failed: ' + e.message, 'error'); }
+    };
+
+    window.deleteRun = async function (id) {
+        if (!confirm('Delete this run?')) return;
+        try {
+            await api.runs.delete(id);
+            toast('Deleted', 'info');
+            await refreshCacheAndRender();
+        } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
+    };
+
+    // ── Boot the page ────────────────────────────────────────────────────────
+    boot();
+</script>
+</body>
+</html>

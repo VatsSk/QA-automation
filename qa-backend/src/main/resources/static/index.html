@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Automation Testing Dashboard</title>
+    <!-- AI favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,
+    %3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E
+    %3Cdefs%3E
+    %3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E
+    %3Cstop offset='0%25' stop-color='%2300c6ff'/%3E
+    %3Cstop offset='100%25' stop-color='%230072ff'/%3E
+    %3C/linearGradient%3E
+    %3C/defs%3E
+    %3Ccircle cx='32' cy='32' r='30' fill='url(%23g)'/%3E
+    %3Cpath d='M22 24c0-6 4-10 10-10s10 4 10 10c4 2 6 5 6 9 0 7-6 13-14 13h-4c-8 0-14-6-14-13 0-4 2-7 6-9z'
+    fill='white'/%3E
+    %3Ccircle cx='26' cy='30' r='2' fill='%230072ff'/%3E
+    %3Ccircle cx='38' cy='30' r='2' fill='%230072ff'/%3E
+    %3Cpath d='M26 38h12' stroke='%230072ff' stroke-width='3' stroke-linecap='round'/%3E
+    %3C/svg%3E">
+    <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Automation Testing Dashboard</h1>
+        <p class="subtitle">Configure and run your UI & Model tests</p>
+    </header>
+
+    <!-- Dynamic blocks will be inserted here -->
+    <main id="blocks-container"></main>
+
+    <div class="actions">
+        <button class="btn-add" onclick="addBlock()">+ Add Test Block</button>
+        <button class="btn-run" onclick="runTests()">Run Tests</button>
+    </div>
+
+    <footer>
+        <small>Tip: Use <strong>Navigation URL</strong> to navigate to a page, and <strong>Navigation Modal</strong> to click a nav element (supply CSS selector).</small>
+    </footer>
+</div>
+
+<script src="js/script.js"></script>
+</body>
+</html>
