@@ -404,6 +404,11 @@ const user = requireLogin();
             📝 DL Mode
           </button>
 
+          <button class="btn btn-secondary"
+              onclick="editSmart('${id}')">
+            🎯 Smart Recorder
+          </button>
+
         </div>
       </div>
     `);
@@ -420,6 +425,44 @@ const user = requireLogin();
         window.location.href =
             `/run-editor.html?projectId=${projectId}&moduleId=${moduleId}&runId=${id}&editMode=dl`;
     };
+
+    window.editSmart = async function(id) {
+        closeModal();
+        try {
+            const [projectData, runData] = await Promise.all([
+                fetch(`/api/projects/url/${projectId}`).then(r => { if (!r.ok) throw new Error('Failed to fetch project'); return r.json(); }),
+                api.runs.get(id)
+            ]);
+
+            const extensionId = "fjgbpokpijddcggkndgcnmmkignmfpnk";
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                {
+                    action: "START_RECORDING",
+                    projectId,
+                    moduleId,
+                    runId: id,
+                    createdBy: user.username,
+                    url: projectData.loginUrl,
+                    csvPath: projectData.loginCredS3Path,
+                    existingRun: runData
+                },
+                (res) => {
+                    if (chrome.runtime.lastError) {
+                        console.error("Extension message failed:", chrome.runtime.lastError.message);
+                        toast('Failed to connect to extension', 'error');
+                        return;
+                    }
+                    console.log("Extension ack:", res);
+                    window.open(projectData.loginUrl, "_blank");
+                }
+            );
+        } catch (e) {
+            toast('Smart recorder failed: ' + e.message, 'error');
+        }
+    };
+
     window.goPage    = p  => { filter.page = p; renderFiltered(); };
 
     // ── Mutating actions: call server, then invalidate cache and reload ───────
