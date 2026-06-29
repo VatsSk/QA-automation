@@ -7,8 +7,8 @@
  * Groups:  auth | projects | modules | runs | uploads
  */
 
-const BASE = window.QA_API_BASE || 'http://localhost:8088';
-// const BASE = window.QA_API_BASE || 'http://3.7.136.248:8088';
+// const BASE = window.QA_API_BASE || 'http://localhost:8088';
+const BASE = window.QA_API_BASE || 'http://3.7.136.248:8088';
 
 function getToken() {
     return localStorage.getItem('qa_token') || '';
@@ -53,6 +53,12 @@ async function uploadFile(path, formData) {
 export const auth = {
     login: (username, password) =>
         request('POST', '/api/auth/login', { username, password }),
+};
+
+// ── Users ──────────────────────────────────────────────────────────────────
+export const users = {
+    getExtensionId: (username) => request('GET', `/api/users/${username}/extension`),
+    updateExtensionId: (username, extensionId) => request('PUT', `/api/users/${username}/extension`, { extensionId }),
 };
 
 // ── Projects ───────────────────────────────────────────────────────────────

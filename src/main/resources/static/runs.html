@@ -65,6 +65,7 @@
         buildSidebar, paginationHTML, debounce, openModal, closeModal } from './js/utils.js';
 
     window.toggleTheme = toggleTheme;
+    window.closeModal = closeModal;
 
 const user = requireLogin();
     if (!user) throw new Error('not logged in');
@@ -357,10 +358,25 @@ const user = requireLogin();
         const loginUrl = projectData.loginUrl;
         const loginCredPath=projectData.loginCredS3Path;
 
-        const extensionId = "hpmemjlbgoinjebkklhgkcokcknjllli";
-        // const extensionId = "fjgbpokpijddcggkndgcnmmkignmfpnk";
+        let extensionId;
+        try {
+            const res = await api.users.getExtensionId(user.username);
+            extensionId = res.extensionId;
+        } catch (e) {
+            console.error('Failed to fetch extension ID', e);
+        }
+
+        if (!extensionId) {
+            toast('Please configure your Chrome Extension ID from the Projects page.', 'warning', 5000);
+            return;
+        }
 
         console.log("inside launchsmart recorder")
+
+        if (!window.chrome || !window.chrome.runtime) {
+            toast('Chrome extension is not installed or not accessible from this page.', 'error', 5000);
+            return;
+        }
 
         chrome.runtime.sendMessage(
             extensionId,
@@ -435,7 +451,23 @@ const user = requireLogin();
                 api.runs.get(id)
             ]);
 
-            const extensionId = "fjgbpokpijddcggkndgcnmmkignmfpnk";
+            let extensionId;
+            try {
+                const res = await api.users.getExtensionId(user.username);
+                extensionId = res.extensionId;
+            } catch (e) {
+                console.error('Failed to fetch extension ID', e);
+            }
+
+            if (!extensionId) {
+                toast('Please configure your Chrome Extension ID from the Projects page.', 'warning', 5000);
+                return;
+            }
+
+            if (!window.chrome || !window.chrome.runtime) {
+                toast('Chrome extension is not installed or not accessible from this page.', 'error', 5000);
+                return;
+            }
 
             chrome.runtime.sendMessage(
                 extensionId,

@@ -41,6 +41,14 @@
                     <button class="btn btn-primary" onclick="showNewProjectModal()">+ New Project</button>
                 </div>
 
+                <div class="settings-panel" style="background:var(--bg2); padding:20px; border-radius:8px; margin-bottom:24px; border: 1px solid var(--bd);">
+                    <h3 style="margin-top:0; margin-bottom:12px; font-size: 16px;">Chrome Extension ID</h3>
+                    <div style="display:flex; gap:12px;">
+                        <input id="ext-id-inp" class="inp inp-mono" style="flex:1; max-width:400px;" placeholder="Enter Extension ID...">
+                        <button class="btn btn-primary" onclick="saveExtensionId()">Save</button>
+                    </div>
+                </div>
+
                 <div id="proj-grid">
                     <div class="spinner-wrap"><div class="spinner"></div></div>
                 </div>
@@ -242,7 +250,34 @@
         } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
     };
 
+    // ── Chrome Extension ID ────────────────────────────────────────────────
+    async function loadExtensionId() {
+        try {
+            const res = await api.users.getExtensionId(user.username);
+            if (res && res.extensionId) {
+                document.getElementById('ext-id-inp').value = res.extensionId;
+            }
+        } catch (e) {
+            console.error('Failed to load extension ID', e);
+        }
+    }
+
+    window.saveExtensionId = async function() {
+        const extId = document.getElementById('ext-id-inp').value.trim();
+        if (!extId) {
+            toast('Extension ID cannot be empty', 'warning');
+            return;
+        }
+        try {
+            await api.users.updateExtensionId(user.username, extId);
+            toast('Extension ID saved', 'success');
+        } catch (e) {
+            toast('Failed to save Extension ID: ' + e.message, 'error');
+        }
+    };
+
     load();
+    loadExtensionId();
 </script>
 </body>
 </html>

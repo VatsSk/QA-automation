@@ -28,6 +28,8 @@ public class User {
     /** Stored as bcrypt hash in production; plain for stub auth */
     private String password;
 
+    private String extensionId;
+
     private String role;
 
     @CreatedDate
