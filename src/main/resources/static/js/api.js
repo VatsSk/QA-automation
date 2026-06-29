@@ -55,6 +55,12 @@ export const auth = {
         request('POST', '/api/auth/login', { username, password }),
 };
 
+// ── Users ──────────────────────────────────────────────────────────────────
+export const users = {
+    getExtensionId: (username) => request('GET', `/api/users/${username}/extension`),
+    updateExtensionId: (username, extensionId) => request('PUT', `/api/users/${username}/extension`, { extensionId }),
+};
+
 // ── Projects ───────────────────────────────────────────────────────────────
 export const projects = {
     list:   (username) => request('GET',    `/api/projects${username ? `?createdBy=${username}` : ''}`),
