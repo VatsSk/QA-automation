@@ -455,9 +455,58 @@
     };
 
     // ─────────────────────────────────────────────────────────────
+    function renderVerificationTable(title, verifications, emptyMsg) {
+        const count = verifications.length;
+        let html = `
+            <div style="margin-top: 24px; margin-bottom: 24px;">
+                <h3 style="margin-bottom: 12px; font-size: 16px;">${title} (${count})</h3>
+        `;
+
+        if (count === 0) {
+            html += `<div style="color:var(--tx2); padding: 12px; background: var(--sur2); border-radius: 8px; border: 1px solid var(--bd);">${emptyMsg}</div>`;
+        } else {
+            html += `
+                <div class="table-wrap">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>CSS Selector</th>
+                                <th>Expected Result</th>
+                                <th>Status</th>
+                                <th>Actual</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${verifications.map((v, i) => `
+                                <tr>
+                                    <td>${i + 1}</td>
+                                    <td><code style="background:var(--sur2);padding:2px 6px;border-radius:4px;">${esc(v.cssSelector || '—')}</code></td>
+                                    <td>${esc(v.expectedResult || '—')}</td>
+                                    <td>
+                                        <span class="badge ${v.status ? 'badge-success' : 'badge-danger'}">
+                                            ${v.status ? 'Passed' : 'Failed'}
+                                        </span>
+                                    </td>
+                                    <td style="max-width:300px;word-break:break-word; ${v.status ? '' : 'color:var(--danger, #ff4d4f);'}">
+                                        ${esc(v.actual || '—')}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    // ─────────────────────────────────────────────────────────────
     // View result row in modal
     // ─────────────────────────────────────────────────────────────
     window.viewResultRow = function (scIdx, rowIdx) {
+        const sc = (run?.scenariosList || [])[scIdx];
         const parsed = scenarioResultsCache[scIdx];
         if (!parsed) return;
 
@@ -465,10 +514,17 @@
         if (!row) return;
 
         const testCaseId = getTestCaseIdFromRow(row);
-        const fields = Object.entries(row);
+        
+        // Remove InitialVerificationStatus and FinalVerificationStatus from fields
+        const fields = Object.entries(row).filter(([k]) => 
+            k !== 'InitialVerificationStatus' && k !== 'FinalVerificationStatus'
+        );
+
+        const initialVerifications = sc?.initialVerifyResultMap?.[String(testCaseId)] ?? [];
+        const finalVerifications = sc?.finalVerifyResultMap?.[String(testCaseId)] ?? [];
 
         openModal(`
-            <div class="modal modal-lg">
+            <div class="modal modal-lg" style="max-width: 900px; width: 90%;">
                 <div class="modal-head">
                     <h2>Result Row #${rowIdx + 1}</h2>
                     <button class="modal-close" onclick="closeModal()">✕</button>
@@ -492,6 +548,9 @@
                         </div>
                     `).join('')}
                 </div>
+
+                ${renderVerificationTable('🟢 Initial Verifications', initialVerifications, 'No initial verifications available.')}
+                ${renderVerificationTable('🔴 Final Verifications', finalVerifications, 'No final verifications available.')}
             </div>
         `);
     };

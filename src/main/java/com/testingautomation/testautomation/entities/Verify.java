@@ -12,6 +12,7 @@ public class Verify {
     private String expectedResult;
     private boolean status;
     private String message;
+    private String actual;
 
     public boolean getStatus() {
         return this.status;

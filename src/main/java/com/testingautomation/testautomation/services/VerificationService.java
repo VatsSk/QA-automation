@@ -122,6 +122,7 @@ public class VerificationService {
                 }
 
                 String actualText = element.getAttribute("innerText");
+                verify.setActual(actualText);
                 if (actualText == null || actualText.trim().isEmpty()) {
                     actualText = element.getAttribute("textContent");
                 }
@@ -132,13 +133,13 @@ public class VerificationService {
                     }
                 }
 
-                logger.info("actualText : {}",actualText);
-                logger.info("Displayed = {}", element.isDisplayed());
-                logger.info("ActuallyVisible = {}", isActuallyVisible(driver, element));
-                logger.info("getText = [{}]", element.getText());
-                logger.info("innerText = [{}]", element.getAttribute("innerText"));
-                logger.info("textContent = [{}]", element.getAttribute("textContent"));
-                logger.info("OuterHTML = {}", element.getAttribute("outerHTML"));
+//                logger.info("actualText : {}",actualText);
+//                logger.info("Displayed = {}", element.isDisplayed());
+//                logger.info("ActuallyVisible = {}", isActuallyVisible(driver, element));
+//                logger.info("getText = [{}]", element.getText());
+//                logger.info("innerText = [{}]", element.getAttribute("innerText"));
+//                logger.info("textContent = [{}]", element.getAttribute("textContent"));
+//                logger.info("OuterHTML = {}", element.getAttribute("outerHTML"));
                 if(actualText ==  null && expected==null) {
                     verify.setStatus(true);
                 } else if (actualText == null) {
