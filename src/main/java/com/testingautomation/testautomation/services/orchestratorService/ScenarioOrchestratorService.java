@@ -101,6 +101,7 @@ public class ScenarioOrchestratorService {
             try {
                 if (current.getType() == ScenarioType.URL) {
                     // check next scenario
+                    current.setScenarioBasePath(scenarioPrefix);
                     runUrlGeneric(
                             driver,
                             current,
@@ -109,7 +110,6 @@ public class ScenarioOrchestratorService {
                             scenarios.size(),
                             i
                     );
-                    current.setScenarioBasePath(scenarioPrefix);
                 }else if(current.getType() == ScenarioType.VERIFY_PAGE){
                     runVerifyPageGenric(
                             driver,
@@ -129,7 +129,6 @@ public class ScenarioOrchestratorService {
                             scenarioResultsMap
 
                     );
-//                    System.out.println(scenarioResultsMap);
                     break;
                 }
 
@@ -303,6 +302,7 @@ public class ScenarioOrchestratorService {
                 totalFails++;
             }
             scenarioResultsMap.put(scenarioPrefix, new ArrayList<>(testCases));
+//            logger.info("ScenarioMap {}",scenarioResultsMap);
             if(scenarioSize!=1 && tc.getResult().equals("Failed")) {
                 current.setScenarioStatus(RunStatus.FAILED);
                 throw new ScenarioExecutionException(
