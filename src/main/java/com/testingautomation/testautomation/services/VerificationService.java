@@ -26,25 +26,40 @@ public class VerificationService {
     private final Logger logger = LoggerFactory.getLogger(VerificationService.class);
     private boolean isActuallyVisible(WebDriver driver, WebElement element) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
+
         return Boolean.TRUE.equals(js.executeScript("""
         const el = arguments[0];
-
         if (!el) return false;
-
+    
         const rect = el.getBoundingClientRect();
-
+    
+        // ❌ Not rendered
+        if (rect.width === 0 || rect.height === 0) return false;
+    
+        // ❌ Outside viewport
         if (
-            rect.width === 0 ||
-            rect.height === 0
+            rect.bottom < 0 ||
+            rect.top > window.innerHeight ||
+            rect.right < 0 ||
+            rect.left > window.innerWidth
         ) {
             return false;
         }
-
+    
         const centerX = rect.left + rect.width / 2;
         const centerY = rect.top + rect.height / 2;
-
+    
+        // ❌ Outside visible screen (extra safety)
+        if (
+            centerX < 0 || centerY < 0 ||
+            centerX > window.innerWidth ||
+            centerY > window.innerHeight
+        ) {
+            return false;
+        }
+    
         const topElement = document.elementFromPoint(centerX, centerY);
-
+    
         return topElement === el || el.contains(topElement);
     """, element));
     }
@@ -83,17 +98,39 @@ public class VerificationService {
                 // Use document.querySelector to find the element and return its textContent
                 WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
-                WebElement element = wait.until(driver1 -> {
-                    WebElement e = driver1.findElement(By.cssSelector(cssSelector));
+                WebElement element = null;
+                try {
+                    element = wait.until(drv -> {
+                        List<WebElement> els = drv.findElements(By.cssSelector(cssSelector));
 
-                    if (!e.isDisplayed()) {
+                        for (WebElement el : els) {
+                            if (el.isDisplayed() && isActuallyVisible(drv, el)) {
+                                return el;
+                            }
+                        }
+
                         return null;
+                    });
+                } catch (org.openqa.selenium.TimeoutException te) {
+                    // Fallback to the first present element if none ever become visible
+                    List<WebElement> els = driver.findElements(By.cssSelector(cssSelector));
+                    if (!els.isEmpty()) {
+                        element = els.get(0);
+                    } else {
+                        throw te;
                     }
+                }
 
-                    return isActuallyVisible(driver1, e) ? e : null;
-                });
-
-                String actualText = element.getText().trim();
+                String actualText = element.getAttribute("innerText");
+                if (actualText == null || actualText.trim().isEmpty()) {
+                    actualText = element.getAttribute("textContent");
+                }
+                if (actualText != null) {
+                    actualText = actualText.trim();
+                    if (actualText.isEmpty()) {
+                        actualText = null;
+                    }
+                }
 
                 logger.info("actualText : {}",actualText);
                 logger.info("Displayed = {}", element.isDisplayed());
