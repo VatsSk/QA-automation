@@ -241,7 +241,7 @@ textarea.inp { resize: vertical; min-height: 64px; }
 }
 .badge-passed,
 .badge-success  { background: var(--gr-d); color: var(--gr); border-color: var(--gr-b); }
-.badge-failed,
+.badge-failed   { background: var(--rd-d); color: var(--rd); border-color: var(--rd-b); }
 .badge-error    { background: var(--rd-d); color: var(--rd); border-color: var(--rd-b); }
 .badge-running  { background: var(--am-d); color: var(--am); border-color: var(--am-b); }
 .badge-draft    { background: var(--pu-d); color: var(--pu); border-color: var(--pu-b); }
