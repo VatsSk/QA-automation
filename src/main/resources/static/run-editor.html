@@ -2479,7 +2479,7 @@
             toast('Saved — starting run…', 'info', 2000);
             this.innerHTML = '⏳ Running…';
             await api.runs.execute(savedId);
-            toast('Run started!', 'success');
+            toast('Run Executed!', 'success');
             window.location.href = `/run-detail.html?runId=${savedId}`;
         } catch (e) {
             // Extract user-friendly message from error response
