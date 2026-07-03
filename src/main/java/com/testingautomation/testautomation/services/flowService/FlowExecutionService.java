@@ -32,15 +32,21 @@ public class FlowExecutionService {
     private ActionHandlerService actionHandlerService;
 
     @Autowired
+    private com.testingautomation.testautomation.repositories.flowRepos.FlowRepository flowRepository;
+
+    @Autowired
     private ScreenshotService screenshotService;
 
-    @Value("${storage.s3.base-prefix}")
-    private String basePrefix;
 
     private final String resultsBaseDir = "test-results";
 
     public void executeStep(WebDriver driver, FlowStep step, Flow flow) {
 
+        try {
+            Thread.sleep(2000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         ActionType actionType = step.getActionType();
         if (actionType == null) {
             logger.warn("ActionType is null for step [{}]", step.getName());
@@ -52,6 +58,7 @@ public class FlowExecutionService {
         logger.info("Executing step [{}] of ActionType [{}]", step.getName(), actionType);
         step.setExecutionStartedAt(Instant.now());
         step.setExecutionStatus(ExecutionStatus.RUNNING);
+        flowRepository.save(flow); // Immediately persist RUNNING state so UI updates
 
         int retries = step.getRetryCount() != null ? step.getRetryCount() : 0;
         int attempts = 0;
@@ -140,18 +147,17 @@ public class FlowExecutionService {
     }
 
     private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow) {
-        if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
+//        if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
             try {
-                String flowPrefix = basePrefix + "/" + flow.getProjectId() + "/" + flow.getModuleId() + "/" + flow.getId();
-                String stepId = "step_" + (step.getStepOrder() != null ? step.getStepOrder() : "unknown");
+                String stepId = ""+ step.getStepOrder();
                 
-                Path scenarioDir = Paths.get(resultsBaseDir, flowPrefix);
+                Path scenarioDir = Paths.get(resultsBaseDir, flow.getFlowBasePath());
                 Files.createDirectories(scenarioDir);
                 
-                screenshotService.takeScreenshot(driver, stepId, stepId + "_screenshot", scenarioDir, flowPrefix);
+                screenshotService.takeScreenshot(driver, stepId, stepId + "_screenshot", scenarioDir, flow.getFlowBasePath());
             } catch (Exception e) {
                 logger.error("Failed to capture screenshot for step [{}]", step.getName(), e);
             }
-        }
+//        }
     }
 }

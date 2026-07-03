@@ -10,7 +10,7 @@ import java.time.Instant;
 @Setter
 public abstract class ExecutionEntity extends BaseEntity {
 
-    private ExecutionStatus executionStatus = ExecutionStatus.NOT_STARTED;
+    private ExecutionStatus executionStatus = ExecutionStatus.DRAFT;
 
     private Long executionTime;
 

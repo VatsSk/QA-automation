@@ -50,6 +50,11 @@ public class ActionHandlerService {
         boolean targetState = Boolean.parseBoolean(step.getValue());
         boolean currentState = element.isSelected();
         logger.info("Checkbox target state: [{}], current state: [{}]", targetState, currentState);
+        logger.info("Displayed : {}", element.isDisplayed());
+        logger.info("Enabled   : {}", element.isEnabled());
+        logger.info("Selected  : {}", element.isSelected());
+        logger.info("Location  : {}", element.getLocation());
+        logger.info("Size      : {}", element.getSize());
         if (targetState != currentState) {
             element.click();
         }

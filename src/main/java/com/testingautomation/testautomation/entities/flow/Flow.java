@@ -1,7 +1,6 @@
 package com.testingautomation.testautomation.entities.flow;
 
 import com.testingautomation.testautomation.entities.baseEntity.ExecutionEntity;
-import com.testingautomation.testautomation.enums.flow.FlowStatus;
 import org.springframework.data.mongodb.core.mapping.Document;
 import lombok.Getter;
 import lombok.Setter;
@@ -26,7 +25,7 @@ public class Flow extends ExecutionEntity {
 
     private Integer defaultWait = 5000;
 
-    private FlowStatus status = FlowStatus.DRAFT;
+    private String flowBasePath;
 
     private List<FlowStep> steps = new ArrayList<>();
 }
