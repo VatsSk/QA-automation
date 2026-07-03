@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Flows</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div id="toasts"></div>
+
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <div class="main-col">
+
+        <div class="topbar">
+            <div class="crumb">
+                <a class="crumb-link" href="/projects.html">Projects</a>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-link" id="crumb-proj" style="cursor:pointer">…</span>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-cur" id="crumb-mod">…</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+            </div>
+        </div>
+
+        <div class="main-scroll">
+            <div class="page">
+
+                <div class="page-header row-between">
+                    <div>
+                        <div class="page-title" id="page-title">Flows</div>
+                        <div class="page-sub"  id="page-sub">Loading…</div>
+                    </div>
+                    <button class="btn btn-success" onclick="newFlow()">+ New Flow</button>
+                </div>
+
+                <!-- Filter bar -->
+                <div class="filter-bar">
+                    <div class="filter-sep"></div>
+                    <input class="inp inp-sm" style="width:220px" id="search-inp"
+                           placeholder="🔍 Search by name…">
+                </div>
+
+                <!-- Table -->
+                <div id="flows-content">
+                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module" >
+    import * as api from './js/api.js';
+
+    import { esc, statusBadge, timeAgo, toast,
+        requireLogin, logout, initTheme, toggleTheme,
+        buildSidebar, paginationHTML, debounce, openModal, closeModal } from './js/utils.js';
+
+    window.toggleTheme = toggleTheme;
+    window.closeModal = closeModal;
+
+const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+
+    initTheme();
+    buildSidebar('flows', api);
+
+    const params    = new URLSearchParams(location.search);
+    const projectId = params.get('projectId');
+    const moduleId  = params.get('moduleId');
+    if (!projectId || !moduleId) { window.location.href = '/projects.html'; }
+
+    let filter = { search: '', page: 0, size: 20 };
+    let allFlowsCache = null;
+
+    // ── Boot ─────────────────────────────────────────────────────────────────
+    async function boot() {
+        try {
+            const [proj, mod] = await Promise.all([
+                api.projects.get(projectId),
+                api.modules.get(moduleId),
+            ]);
+            document.getElementById('crumb-proj').textContent = proj.name;
+            document.getElementById('crumb-proj').onclick = () =>
+                window.location.href = `/modules.html?projectId=${projectId}`;
+            document.getElementById('crumb-mod').textContent  = mod.name;
+            document.getElementById('page-title').textContent = `${mod.name} — Flows`;
+            document.title = `${mod.name} Flows — QA Studio`;
+        } catch { /* breadcrumbs stay as '…' */ }
+
+        wireSearch();
+        await ensureAllFlowsLoaded();
+        renderFiltered();
+    }
+
+    // ── Fetch ALL flows ───────────────────────────────────────────────────────
+    async function fetchAllFlows() {
+        const resp = await api.flows.list(projectId, moduleId);
+        // Support both array and paginated response
+        if (Array.isArray(resp)) return resp;
+        return resp?.results ?? resp?.content ?? [];
+    }
+
+    async function ensureAllFlowsLoaded(force = false) {
+        if (allFlowsCache && !force) return allFlowsCache;
+        try {
+            document.getElementById('flows-content').innerHTML = `<div class="empty"><div class="ei">⏳</div><h3>Loading flows…</h3></div>`;
+            const all = await fetchAllFlows();
+            allFlowsCache = all;
+            console.log(`Fetched ${all.length} flows into cache.`);
+            return allFlowsCache;
+        } catch (e) {
+            console.error('Fetch all flows failed:', e);
+            allFlowsCache = [];
+            throw e;
+        }
+    }
+
+    // ── Search wiring (client-side) ──────────────────────────────────────────
+    function wireSearch() {
+        const inp = document.getElementById('search-inp');
+        inp.addEventListener('input', debounce(e => {
+            filter.search = e.target.value.trim();
+            filter.page   = 0;
+            renderFiltered();
+        }, 350));
+    }
+
+    // ── Client-side filtering + pagination + render ──────────────────────────
+    function matchesSearch(f, q) {
+        if (!q) return true;
+        q = q.toLowerCase();
+        if ((f.flowName || f.name || '').toLowerCase().includes(q)) return true;
+        if ((f.id || f._id || '').toString().toLowerCase().includes(q)) return true;
+        if (Array.isArray(f.tags)) {
+            for (const t of f.tags) if ((t || '').toLowerCase().includes(q)) return true;
+        }
+        return false;
+    }
+
+    function applyFiltersToAll(allFlows) {
+        return allFlows.filter(f => matchesSearch(f, filter.search));
+    }
+
+    function renderFiltered() {
+        const all = allFlowsCache || [];
+        const filtered = applyFiltersToAll(all);
+
+        const total = filtered.length;
+        const size  = filter.size || 20;
+        const totalPages = Math.max(1, Math.ceil(total / size));
+        const page = Math.max(0, Math.min(filter.page || 0, totalPages - 1));
+
+        const start = page * size;
+        const end   = start + size;
+        const pageItems = filtered.slice(start, end);
+
+        const flowPage = {
+            content: pageItems,
+            number: page,
+            totalPages,
+            totalElements: total,
+            size,
+            hasNext: page < (totalPages - 1),
+            hasPrevious: page > 0
+        };
+
+        // update count subtitle
+        document.getElementById('page-sub').textContent =
+            `${total} flow${total !== 1 ? 's' : ''}`;
+
+        // render table or empty
+        const content = document.getElementById('flows-content');
+        const flows = flowPage.content || [];
+
+        if (!flows.length) {
+            content.innerHTML = `
+        <div class="empty">
+          <div class="ei">🔁</div>
+          <h3>No flows found</h3>
+          <p>${filter.search ? 'Try adjusting your search.' : 'Create your first flow to start automating.'}</p>
+          ${!filter.search ? `<button class="btn btn-success" onclick="newFlow()">+ New Flow</button>` : ''}
+        </div>`;
+            return;
+        }
+
+        const rows = flows.map(f => {
+            const fid  = f.id || f._id;
+            const name = f.flowName || f.name || '—';
+            const tags = (f.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+            return `
+        <tr>
+          <td>
+            <span class="run-name-link">${esc(name)}</span>
+          </td>
+          <td>${statusBadge(f.status)}</td>
+          <td><span class="mono-sm">${f.scenariosList?.length ?? f.stepCount ?? 0}</span></td>
+          <td><span class="mono-sm">${timeAgo(f.updatedAt || f.createdAt)}</span></td>
+          <td><div style="display:flex;flex-wrap:wrap;gap:3px">${tags}</div></td>
+          <td>
+            <div class="actions-cell">
+              <button class="btn btn-ghost btn-xs" onclick="editFlow('${fid}')"   title="Edit">✏️</button>
+              <button class="btn btn-ghost btn-xs" onclick="cloneFlow('${fid}')"  title="Clone">📋</button>
+              <button class="btn btn-amber btn-xs" onclick="executeFlow('${fid}')" title="Execute">▶</button>
+              <button class="btn btn-danger btn-xs" onclick="deleteFlow('${fid}')" title="Delete">🗑️</button>
+            </div>
+          </td>
+        </tr>`;
+        }).join('');
+
+        const pag = paginationHTML(flowPage.number, flowPage.totalPages, 'goPage');
+
+        content.innerHTML = `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Flow Name</th>
+              <th>Status</th>
+              <th>Steps</th>
+              <th>Last Updated</th>
+              <th>Tags</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+      ${pag}`;
+    }
+
+    // ── New Flow (launch Smart Recorder) ─────────────────────────────────────
+    window.newFlow = function () {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🔁 Create New Flow</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+          <button class="btn btn-primary btn-lg"
+                  onclick="launchFlowRecorder()"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">🎯</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Smart Recorder</div>
+              <div style="font-size:12px;opacity:0.7">Record a new flow using the Chrome extension</div>
+            </div>
+          </button>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        </div>
+      </div>`);
+    };
+
+    // ── Launch Smart Recorder (create new flow) ──────────────────────────────
+    window.launchFlowRecorder = async function () {
+        closeModal();
+        try {
+            const projectData = await fetch(`/api/projects/url/${projectId}`).then(r => {
+                if (!r.ok) throw new Error('Failed to fetch project');
+                return r.json();
+            });
+
+            let extensionId;
+            try {
+                const res = await api.users.getExtensionId(user.username);
+                extensionId = res.extensionId;
+            } catch (e) {
+                console.error('Failed to fetch extension ID', e);
+            }
+
+            if (!extensionId) {
+                toast('Please configure your Chrome Extension ID from the Projects page.', 'warning', 5000);
+                return;
+            }
+
+            if (!window.chrome || !window.chrome.runtime) {
+                toast('Chrome extension is not installed or not accessible from this page.', 'error', 5000);
+                return;
+            }
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                {
+                    action: "START_RECORDING",
+                    projectId,
+                    moduleId,
+                    createdBy: user.username,
+                    url: projectData.loginUrl,
+                    flag: "FLOW"
+                },
+                (res) => {
+                    if (chrome.runtime.lastError) {
+                        console.error("Extension message failed:", chrome.runtime.lastError.message);
+                        toast('Failed to connect to extension. Please check that the extension is installed and the ID is correct.', 'error', 5000);
+                        return;
+                    }
+                    console.log("Extension ack:", res);
+                    window.open(projectData.loginUrl, "_blank");
+                }
+            );
+        } catch (e) {
+            toast('Failed to start flow recorder: ' + e.message, 'error');
+        }
+    };
+
+    // ── Edit Flow (launch Smart Recorder with existing flow) ─────────────────
+    window.editFlow = async function (id) {
+        try {
+            const [projectData, flowData] = await Promise.all([
+                fetch(`/api/projects/url/${projectId}`).then(r => { if (!r.ok) throw new Error('Failed to fetch project'); return r.json(); }),
+                api.flows.get(id)
+            ]);
+
+            let extensionId;
+            try {
+                const res = await api.users.getExtensionId(user.username);
+                extensionId = res.extensionId;
+            } catch (e) {
+                console.error('Failed to fetch extension ID', e);
+            }
+
+            if (!extensionId) {
+                toast('Please configure your Chrome Extension ID from the Projects page.', 'warning', 5000);
+                return;
+            }
+
+            if (!window.chrome || !window.chrome.runtime) {
+                toast('Chrome extension is not installed or not accessible from this page.', 'error', 5000);
+                return;
+            }
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                {
+                    action: "START_RECORDING",
+                    projectId,
+                    moduleId,
+                    flowId: id,
+                    createdBy: user.username,
+                    url: projectData.loginUrl,
+                    existingFlow: flowData,
+                    flag: "FLOW"
+                },
+                (res) => {
+                    if (chrome.runtime.lastError) {
+                        console.error("Extension message failed:", chrome.runtime.lastError.message);
+                        toast('Failed to connect to extension', 'error');
+                        return;
+                    }
+                    console.log("Extension ack:", res);
+                    window.open(projectData.loginUrl, "_blank");
+                }
+            );
+        } catch (e) {
+            toast('Edit flow failed: ' + e.message, 'error');
+        }
+    };
+
+    // ── Pagination ───────────────────────────────────────────────────────────
+    window.goPage = p => { filter.page = p; renderFiltered(); };
+
+    // ── Mutating actions: call server, then invalidate cache and reload ──────
+    async function refreshCacheAndRender() {
+        allFlowsCache = null;
+        await ensureAllFlowsLoaded(true);
+        renderFiltered();
+    }
+
+    window.cloneFlow = async function (id) {
+        try {
+            const c = await api.flows.clone(id);
+            toast(`Flow cloned successfully`, 'success');
+            await refreshCacheAndRender();
+        } catch (e) { toast('Clone failed: ' + e.message, 'error'); }
+    };
+
+    window.executeFlow = async function (id) {
+        try {
+            toast('Starting flow…', 'info', 2000);
+            await api.flows.execute(id);
+            toast('Flow execution started', 'success');
+        } catch (e) { toast('Execute failed: ' + e.message, 'error'); }
+    };
+
+    window.deleteFlow = async function (id) {
+        if (!confirm('Delete this flow?')) return;
+        try {
+            await api.flows.remove(id);
+            toast('Flow deleted', 'info');
+            await refreshCacheAndRender();
+        } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
+    };
+
+    // ── Boot the page ────────────────────────────────────────────────────────
+    boot();
+</script>
+</body>
+</html>

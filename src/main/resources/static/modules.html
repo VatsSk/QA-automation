@@ -248,7 +248,7 @@
     function moduleRow(m) {
         const mid = m.id || m._id;
         return `
-    <div class="mod-item" onclick="window.location.href='/runs.html?projectId=${esc(projectId)}&moduleId=${esc(mid)}'">
+    <div class="mod-item" onclick="openModuleModal('${esc(mid)}', '${esc(m.name)}')">
       <div class="mod-icon">🗂️</div>
       <div class="mod-info">
         <div class="mod-name">${esc(m.name)}</div>
@@ -256,10 +256,40 @@
       </div>
       <div class="mod-meta">
         <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteModule('${mid}')">✕</button>
-        <span class="badge badge-blue">View Runs →</span>
+        <span class="badge badge-blue">View →</span>
       </div>
     </div>`;
     }
+
+    window.openModuleModal = function (mid, name) {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🗂️ ${esc(name)}</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+          <button class="btn btn-primary btn-lg"
+                  onclick="closeModal();window.location.href='/runs.html?projectId=${esc(projectId)}&moduleId=${mid}'"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">▶</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Runs</div>
+              <div style="font-size:12px;opacity:0.7">View and manage test runs</div>
+            </div>
+          </button>
+          <button class="btn btn-secondary btn-lg"
+                  onclick="closeModal();window.location.href='/flows.html?projectId=${esc(projectId)}&moduleId=${mid}'"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">🔁</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Flows</div>
+              <div style="font-size:12px;opacity:0.7">View and manage automation flows</div>
+            </div>
+          </button>
+        </div>
+      </div>`);
+    };
 
     // ── New/Delete Module ──────────────────────────────────────────────────
     window.showNewModuleModal = function () {
