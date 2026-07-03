@@ -194,14 +194,14 @@ const user = requireLogin();
         const rows = flows.map(f => {
             const fid  = f.id || f._id;
             const name = f.flowName || f.name || '—';
-            const tags = (f.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
+            // const tags = (f.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
             return `
         <tr>
           <td>
             <span class="run-name-link">${esc(name)}</span>
           </td>
           <td>${statusBadge(f.status)}</td>
-          <td><span class="mono-sm">${f.scenariosList?.length ?? f.stepCount ?? 0}</span></td>
+          <td><span class="mono-sm">${f.scenariosList?.length ?? f.steps.length ?? 0}</span></td>
           <td><span class="mono-sm">${timeAgo(f.updatedAt || f.createdAt)}</span></td>
           <td><div style="display:flex;flex-wrap:wrap;gap:3px">${tags}</div></td>
           <td>
@@ -226,7 +226,7 @@ const user = requireLogin();
               <th>Status</th>
               <th>Steps</th>
               <th>Last Updated</th>
-              <th>Tags</th>
+<!--              <th>Tags</th>-->
               <th>Actions</th>
             </tr>
           </thead>
