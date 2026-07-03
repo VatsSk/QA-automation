@@ -1,4 +1,4 @@
-package com.testingautomation.testautomation.controllers;
+package com.testingautomation.testautomation.controllers.flowController;
 
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.services.flowService.FlowService;
@@ -19,6 +19,9 @@ public class FlowController {
 
     @Autowired
     private FlowService flowService;
+
+    @Autowired
+    private com.testingautomation.testautomation.services.flowService.FlowOrchestratorService flowOrchestratorService;
 
     @PostMapping
     public ResponseEntity<Flow> createOrUpdateFlow(@RequestBody Flow flow) {
@@ -58,11 +61,21 @@ public class FlowController {
         }
         
         Flow flow = flowOptional.get();
-        logger.info("Triggered execution for Flow: {}", flow.getName());
+        logger.info("Triggering execution for Flow: {}", flow.getName());
         
-        // TODO: Pass this flow to a background execution orchestrator that uses FlowExecutionService
-        // and launches Selenium. This should be run asynchronously so the API doesn't hang.
+        // Pass to orchestrator which will handle it in a background thread
+        flowOrchestratorService.orchestrate(flow);
         
         return ResponseEntity.ok("Flow execution started for: " + flow.getName());
+    }
+
+    @PostMapping("/{id}/clone")
+    public ResponseEntity<Flow> cloneFlow(@PathVariable String id) {
+        try {
+            Flow clonedFlow = flowService.cloneFlow(id);
+            return ResponseEntity.ok(clonedFlow);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 }

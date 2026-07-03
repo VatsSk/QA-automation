@@ -26,5 +26,7 @@ public enum ActionType {
 
     PRESS_KEY,
 
-    DRAG_DROP
+    DRAG_DROP,
+
+    VERIFY
 }

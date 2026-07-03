@@ -1,7 +1,6 @@
 package com.testingautomation.testautomation.entities.flow;
 
 import com.testingautomation.testautomation.entities.baseEntity.ExecutionEntity;
-import com.testingautomation.testautomation.enums.flow.StepType;
 import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.VerificationType;
 import lombok.Getter;
@@ -14,8 +13,6 @@ public class FlowStep extends ExecutionEntity {
     private Integer stepOrder;
 
     private String name;
-
-    private StepType stepType;
 
     private ActionType actionType;
 
