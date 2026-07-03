@@ -23,8 +23,9 @@ public class FlowController {
     @Autowired
     private com.testingautomation.testautomation.services.flowService.FlowOrchestratorService flowOrchestratorService;
 
-    @PostMapping
-    public ResponseEntity<Flow> createOrUpdateFlow(@RequestBody Flow flow) {
+    @PutMapping("/{id}")
+    public ResponseEntity<Flow> createOrUpdateFlow(@PathVariable String id,@RequestBody Flow flow) {
+        System.out.println("Updating Id");
         Flow savedFlow = flowService.saveFlow(flow);
         return ResponseEntity.ok(savedFlow);
     }

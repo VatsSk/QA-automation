@@ -139,9 +139,6 @@ const user = requireLogin();
         q = q.toLowerCase();
         if ((f.flowName || f.name || '').toLowerCase().includes(q)) return true;
         if ((f.id || f._id || '').toString().toLowerCase().includes(q)) return true;
-        if (Array.isArray(f.tags)) {
-            for (const t of f.tags) if ((t || '').toLowerCase().includes(q)) return true;
-        }
         return false;
     }
 
@@ -194,18 +191,17 @@ const user = requireLogin();
         const rows = flows.map(f => {
             const fid  = f.id || f._id;
             const name = f.flowName || f.name || '—';
-            // const tags = (f.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join('');
             return `
         <tr>
           <td>
-            <span class="run-name-link">${esc(name)}</span>
+            <span class="run-name-link" onclick="viewFlow('${fid}')">${esc(name)}</span>
           </td>
-          <td>${statusBadge(f.status)}</td>
-          <td><span class="mono-sm">${f.scenariosList?.length ?? f.steps.length ?? 0}</span></td>
+          <td>${statusBadge(f.executionStatus)}</td>
+          <td><span class="mono-sm">${f.scenariosList?.length ?? f.steps?.length ?? 0}</span></td>
           <td><span class="mono-sm">${timeAgo(f.updatedAt || f.createdAt)}</span></td>
-          <td><div style="display:flex;flex-wrap:wrap;gap:3px">${tags}</div></td>
           <td>
             <div class="actions-cell">
+              <button class="btn btn-ghost btn-xs" onclick="viewFlow('${fid}')"    title="View">👁️</button>
               <button class="btn btn-ghost btn-xs" onclick="editFlow('${fid}')"   title="Edit">✏️</button>
               <button class="btn btn-ghost btn-xs" onclick="cloneFlow('${fid}')"  title="Clone">📋</button>
               <button class="btn btn-amber btn-xs" onclick="executeFlow('${fid}')" title="Execute">▶</button>
@@ -364,6 +360,11 @@ const user = requireLogin();
         } catch (e) {
             toast('Edit flow failed: ' + e.message, 'error');
         }
+    };
+
+    // ── View Flow Detail ──────────────────────────────────────────────────────
+    window.viewFlow = function (id) {
+        window.location.href = `/flow-detail.html?flowId=${id}&projectId=${projectId}&moduleId=${moduleId}`;
     };
 
     // ── Pagination ───────────────────────────────────────────────────────────

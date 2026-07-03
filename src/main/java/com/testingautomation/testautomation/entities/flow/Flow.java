@@ -25,8 +25,7 @@ public class Flow extends ExecutionEntity {
 //    private Integer version = 1;
 
     private Integer defaultWait = 5000;
-
-    private FlowStatus status = FlowStatus.DRAFT;
+    private String flowBasePath;
 
     private List<FlowStep> steps = new ArrayList<>();
 }
