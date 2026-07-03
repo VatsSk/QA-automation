@@ -127,6 +127,16 @@ export const runs = {
         ),
 };
 
+// ── Flows ──────────────────────────────────────────────────────────────────
+export const flows = {
+    list:    (projectId, moduleId) =>
+        request('GET', `/api/flows/${projectId}/${moduleId}`),
+    get:     (id)      => request('GET',    `/api/flows/${id}`),
+    remove:  (id)      => request('DELETE', `/api/flows/${id}`),
+    clone:   (id)      => request('POST',   `/api/flows/${id}/clone`),
+    execute: (id)      => request('POST',   `/api/flows/${id}/run`),
+};
+
 // ── Files / S3 access ──────────────────────────────────────────────────────
 export const files = {
     /**
@@ -159,4 +169,4 @@ export const uploads = {
 
         return uploadFile('/api/uploads/project-login', fd);
     }
-};
+};
