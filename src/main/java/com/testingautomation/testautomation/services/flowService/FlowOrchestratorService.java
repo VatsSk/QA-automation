@@ -40,7 +40,7 @@ public class FlowOrchestratorService {
             }
 
             for (FlowStep step : flow.getSteps()) {
-                flowExecutionService.executeStep(driver, step, flow.getDefaultWait());
+                flowExecutionService.executeStep(driver, step, flow);
             }
 
             logger.info("Successfully executed flow: {}", flow.getName());

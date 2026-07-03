@@ -54,7 +54,7 @@ public class FlowService {
         clone.setModuleId(original.getModuleId());
         clone.setName(original.getName() + " - Copy");
         clone.setDescription(original.getDescription());
-        clone.setVersion(1);
+//        clone.setVersion(1);
         clone.setDefaultWait(original.getDefaultWait());
         clone.setStatus(FlowStatus.DRAFT);
         clone.setCreatedAt(Instant.now());
@@ -69,7 +69,7 @@ public class FlowService {
                 stepClone.setName(step.getName());
                 stepClone.setActionType(step.getActionType());
                 stepClone.setVerificationType(step.getVerificationType());
-                stepClone.setLocator(step.getLocator());
+                stepClone.setSelector(step.getSelector());
                 stepClone.setValue(step.getValue());
                 stepClone.setExpectedValue(step.getExpectedValue());
                 stepClone.setAttribute(step.getAttribute());
@@ -78,8 +78,8 @@ public class FlowService {
                 stepClone.setRetryCount(step.getRetryCount());
                 stepClone.setContinueOnFailure(step.getContinueOnFailure());
                 stepClone.setCaptureScreenshot(step.getCaptureScreenshot());
-                stepClone.setEnabled(step.getEnabled());
-                stepClone.setRemarks(step.getRemarks());
+//                stepClone.setEnabled(step.getEnabled());
+//                stepClone.setRemarks(step.getRemarks());
                 clonedSteps.add(stepClone);
             }
         }

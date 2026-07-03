@@ -52,7 +52,7 @@ public class FlowStep extends ExecutionEntity {
 
     private Boolean continueOnFailure = false;
 
-    private Boolean captureScreenshot = false;
+    private Boolean captureScreenshot = true;
 
 //    private Boolean enabled = true;
 

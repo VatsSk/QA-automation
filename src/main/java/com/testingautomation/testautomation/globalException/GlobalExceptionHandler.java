@@ -242,6 +242,36 @@ public class GlobalExceptionHandler {
 
     }
 
+    public static class FlowExecutionException extends AutomationException {
+        private final Integer stepOrder;
+        private final String stepName;
+        private final com.testingautomation.testautomation.enums.flow.ActionType actionType;
+        private final String reason;
+        private final String userMessage;
+
+        public FlowExecutionException(
+                Integer stepOrder,
+                String stepName,
+                com.testingautomation.testautomation.enums.flow.ActionType actionType,
+                String reason,
+                String userMessage,
+                Throwable cause
+        ) {
+            super(userMessage, cause);
+            this.stepOrder = stepOrder;
+            this.stepName = stepName;
+            this.actionType = actionType;
+            this.reason = reason;
+            this.userMessage = userMessage;
+        }
+
+        public Integer getStepOrder() { return stepOrder; }
+        public String getStepName() { return stepName; }
+        public com.testingautomation.testautomation.enums.flow.ActionType getActionType() { return actionType; }
+        public String getReason() { return reason; }
+        public String getUserMessage() { return userMessage; }
+    }
+
 
     // ── Custom exceptions ─────────────────────────────────────────────
     public static abstract class AutomationException extends RuntimeException {
@@ -319,7 +349,6 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(body);
     }
-
 
 
     @ExceptionHandler(AssertionExecutionException.class)
@@ -447,6 +476,45 @@ public class GlobalExceptionHandler {
                         HttpStatus.REQUEST_TIMEOUT.value(),
                         "Target web page is slow or element did not become visible within timeout"
                 ));
+    }
+
+    @ExceptionHandler(FlowExecutionException.class)
+    public ResponseEntity<ErrorResponse> handleFlowExecution(
+            FlowExecutionException ex
+    ) {
+        log.error(
+                "Flow execution failed at stepOrder={} stepName={} actionType={}",
+                ex.getStepOrder(),
+                ex.getStepName(),
+                ex.getActionType(),
+                ex
+        );
+
+        ErrorResponse body = ErrorResponse.of(
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ex.getUserMessage()
+        );
+
+        Map<String, String> details = new HashMap<>();
+
+        if (ex.getStepOrder() != null) {
+            details.put("stepOrder", String.valueOf(ex.getStepOrder()));
+        }
+        details.put("stepName", ex.getStepName());
+        if (ex.getActionType() != null) {
+            details.put("actionType", ex.getActionType().name());
+        }
+        details.put("reason", ex.getReason());
+
+        if (ex.getCause() != null) {
+            details.put("cause", ex.getCause().getMessage());
+        }
+
+        body.setDetails(details);
+
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
+                .body(body);
     }
 
     @ExceptionHandler({
