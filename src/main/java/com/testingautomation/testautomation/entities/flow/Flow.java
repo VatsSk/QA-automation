@@ -1,7 +1,6 @@
 package com.testingautomation.testautomation.entities.flow;
 
 import com.testingautomation.testautomation.entities.baseEntity.ExecutionEntity;
-import com.testingautomation.testautomation.enums.flow.FlowStatus;
 import org.springframework.data.mongodb.core.mapping.Document;
 import lombok.Getter;
 import lombok.Setter;

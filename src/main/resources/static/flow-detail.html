@@ -34,7 +34,7 @@
         }
         .flow-hero-desc {
             font-size: 13px;
-            color: var(--tx2);
+            /*color: var(--tx2);*/
             margin-top: 4px;
             line-height: 1.5;
         }
@@ -748,11 +748,21 @@
                 </div>
 
                 ${flow.executionMessage ? `
-                    <div class="step-error-alert" style="margin-top:16px">
-                        <span class="alert-icon">⚠️</span>
-                        <span class="alert-text">${esc(flow.executionMessage)}</span>
-                    </div>
-                ` : ''}
+    <div class="step-error-alert"
+         style="margin-top:16px;
+                background:${flow.executionStatus === 'FAILED' ? '#ffe5e5' : '#e6ffed'};
+                color:${flow.executionStatus === 'FAILED' ? '#d32f2f' : '#2e7d32'};
+                border:1px solid ${flow.executionStatus === 'FAILED' ? '#f5c2c2' : '#b7ebc6'};">
+
+        <span class="alert-icon">
+            ${flow.executionStatus === 'FAILED' ? '⚠️' : '✅'}
+        </span>
+
+        <span class="alert-text">
+            ${esc(flow.executionMessage)}
+        </span>
+    </div>
+` : ''}
             </div>
 
             <!-- Step filter bar -->
@@ -1048,10 +1058,14 @@
         if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Starting…'; }
         try {
             await api.flows.execute(flowId);
+            console.log("executing");
             toast('Flow execution started!', 'success');
             // Reload to pick up RUNNING status
             setTimeout(() => load(), 1000);
+            console.log("reloaded to pickup state");
         } catch (e) {
+            console.log("Failed "+e.message);
+            console.log("exception "+ e);
             toast('Failed to start flow: ' + e.message, 'error');
             if (btn) { btn.disabled = false; btn.innerHTML = '▶ Run Again'; }
         }

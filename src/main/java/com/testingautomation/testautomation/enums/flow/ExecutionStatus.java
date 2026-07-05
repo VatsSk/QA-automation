@@ -4,13 +4,13 @@ public enum ExecutionStatus {
 
     NOT_STARTED,
 
+    DRAFT,
+
     RUNNING,
 
     PASSED,
 
     FAILED,
-
-    SKIPPED,
 
     CANCELLED
 }

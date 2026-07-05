@@ -2,7 +2,6 @@ package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
-import com.testingautomation.testautomation.enums.flow.FlowStatus;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -57,8 +56,7 @@ public class FlowService {
         clone.setDescription(original.getDescription());
 //        clone.setVersion(1);
         clone.setDefaultWait(original.getDefaultWait());
-        clone.setFlowBasePath(original.getFlowBasePath());
-        clone.setExecutionStatus(ExecutionStatus.NOT_STARTED);
+        clone.setExecutionStatus(ExecutionStatus.DRAFT);
         clone.setCreatedAt(Instant.now());
         clone.setUpdatedAt(Instant.now());
         

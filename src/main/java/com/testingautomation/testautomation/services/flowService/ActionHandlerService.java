@@ -50,9 +50,12 @@ public class ActionHandlerService {
         boolean targetState = Boolean.parseBoolean(step.getValue());
         boolean currentState = element.isSelected();
         logger.info("Checkbox target state: [{}], current state: [{}]", targetState, currentState);
-        if (targetState != currentState) {
-            element.click();
-        }
+        logger.info("Displayed : {}", element.isDisplayed());
+        logger.info("Enabled   : {}", element.isEnabled());
+        logger.info("Selected  : {}", element.isSelected());
+        logger.info("Location  : {}", element.getLocation());
+        logger.info("Size      : {}", element.getSize());
+        element.click();
     }
 
     public void handleRadio(WebElement element, FlowStep step) {
