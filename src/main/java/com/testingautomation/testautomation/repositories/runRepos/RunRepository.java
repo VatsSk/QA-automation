@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.repositories.runRepos;
 
 import com.testingautomation.testautomation.entities.Run;
+import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.enums.RunStatus;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.mongodb.repository.Query;
@@ -37,4 +38,12 @@ public interface RunRepository extends MongoRepository<Run, String>, RunReposito
     @Query("{ '_id' : { $in : ?0 } }")
     @Update("{ '$set' : {'status': ?1} }")
     void updateStatusForRuns(List<String> runIds,RunStatus status);
+
+    @Query(
+            value = "{'_id': ?0}",
+            fields = "{'projectId': 1,'moduleId': 1,'_id': 0}"
+    )
+    Run runWithProjIdAndModId(String Id);
+
+
 }

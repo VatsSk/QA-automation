@@ -129,7 +129,7 @@ public class RunService {
         System.out.println("bucket"+bucketName);
         System.out.println("prefix"+prefix);
 
-        Run run = findRunOrThrow(id);
+        Run run = runRepository.runWithProjIdAndModId(id);
         String projectId = run.getProjectId();
         String moduleId = run.getModuleId();
 

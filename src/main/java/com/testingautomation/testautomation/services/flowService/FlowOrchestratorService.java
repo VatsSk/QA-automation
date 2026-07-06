@@ -5,6 +5,7 @@ import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
+import com.testingautomation.testautomation.services.s3Service.StorageService;
 import org.openqa.selenium.WebDriver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,6 +31,10 @@ public class FlowOrchestratorService {
 
     @Value("${storage.s3.base-prefix}")
     private String basePrefix;
+    @Value("${storage.s3.bucket-name}")
+    private String bucket;
+    @Autowired
+    private StorageService storageService;
 
     public void orchestrate(Flow flow) {
         logger.info("Orchestrating background execution for flow: {}", flow.getName());
@@ -37,12 +42,17 @@ public class FlowOrchestratorService {
     }
 
     private void executeFlow(Flow flow) {
+
         WebDriver driver = null;
         try {
             flow.setExecutionStartedAt(Instant.now());
             flow.setExecutionStatus(ExecutionStatus.RUNNING);
             flow.setExecutionMessage(null);
             String flowPrefix = basePrefix + "/" + flow.getProjectId() + "/" + flow.getModuleId() + "/" + flow.getId();
+            //deleting existing objects from the s3 for run
+            if (storageService.doesPrefixHaveObjects(bucket, flowPrefix)) {
+                storageService.deleteFolderExceptTestCase(bucket, flowPrefix);
+            }
             flow.setFlowBasePath(flowPrefix);
             flowRepository.save(flow);
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
