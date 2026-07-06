@@ -32,7 +32,13 @@ async function request(method, path, body) {
         throw e;
     }
     if (res.status === 204) return null;
-    return res.json();
+    const text = await res.text();
+    if (!text) return null;
+    try {
+        return JSON.parse(text);
+    } catch {
+        return text;
+    }
 }
 
 // ── Multipart file upload ──────────────────────────────────────────────────
