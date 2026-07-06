@@ -1,9 +1,12 @@
 package com.testingautomation.testautomation.services.flowService;
 
+import com.testingautomation.testautomation.entities.Run;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
+import com.testingautomation.testautomation.services.s3Service.StorageService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -12,9 +15,15 @@ import java.util.Optional;
 
 @Service
 public class FlowService {
+    @Value("${S3_BUCKET}")
+    private String bucketName;
+    @Value("${S3_BASE_PREFIX}")
+    private String prefix;
 
     @Autowired
     private FlowRepository flowRepository;
+    @Autowired
+    private StorageService storageService;
 
     public Flow saveFlow(Flow flow) {
         if (flow.getId() == null) {
@@ -38,6 +47,14 @@ public class FlowService {
     }
 
     public void deleteFlow(String id) {
+        Flow flow =flowRepository.flowWithProjIdAndModId(id);
+        String projectId = flow.getProjectId();
+        String moduleId = flow.getModuleId();
+
+        String basePrefix=prefix+"/"+ projectId+ "/" + moduleId + "/" + id;
+        if(storageService.doesPrefixHaveObjects(bucketName,basePrefix)){
+            storageService.deleteFolder(bucketName,basePrefix);
+        }
         flowRepository.deleteById(id);
     }
 
