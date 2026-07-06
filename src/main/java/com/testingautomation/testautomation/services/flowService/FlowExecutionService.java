@@ -107,7 +107,7 @@ public class FlowExecutionService {
                     case SCROLL: actionHandlerService.handleScroll(driver, element, step); break;
                     case PRESS_KEY: actionHandlerService.handlePressKey(element, step); break;
                     case DRAG_DROP: actionHandlerService.handleDragDrop(driver, element, step); break;
-                    case VERIFY: actionHandlerService.handleVerify(driver,element, step); break;
+                    case VERIFY: actionHandlerService.handleVerify(driver,element, step,waitTime); break;
                     default: logger.info("ActionType [{}] is not yet fully integrated.", actionType);
                 }
                 

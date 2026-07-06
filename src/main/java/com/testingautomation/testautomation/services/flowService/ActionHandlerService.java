@@ -1,20 +1,27 @@
 package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.services.VerificationService;
+import lombok.AllArgsConstructor;
 import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.Select;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.time.Duration;
 
 @Service
+@AllArgsConstructor
 public class ActionHandlerService {
 
     private static final Logger logger = LoggerFactory.getLogger(ActionHandlerService.class);
 
+    @Autowired
+    private final VerificationService verificationService;
     public void handleNavigate(WebDriver driver, FlowStep step) {
         String url = step.getValue();
         if (url == null || url.isEmpty()) {
@@ -159,7 +166,7 @@ public class ActionHandlerService {
         }
     }
 
-    public void handleVerify(WebDriver driver, WebElement element, FlowStep step) {
+    public void handleVerify(WebDriver driver, WebElement element, FlowStep step,int waitTime) {
         com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
         if (vType == null) {
             logger.warn("VerificationType is null for step [{}], defaulting to VISIBLE check", step.getName());
@@ -252,6 +259,7 @@ public class ActionHandlerService {
                 // element.getText() only returns rendered visible text and can return "" when
                 // the text lives in raw DOM text nodes or the element is not in the viewport.
                 // Fall back to JS textContent which always returns the raw string.
+                verificationService.findBestElement(driver,step.getSelector(), Duration.ofSeconds(waitTime));
                 String rawActual = element.getText();
                 if (rawActual == null || rawActual.isEmpty()) {
                     rawActual = (String) ((JavascriptExecutor) driver)
