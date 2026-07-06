@@ -59,7 +59,7 @@ public class VerificationService {
 
         return topModal;
     }
-    private WebElement findBestElement(WebDriver driver, String cssSelector, Duration timeout) {
+    public WebElement findBestElement(WebDriver driver, String cssSelector, Duration timeout) {
 
         WebDriverWait wait = new WebDriverWait(driver, timeout);
 
@@ -238,29 +238,10 @@ private boolean isActuallyVisible(WebDriver driver, WebElement element) {
             }
 
             try {
-                // Use document.querySelector to find the element and return its textContent
-//                WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-
-//                WebElement element = wait.until(driver1 -> {
-//                    WebElement e = driver1.findElement(By.cssSelector(cssSelector));
-//
-//                    if (!e.isDisplayed()) {
-//                        return null;
-//                    }
-//
-//                    return isActuallyVisible(driver1, e) ? e : null;
-//                });
                 WebElement element = findBestElement(driver, cssSelector, Duration.ofSeconds(10));
 
                 String actualText = element.getText().trim();
                 verify.setActual(actualText);
-//                logger.info("actualText : {}",actualText);
-//                logger.info("Displayed = {}", element.isDisplayed());
-//                logger.info("ActuallyVisible = {}", isActuallyVisible(driver, element));
-//                logger.info("getText = [{}]", element.getText());
-//                logger.info("innerText = [{}]", element.getAttribute("innerText"));
-//                logger.info("textContent = [{}]", element.getAttribute("textContent"));
-//                logger.info("OuterHTML = {}", element.getAttribute("outerHTML"));
                 if(actualText ==  null && expected==null) {
                     verify.setStatus(true);
                 } else if (actualText == null) {
