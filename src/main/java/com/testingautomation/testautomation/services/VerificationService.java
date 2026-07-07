@@ -112,7 +112,7 @@ public class VerificationService {
                                 logger.debug("[Filter] Rejected element -> displayed: {}, visible: {}", displayed, visible);
                             }
 
-                            return displayed && visible;
+                            return visible;
                         } catch (Exception e) {
                             return false;
                         }

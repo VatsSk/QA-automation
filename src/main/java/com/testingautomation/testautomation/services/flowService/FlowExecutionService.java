@@ -5,6 +5,7 @@ import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
+import com.testingautomation.testautomation.services.VerificationService;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
 import org.openqa.selenium.By;
 import org.openqa.selenium.InvalidSelectorException;
@@ -40,6 +41,8 @@ public class FlowExecutionService {
 
 
     private final String resultsBaseDir = "test-results";
+    @Autowired
+    private VerificationService verificationService;
 
     public void executeStep(WebDriver driver, FlowStep step, Flow flow) {
 
@@ -77,7 +80,10 @@ public class FlowExecutionService {
                 WebElement element = null;
                 
                 // Fetch element if required
-                if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL) {
+                if(actionType==ActionType.VERIFY){
+                    element=verificationService.findBestElement(driver,step.getSelector(),Duration.ofMillis(waitTime));
+                }
+                else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL) {
                     if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
                         try{
                             element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
@@ -97,7 +103,6 @@ public class FlowExecutionService {
                 } else if (actionType == ActionType.SCROLL && step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
                     element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
                 }
-
                 switch (actionType) {
                     case NAVIGATE: actionHandlerService.handleNavigate(driver, step); break;
                     case WAIT: actionHandlerService.handleWait(step); break;
