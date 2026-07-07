@@ -54,6 +54,7 @@ public class FlowOrchestratorService {
                 storageService.deleteFolderExceptTestCase(bucket, flowPrefix);
             }
             flow.setFlowBasePath(flowPrefix);
+            flow.setUpdatedAt(Instant.now());
             flowRepository.save(flow);
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
@@ -65,6 +66,7 @@ public class FlowOrchestratorService {
                 flow.setExecutionStatus(ExecutionStatus.PASSED);
                 flow.setExecutionMessage("No steps to execute");
                 flow.setExecutionCompletedAt(Instant.now());
+                flow.setUpdatedAt(Instant.now());
                 flowRepository.save(flow);
                 return;
             }
@@ -77,21 +79,21 @@ public class FlowOrchestratorService {
 
             flow.setExecutionStatus(ExecutionStatus.PASSED);
             flow.setExecutionMessage("Flow executed successfully");
-            flow.setExecutionCompletedAt(Instant.now());
-            flowRepository.save(flow);
             logger.info("Successfully executed flow: {}", flow.getName());
 
         } catch (Exception e) {
             logger.error("Error executing flow [{}]: {}", flow.getName(), e.getMessage(), e);
             flow.setExecutionStatus(ExecutionStatus.FAILED);
             flow.setExecutionMessage(e.getMessage());
-            flow.setExecutionCompletedAt(Instant.now());
-            flowRepository.save(flow);
         } finally {
+            flow.setExecutionCompletedAt(Instant.now());
+            flow.setUpdatedAt(Instant.now());
+            flowRepository.save(flow);
             if (driver != null) {
                 logger.info("Quitting WebDriver for flow: {}", flow.getName());
                 driver.quit();
             }
         }
+
     }
 }

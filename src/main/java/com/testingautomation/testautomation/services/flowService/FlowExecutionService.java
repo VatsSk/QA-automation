@@ -119,15 +119,13 @@ public class FlowExecutionService {
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
-
+                takeScreenshotIfRequired(driver, step, flow,attempts);
             } catch (Exception e) {
+                takeScreenshotIfRequired(driver, step, flow,attempts);
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);
                     step.setExecutionMessage(e.getMessage());
                     logger.error("Step [{}] failed after {} attempts. Error: {}", step.getName(), attempts, e.getMessage());
-                    
-                    takeScreenshotIfRequired(driver, step, flow);
-                    
                     step.setExecutionCompletedAt(Instant.now());
                     
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
@@ -144,25 +142,26 @@ public class FlowExecutionService {
                     logger.warn("Step [{}] failed, retrying... Attempt {}/{}", step.getName(), attempts, retries);
                 }
             }
+
         }
 
-            takeScreenshotIfRequired(driver, step, flow);
+
             step.setExecutionCompletedAt(Instant.now());
 
     }
 
-    private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow) {
-//        if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
+    private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow,int attempt) {
+        if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
             try {
                 String stepId = ""+ step.getStepOrder();
                 
                 Path scenarioDir = Paths.get(resultsBaseDir, flow.getFlowBasePath());
                 Files.createDirectories(scenarioDir);
                 
-                screenshotService.takeScreenshot(driver, stepId, stepId + "_screenshot", scenarioDir, flow.getFlowBasePath());
+                screenshotService.takeScreenshot(driver, stepId, stepId+"_"+attempt + "_screenshot", scenarioDir, flow.getFlowBasePath());
             } catch (Exception e) {
                 logger.error("Failed to capture screenshot for step [{}]", step.getName(), e);
             }
-//        }
+        }
     }
 }
