@@ -327,6 +327,11 @@
         .step-screenshot-section {
             margin-top: 14px;
         }
+        .step-screenshots-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
         .step-screenshot-preview {
             max-width: 360px;
             border: 1px solid var(--bd);
@@ -493,6 +498,7 @@
 
     window.toggleTheme = toggleTheme;
     window.closeModal = closeModal;
+    window.showLightbox = showLightbox;
 
     const user = requireLogin();
     if (!user) throw new Error('not logged in');
@@ -573,18 +579,19 @@
     }
 
     // ── SCREENSHOT PRESIGNING ───────────────────────────────────────────
-    async function getScreenshotUrl(step) {
-        if (!flow.flowBasePath) return null;
-        // Construct the key as requested: projectId/moduleId/flowId/stepOrder/screenshots/filename.png
-        // flowBasePath is already basePrefix/projectId/moduleId/flowId
-        const key = `${flow.flowBasePath}/${step.stepOrder}/screenshots/${step.stepOrder}_screenshot.png`;
-        if (ssCache[key]) return ssCache[key];
+    async function getScreenshotUrls(step) {
+        if (!flow.flowBasePath) return [];
+        const prefix = `${flow.flowBasePath}/${step.stepOrder}/screenshots/`;
+        if (ssCache[prefix]) return ssCache[prefix];
         try {
-            const res = await api.files.presign(key);
-            ssCache[key] = res.url || res;
-            return ssCache[key];
+            const res = await api.runs.getScenarioScreenshots(prefix);
+            if (res && res.screenshots && res.screenshots.length > 0) {
+                ssCache[prefix] = res.screenshots;
+                return res.screenshots;
+            }
+            return [];
         } catch {
-            return null;
+            return [];
         }
     }
 
@@ -971,10 +978,10 @@
 
             ${hasScreenshot ? `
                 <div class="step-screenshot-section">
-                    <div class="step-detail-label" style="margin-bottom:8px">Screenshot</div>
-                    <div class="step-screenshot-preview" id="ss-preview-${step.stepOrder}" onclick="openStepScreenshot(${step.stepOrder})">
+                    <div class="step-detail-label" style="margin-bottom:8px">Screenshots</div>
+                    <div class="step-screenshots-grid" id="ss-preview-container-${step.stepOrder}">
                         <div style="padding:24px;text-align:center;color:var(--tx3);font-size:12px">
-                            Loading screenshot…
+                            Loading screenshots…
                         </div>
                     </div>
                 </div>
@@ -988,23 +995,28 @@
         const steps = flow.steps || [];
 
         for (const step of steps) {
-            const url = await getScreenshotUrl(step);
+            const screenshots = await getScreenshotUrls(step);
             const thumbEl = document.getElementById(`thumb-${step.stepOrder}`);
-            const previewEl = document.getElementById(`ss-preview-${step.stepOrder}`);
+            const containerEl = document.getElementById(`ss-preview-container-${step.stepOrder}`);
 
-            if (url) {
+            if (screenshots.length > 0) {
                 if (thumbEl) {
-                    thumbEl.innerHTML = `<img src="${esc(url)}" alt="Step ${step.stepOrder}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'step-thumb-placeholder\\'>📷</div>'">`;
+                    thumbEl.innerHTML = `<img src="${esc(screenshots[0].url)}" alt="Step ${step.stepOrder}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'step-thumb-placeholder\\'>📷</div>'">`;
                 }
-                if (previewEl) {
-                    previewEl.innerHTML = `<img src="${esc(url)}" alt="Step ${step.stepOrder} screenshot" loading="lazy" onerror="this.innerHTML='<div style=\\'padding:24px;text-align:center;color:var(--tx3);font-size:12px\\'>Screenshot not available</div>'"><div class="step-screenshot-caption">Step ${step.stepOrder} · ${esc(step.name || '')}</div>`;
+                if (containerEl) {
+                    containerEl.innerHTML = screenshots.map((ss, idx) => `
+                        <div class="step-screenshot-preview" onclick="showLightbox('${esc(ss.url)}')">
+                            <img src="${esc(ss.url)}" alt="Step ${step.stepOrder} screenshot ${idx+1}" loading="lazy" onerror="this.parentElement.style.display='none'">
+                            <div class="step-screenshot-caption">Step ${step.stepOrder} · ${esc(step.name || '')} (${esc(ss.fileName)})</div>
+                        </div>
+                    `).join('');
                 }
             } else {
                 if (thumbEl) {
                     thumbEl.innerHTML = '<div class="step-thumb-placeholder">📷</div>';
                 }
-                if (previewEl) {
-                    previewEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--tx3);font-size:12px">Screenshot not available</div>';
+                if (containerEl) {
+                    containerEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--tx3);font-size:12px">No screenshots available</div>';
                 }
             }
         }
@@ -1045,9 +1057,9 @@
     window.openStepScreenshot = async function (stepOrder) {
         const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
         if (!step) return;
-        const url = await getScreenshotUrl(step);
-        if (url) {
-            showLightbox(url);
+        const screenshots = await getScreenshotUrls(step);
+        if (screenshots && screenshots.length > 0) {
+            showLightbox(screenshots[0].url);
         } else {
             toast('Screenshot not available', 'warning');
         }

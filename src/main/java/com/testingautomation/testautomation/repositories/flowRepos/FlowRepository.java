@@ -9,6 +9,10 @@ import java.util.List;
 
 @Repository
 public interface FlowRepository extends MongoRepository<Flow, String> {
+    @Query(
+            value="{'projectId': ?0,'moduleId': ?1}",
+            sort = "{'updatedAt': -1}"
+    )
     List<Flow> findByProjectIdAndModuleId(String projectId, String moduleId);
 
     @Query(
