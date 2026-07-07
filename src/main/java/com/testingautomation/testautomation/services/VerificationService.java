@@ -67,7 +67,7 @@ public class VerificationService {
 
             // 🔹 Step 1: Detect modal
             WebElement modal = getTopMostModal(d);
-//            logger.info("[FindElement] Modal present: {}", modal != null);
+            logger.info("[FindElement] Modal present: {}", modal != null);
             if (modal != null) {
                 String modalId = modal.getAttribute("id");
                 String modalClass = modal.getAttribute("class");
@@ -168,43 +168,152 @@ public class VerificationService {
 //        return topElement === el || el.contains(topElement);
 //    """, element));
 //    }
+//private boolean isActuallyVisible(WebDriver driver, WebElement element) {
+//    JavascriptExecutor js = (JavascriptExecutor) driver;
+//
+//    return Boolean.TRUE.equals(js.executeScript("""
+//        const el = arguments[0];
+//
+//        if (!el) return false;
+//
+//        const style = window.getComputedStyle(el);
+//        if (
+//            style.display === 'none' ||
+//            style.visibility === 'hidden' ||
+//            parseFloat(style.opacity) === 0
+//        ) {
+//            return false;
+//        }
+//
+//        const rect = el.getBoundingClientRect();
+//        if (rect.width === 0 || rect.height === 0) {
+//            return false;
+//        }
+//
+//        // 🔥 FIX: Allow modal elements even if overlapped by map
+//        const isInsideModal = el.closest('.modal.show') !== null;
+//
+//        if (isInsideModal) {
+//            return true;
+//        }
+//
+//        // fallback for non-modal elements
+//        const centerX = rect.left + rect.width / 2;
+//        const centerY = rect.top + rect.height / 2;
+//
+//        const topElement = document.elementFromPoint(centerX, centerY);
+//
+//        return topElement === el || el.contains(topElement);
+//    """, element));
+//}
 private boolean isActuallyVisible(WebDriver driver, WebElement element) {
     JavascriptExecutor js = (JavascriptExecutor) driver;
 
-    return Boolean.TRUE.equals(js.executeScript("""
-        const el = arguments[0];
+    if (element == null) {
+        logger.warn("Element is null → returning false");
+        return false;
+    }
 
-        if (!el) return false;
+    logger.info("Checking visibility for element: {}", element);
 
-        const style = window.getComputedStyle(el);
-        if (
-            style.display === 'none' ||
-            style.visibility === 'hidden' ||
-            parseFloat(style.opacity) === 0
-        ) {
-            return false;
-        }
+    Object result = js.executeScript("""
+    const el = arguments[0];
 
-        const rect = el.getBoundingClientRect();
-        if (rect.width === 0 || rect.height === 0) {
-            return false;
-        }
-
-        // 🔥 FIX: Allow modal elements even if overlapped by map
-        const isInsideModal = el.closest('.modal.show') !== null;
-
-        if (isInsideModal) {
-            return true;
-        }
-
-        // fallback for non-modal elements
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-
-        const topElement = document.elementFromPoint(centerX, centerY);
+    const log = [];
     
-        return topElement === el || el.contains(topElement);
-    """, element));
+    if (!el) {
+        log.push("Element is null");
+        return { visible: false, log };
+    }
+
+    const style = window.getComputedStyle(el);
+
+    log.push("display: " + style.display);
+    log.push("visibility: " + style.visibility);
+    log.push("opacity: " + style.opacity);
+
+    if (
+        style.display === 'none' ||
+        style.visibility === 'hidden' ||
+        parseFloat(style.opacity) === 0
+    ) {
+        log.push("Element hidden due to CSS");
+        return { visible: false, log };
+    }
+
+    const rect = el.getBoundingClientRect();
+
+    log.push("rect.width: " + rect.width);
+    log.push("rect.height: " + rect.height);
+
+    if (rect.width === 0 || rect.height === 0) {
+        log.push("Element has zero size");
+        return { visible: false, log };
+    }
+
+    const isInsideModal = el.closest('.modal.show') !== null;
+    log.push("isInsideModal: " + isInsideModal);
+
+    if (isInsideModal) {
+        log.push("Element inside modal → forcing visible");
+        return { visible: true, log };
+    }
+
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    log.push("centerX: " + centerX);
+    log.push("centerY: " + centerY);
+
+    // 🔥 FIX: Resolve correct root (Shadow DOM safe)
+    const root = el.getRootNode();
+    let topElement = null;
+
+    if (root && typeof root.elementFromPoint === 'function') {
+        topElement = root.elementFromPoint(centerX, centerY);
+        log.push("Using root.elementFromPoint");
+    } else {
+        topElement = document.elementFromPoint(centerX, centerY);
+        log.push("Using document.elementFromPoint");
+    }
+
+    if (!topElement) {
+        log.push("topElement is null → fallback to visible");
+        return { visible: true, log }; // ⚠️ fallback instead of false
+    }
+
+    const matches = topElement === el;
+    const contains = el.contains(topElement);
+
+    log.push("topElement matches: " + matches);
+    log.push("element contains topElement: " + contains);
+
+    const finalResult = matches || contains;
+
+    log.push("finalResult: " + finalResult);
+
+    return { visible: finalResult, log };
+
+""", element);
+
+    if (result instanceof Map<?, ?> resMap) {
+        Boolean visible = (Boolean) resMap.get("visible");
+        Object logs = resMap.get("log");
+
+        logger.info("==== Visibility Debug Logs Start ====");
+        if (logs instanceof List<?> logList) {
+            for (Object log : logList) {
+                logger.info("JS LOG → {}", log);
+            }
+        }
+        logger.info("==== Visibility Debug Logs End ====");
+
+        logger.info("Final visibility result: {}", visible);
+        return Boolean.TRUE.equals(visible);
+    }
+
+    logger.warn("Unexpected JS return format → {}", result);
+    return false;
 }
     public boolean verifyScenario(
             WebDriver driver,

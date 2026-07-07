@@ -7,6 +7,7 @@ import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
 import org.openqa.selenium.By;
+import org.openqa.selenium.InvalidSelectorException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -55,7 +56,7 @@ public class FlowExecutionService {
             return;
         }
 
-        logger.info("Executing step [{}] of ActionType [{}]", step.getName(), actionType);
+        logger.info("Executing step [{}] of ActionType [{}] with Locator [{}]", step.getName(), actionType,step.getSelector());
         step.setExecutionStartedAt(Instant.now());
         step.setExecutionStatus(ExecutionStatus.RUNNING);
         flowRepository.save(flow); // Immediately persist RUNNING state so UI updates
@@ -78,7 +79,11 @@ public class FlowExecutionService {
                 // Fetch element if required
                 if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL) {
                     if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
-                        element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
+                        try{
+                            element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
+                        }catch(InvalidSelectorException e){
+                            element= wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(step.getSelector())));
+                        }
                     } else {
                         throw new GlobalExceptionHandler.FlowExecutionException(
                                 step.getStepOrder(),

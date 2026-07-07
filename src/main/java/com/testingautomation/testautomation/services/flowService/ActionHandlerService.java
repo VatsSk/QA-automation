@@ -5,7 +5,10 @@ import com.testingautomation.testautomation.services.VerificationService;
 import lombok.AllArgsConstructor;
 import org.openqa.selenium.*;
 import org.openqa.selenium.interactions.Actions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.support.ui.Wait;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -45,7 +48,9 @@ public class ActionHandlerService {
         if (element == null) return;
         logger.info("Clicking element");
         try {
+            logger.info("Clicking");
             element.click();
+            logger.info("clicked [{}]",step.getSelector());
         } catch (ElementClickInterceptedException e) {
             logger.warn("Standard click intercepted, using Javascript executor to click.");
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
@@ -259,7 +264,7 @@ public class ActionHandlerService {
                 // element.getText() only returns rendered visible text and can return "" when
                 // the text lives in raw DOM text nodes or the element is not in the viewport.
                 // Fall back to JS textContent which always returns the raw string.
-                verificationService.findBestElement(driver,step.getSelector(), Duration.ofSeconds(waitTime));
+                verificationService.findBestElement(driver,step.getSelector(), Duration.ofMillis(waitTime));
                 String rawActual = element.getText();
                 if (rawActual == null || rawActual.isEmpty()) {
                     rawActual = (String) ((JavascriptExecutor) driver)
