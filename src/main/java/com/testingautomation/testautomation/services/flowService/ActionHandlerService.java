@@ -275,9 +275,9 @@ public class ActionHandlerService {
                             .executeScript("return arguments[0].textContent;", element);
                 }
 
-                // Normalize: collapse all whitespace sequences (spaces, newlines, tabs) → single space, then trim.
-//                String actualText   = rawActual   != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
-//                String expectedText = expected    != null ? expected.replaceAll("\\s+", " ").trim() : "";
+//                 Normalize: collapse all whitespace sequences (spaces, newlines, tabs) → single space, then trim.
+                rawActual   = rawActual   != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
+                expected = expected    != null ? expected.replaceAll("\\s+", " ").trim() : "";
 
                 logger.info("TEXT verification. Expected: [{}], Actual: [{}]", expected, rawActual);
 
