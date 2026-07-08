@@ -81,7 +81,11 @@ public class FlowExecutionService {
                 
                 // Fetch element if required
                 if(actionType==ActionType.VERIFY){
-                    element=verificationService.findBestElement(driver,step.getSelector(),Duration.ofMillis(waitTime));
+                    try{
+                        element=verificationService.findBestElement(driver,step.getSelector(),Duration.ofMillis(waitTime));
+                    }catch(Exception ex){
+                        throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Unable to find element in Verify","Unable to find element with "+step.getSelector(),ex);
+                    }
                 }
                 else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL) {
                     if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
@@ -125,7 +129,21 @@ public class FlowExecutionService {
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
                 takeScreenshotIfRequired(driver, step, flow,attempts);
-            } catch (Exception e) {
+            }catch(GlobalExceptionHandler.FlowExecutionException ex){
+                takeScreenshotIfRequired(driver, step, flow,attempts);
+                if (attempts > retries) {
+                    step.setExecutionStatus(ExecutionStatus.FAILED);
+                    step.setExecutionMessage(ex.getMessage());
+                    logger.error("Step [{}] failed after {} attempts in flowExecutionStatus. Error: {}", step.getName(), attempts, ex.getMessage());
+                    step.setExecutionCompletedAt(Instant.now());
+                    if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
+                        throw ex;
+                    }
+                } else {
+                    logger.warn("Step [{}] failed, retrying... Attempt {}/{}", step.getName(), attempts, retries);
+                }
+            }
+            catch (Exception e) {
                 takeScreenshotIfRequired(driver, step, flow,attempts);
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);

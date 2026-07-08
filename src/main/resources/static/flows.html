@@ -142,6 +142,23 @@ const user = requireLogin();
         return false;
     }
 
+    function formatDuration(ms) {
+        if (!ms && ms !== 0) return '—';
+        if (ms < 1000) return `${ms}ms`;
+        if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+        const m = Math.floor(ms / 60000);
+        const s = Math.round((ms % 60000) / 1000);
+        return `${m}m ${s}s`;
+    }
+
+    function calcFlowDuration(f) {
+        let duration = f.executionTime;
+        if (!duration && f.executionCompletedAt && f.executionStartedAt) {
+            duration = new Date(f.executionCompletedAt) - new Date(f.executionStartedAt);
+        }
+        return formatDuration(duration);
+    }
+
     function applyFiltersToAll(allFlows) {
         return allFlows.filter(f => matchesSearch(f, filter.search));
     }
@@ -198,6 +215,7 @@ const user = requireLogin();
           </td>
           <td>${statusBadge(f.executionStatus)}</td>
           <td><span class="mono-sm">${f.scenariosList?.length ?? f.steps?.length ?? 0}</span></td>
+          <td><span class="mono-sm">${calcFlowDuration(f)}</span></td>
           <td><span class="mono-sm">${timeAgo(f.updatedAt || f.createdAt)}</span></td>
           <td>
             <div class="actions-cell">
@@ -221,6 +239,7 @@ const user = requireLogin();
               <th>Flow Name</th>
               <th>Status</th>
               <th>Steps</th>
+              <th>Duration</th>
               <th>Last Updated</th>
 <!--              <th>Tags</th>-->
               <th>Actions</th>

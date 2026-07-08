@@ -4,6 +4,7 @@ import com.testingautomation.testautomation.config.WebDriverConfig.WebDriverFact
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
+import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
 import com.testingautomation.testautomation.services.s3Service.StorageService;
 import org.openqa.selenium.WebDriver;
@@ -87,10 +88,16 @@ public class FlowOrchestratorService {
             flow.setExecutionMessage("Flow executed successfully");
             logger.info("Successfully executed flow: {}", flow.getName());
 
-        } catch (Exception e) {
+        }
+        catch(GlobalExceptionHandler.FlowExecutionException ex){
+            logger.error("Error executing flow [{}]: {}", flow.getName(), ex.getMessage(), ex);
+            flow.setExecutionStatus(ExecutionStatus.FAILED);
+            flow.setExecutionMessage(ex.getMessage());
+        }
+        catch (Exception e) {
             logger.error("Error executing flow [{}]: {}", flow.getName(), e.getMessage(), e);
             flow.setExecutionStatus(ExecutionStatus.FAILED);
-            flow.setExecutionMessage(e.getMessage());
+            flow.setExecutionMessage("unExpected");
         } finally {
             flow.setExecutionCompletedAt(Instant.now());
             flow.setUpdatedAt(Instant.now());
