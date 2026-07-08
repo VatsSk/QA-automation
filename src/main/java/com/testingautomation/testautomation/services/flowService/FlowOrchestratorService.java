@@ -55,6 +55,12 @@ public class FlowOrchestratorService {
             }
             flow.setFlowBasePath(flowPrefix);
             flow.setUpdatedAt(Instant.now());
+            for(FlowStep step : flow.getSteps()){
+                step.setExecutionMessage(null);
+                step.setExecutionCompletedAt(null);
+                step.setExecutionStartedAt(null);
+                step.setExecutionStatus(ExecutionStatus.DRAFT);
+            }
             flowRepository.save(flow);
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
