@@ -642,7 +642,7 @@
     }
 
     let flow = null;
-    let pollTimer = null;
+    let eventSource = null;
     let activeFilter = 'ALL';
     let searchQuery = '';
     let stepPage = 0;
@@ -758,14 +758,13 @@
             }
 
             renderPage();
-            loadScreenshotThumbnails();
 
             if (flow.executionStatus === 'RUNNING') {
-                startPolling();
+                startSseStream();
+            } else if (flow.executionStatus === 'FAILED') {
+                // Only auto-open failed step when flow is already completed with failure
+                setTimeout(() => navigateToFirstFailed(), 350);
             }
-
-            // Auto-scroll to first failed step
-            setTimeout(scrollToFirstFailed, 350);
 
         } catch (e) {
             document.getElementById('page-content').innerHTML = `
@@ -778,35 +777,107 @@
         }
     }
 
-    // ── POLLING ─────────────────────────────────────────────────────────
-    function startPolling() {
-        if (pollTimer) return;
-        pollTimer = setInterval(async () => {
+    // ── SSE STREAM ──────────────────────────────────────────────────────
+    function startSseStream() {
+        // Don't open duplicate connections
+        if (eventSource) return;
+
+        console.log('[SSE] Connecting to /api/flows/' + flowId + '/stream');
+        eventSource = new EventSource(`/api/flows/${flowId}/stream`);
+
+        // Handle real-time flow updates (step progress)
+        eventSource.addEventListener('flow-update', (event) => {
             try {
-                flow = await api.flows.get(flowId);
-                renderPage();
-                loadScreenshotThumbnails();
-                if (flow.executionStatus !== 'RUNNING') {
-                    clearInterval(pollTimer);
-                    pollTimer = null;
-                    toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
-                    scrollToFirstFailed();
+                flow = JSON.parse(event.data);
+                updateLiveProgress();
+                console.log('[SSE] flow-update received, status:', flow.executionStatus);
+            } catch (err) {
+                console.error('[SSE] Error parsing flow-update:', err);
+            }
+        });
+
+        // Handle flow completion
+        eventSource.addEventListener('flow-completed', (event) => {
+            try {
+                flow = JSON.parse(event.data);
+                updateLiveProgress();
+                toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
+                if (flow.executionStatus === 'FAILED') {
+                    setTimeout(() => navigateToFirstFailed(), 350);
                 }
-            } catch {}
-        }, 3000);
+                console.log('[SSE] flow-completed, status:', flow.executionStatus);
+            } catch (err) {
+                console.error('[SSE] Error parsing flow-completed:', err);
+            }
+            stopSseStream();
+        });
+
+        // Handle connection errors — fall back to a one-time poll
+        eventSource.onerror = (err) => {
+            console.warn('[SSE] Connection error, falling back to poll', err);
+            stopSseStream();
+            // Fallback: do a single poll after a delay to see if the flow is done
+            setTimeout(async () => {
+                try {
+                    flow = await api.flows.get(flowId);
+                    updateLiveProgress();
+                    if (flow.executionStatus === 'RUNNING') {
+                        // Retry SSE connection
+                        startSseStream();
+                    } else {
+                        toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
+                        if (flow.executionStatus === 'FAILED') {
+                            setTimeout(() => navigateToFirstFailed(), 350);
+                        }
+                    }
+                } catch {}
+            }, 2000);
+        };
     }
 
-    // ── SCROLL TO FIRST FAILED ──────────────────────────────────────────
-    function scrollToFirstFailed() {
-        const el = document.querySelector('.step-failed');
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            const match = el.id.match(/step-card-(\d+)/);
-            if (match) selectStep(parseInt(match[1], 10));
-        } else if (flow && flow.steps && flow.steps.length > 0) {
-            const sorted = [...flow.steps].sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
-            selectStep(sorted[0].stepOrder);
+    function stopSseStream() {
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+            console.log('[SSE] Stream closed');
         }
+    }
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', stopSseStream);
+
+    // ── NAVIGATE TO FIRST FAILED STEP ────────────────────────────────────
+    function navigateToFirstFailed() {
+        if (!flow || !flow.steps || flow.steps.length === 0) return;
+
+        const sorted = [...flow.steps].sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
+        const failedStep = sorted.find(s => s.executionStatus === 'FAILED');
+        if (!failedStep) return; // No failed step — don't auto-open anything
+
+        // Apply current filter/search and find which page this step is on
+        const filtered = filterSteps(sorted);
+        const idx = filtered.findIndex(s => s.stepOrder === failedStep.stepOrder);
+        if (idx === -1) {
+            // Failed step is hidden by current filter — reset filter to ALL
+            activeFilter = 'ALL';
+            searchQuery = '';
+            const filtered2 = filterSteps(sorted);
+            const idx2 = filtered2.findIndex(s => s.stepOrder === failedStep.stepOrder);
+            if (idx2 === -1) return;
+            stepPage = Math.floor(idx2 / stepsPerPage);
+        } else {
+            stepPage = Math.floor(idx / stepsPerPage);
+        }
+
+        // Re-render steps with the correct page
+        renderSteps();
+
+        // Expand the failed step and scroll to it
+        selectStep(failedStep.stepOrder);
+        setTimeout(() => {
+            const card = document.getElementById(`step-card-${failedStep.stepOrder}`);
+            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
     }
 
     // ── RENDER PAGE ─────────────────────────────────────────────────────
@@ -821,7 +892,7 @@
         const total = steps.length;
         const passed = steps.filter(s => s.executionStatus === 'PASSED').length;
         const failed = steps.filter(s => s.executionStatus === 'FAILED').length;
-        const notStarted = steps.filter(s => !s.executionStatus || s.executionStatus === 'NOT_STARTED').length;
+        const draft = steps.filter(s => !s.executionStatus || s.executionStatus === 'DRAFT').length;
         const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
         const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
         let flowCalculatedDuration = flow.executionTime;
@@ -876,7 +947,7 @@
                             ${passed ? `<span class="badge badge-passed">${passed} Passed</span>` : ''}
                             ${failed ? `<span class="badge badge-failed">${failed} Failed</span>` : ''}
                             ${running ? `<span class="badge badge-running">${running} Running</span>` : ''}
-                            ${notStarted ? `<span class="badge badge-pending">${notStarted} Pending</span>` : ''}
+                            ${draft ? `<span class="badge badge-pending">${draft} DRAFT</span>` : ''}
                             ${skipped ? `<span class="badge badge-pending">${skipped} Skipped</span>` : ''}
                         </div>
                     </div>
@@ -922,7 +993,7 @@
                     <button class="sf-btn ${activeFilter === 'ALL' ? 'sel-all' : ''}" onclick="setFilter('ALL')">All</button>
                     <button class="sf-btn ${activeFilter === 'PASSED' ? 'sel-passed' : ''}" onclick="setFilter('PASSED')">Passed</button>
                     <button class="sf-btn ${activeFilter === 'FAILED' ? 'sel-failed' : ''}" onclick="setFilter('FAILED')">Failed</button>
-                    <button class="sf-btn ${activeFilter === 'NOT_STARTED' ? 'sel-partial' : ''}" onclick="setFilter('NOT_STARTED')">Not Started</button>
+                    <button class="sf-btn ${activeFilter === 'DRAFT' ? 'sel-partial' : ''}" onclick="setFilter('DRAFT')">DRAFT</button>
                 </div>
                 <div class="filter-sep"></div>
                 <input class="inp inp-sm" style="width:220px" id="step-search-inp"
@@ -948,6 +1019,158 @@
         }
 
         updateStepList();
+    }
+
+    // ── LIVE PROGRESS UPDATE (no full re-render) ────────────────────────
+    // Updates hero stats, progress bar, and individual step badges/statuses
+    // WITHOUT destroying the DOM — preserves open detail panels.
+    function updateLiveProgress() {
+        const steps = flow.steps || [];
+        const isRunning = flow.executionStatus === 'RUNNING';
+        const total = steps.length;
+        const passed = steps.filter(s => s.executionStatus === 'PASSED').length;
+        const failed = steps.filter(s => s.executionStatus === 'FAILED').length;
+        const draft = steps.filter(s => s.executionStatus === 'DRAFT').length;
+        console.log("draft count "+draft);
+        const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
+        const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
+        const completedSteps = passed + failed + skipped;
+        const progressPct = total > 0 ? Math.round((completedSteps / total) * 100) : 0;
+
+        // ── Update rerun button ──
+        const rerunBtn = document.getElementById('rerun-btn');
+        if (rerunBtn) {
+            rerunBtn.disabled = isRunning;
+            rerunBtn.innerHTML = isRunning ? '⏳ Running…' : '▶ Run Again';
+        }
+
+        // ── Update flow hero status badge ──
+        const heroName = document.querySelector('.flow-hero-name');
+        if (heroName) {
+            const badgeContainer = heroName.nextElementSibling;
+            if (badgeContainer) {
+                badgeContainer.innerHTML = statusBadge(flow.executionStatus || 'NOT_STARTED');
+            }
+        }
+
+        // ── Update progress bar ──
+        let progressDiv = document.querySelector('.flow-progress');
+        if (isRunning) {
+            if (!progressDiv) {
+                // Insert progress bar after the hero top section
+                const heroTop = document.querySelector('.flow-hero-top');
+                if (heroTop) {
+                    const div = document.createElement('div');
+                    div.className = 'flow-progress';
+                    div.innerHTML = `
+                        <div class="flow-progress-bar">
+                            <div class="flow-progress-fill" style="width:${progressPct}%;background:linear-gradient(90deg, var(--blue), var(--te))"></div>
+                        </div>
+                        <div class="flow-progress-label">${completedSteps}/${total} steps completed (${progressPct}%)</div>
+                    `;
+                    heroTop.after(div);
+                }
+            } else {
+                const fill = progressDiv.querySelector('.flow-progress-fill');
+                const label = progressDiv.querySelector('.flow-progress-label');
+                if (fill) fill.style.width = progressPct + '%';
+                if (label) label.textContent = `${completedSteps}/${total} steps completed (${progressPct}%)`;
+            }
+        } else if (progressDiv) {
+            progressDiv.remove();
+        }
+
+        // ── Update stat counts ──
+        const statCounts = document.querySelector('.stat-counts');
+        if (statCounts) {
+            statCounts.innerHTML = [
+                passed ? `<span class="badge badge-passed">${passed} Passed</span>` : '',
+                failed ? `<span class="badge badge-failed">${failed} Failed</span>` : '',
+                running ? `<span class="badge badge-running">${running} Running</span>` : '',
+                draft ? `<span class="badge badge-pending">${draft} Pending</span>` : '',
+                skipped ? `<span class="badge badge-pending">${skipped} Skipped</span>` : '',
+            ].join('');
+        }
+
+        // ── Update timestamps & duration ──
+        let flowCalculatedDuration = flow.executionTime;
+        if (flow.executionCompletedAt && flow.executionStartedAt) {
+            flowCalculatedDuration = new Date(flow.executionCompletedAt) - new Date(flow.executionStartedAt);
+        }
+        const statVals = document.querySelectorAll('.flow-stats .flow-stat-val');
+        // statVals order: [0]=Total Steps, [1]=Results(stat-counts), [2]=Started, [3]=Completed, [4]=Duration, [5]=Default Wait
+        if (statVals[2]) statVals[2].innerHTML = `${fmtDate(flow.executionStartedAt)}`;
+        if (statVals[3]) statVals[3].innerHTML = `${fmtDate(flow.executionCompletedAt)}`;
+        if (statVals[4]) statVals[4].innerHTML = `<strong>${formatDuration(flowCalculatedDuration)}</strong>`;
+
+        // ── Update execution message alert ──
+        const heroEl = document.querySelector('.flow-hero');
+        let existingAlert = heroEl ? heroEl.querySelector('.step-error-alert') : null;
+        if (flow.executionMessage && heroEl) {
+            const alertHtml = `
+                <div class="step-error-alert"
+                     style="margin-top:16px;
+                            background:${flow.executionStatus === 'FAILED' ? '#ffe5e5' : '#e6ffed'};
+                            color:${flow.executionStatus === 'FAILED' ? '#d32f2f' : '#2e7d32'};
+                            border:1px solid ${flow.executionStatus === 'FAILED' ? '#f5c2c2' : '#b7ebc6'};">
+                    <span class="alert-icon">${flow.executionStatus === 'FAILED' ? '⚠️' : '✅'}</span>
+                    <span class="alert-text">${esc(flow.executionMessage)}</span>
+                </div>`;
+            if (existingAlert) {
+                existingAlert.outerHTML = alertHtml;
+            } else {
+                // Insert before the closing </div> of the hero
+                const statsDiv = heroEl.querySelector('.flow-stats');
+                if (statsDiv) statsDiv.insertAdjacentHTML('afterend', alertHtml);
+            }
+        } else if (existingAlert) {
+            existingAlert.remove();
+        }
+
+        // ── Update individual step cards (status badge, duration, status class) ──
+        for (const step of steps) {
+            const card = document.getElementById(`step-card-${step.stepOrder}`);
+            if (!card) continue;
+
+            // Update status class
+            card.classList.remove('step-passed', 'step-failed', 'step-running');
+            const newCls = stepStatusClass(step.executionStatus);
+            if (newCls) card.classList.add(newCls);
+
+            // Update status badge in .step-meta
+            const meta = card.querySelector('.step-meta');
+            if (meta) {
+                meta.innerHTML = statusBadge(step.executionStatus || 'NOT_STARTED');
+            }
+
+            // Update duration
+            let dur = step.executionTime;
+            if (step.executionCompletedAt && step.executionStartedAt) {
+                dur = new Date(step.executionCompletedAt) - new Date(step.executionStartedAt);
+            }
+            const durStr = formatDuration(dur);
+            // Find or create the duration span
+            const infoDiv = card.querySelector('.step-info');
+            if (infoDiv) {
+                const durationContainer = infoDiv.querySelectorAll('div')[1]; // second div has duration
+                if (durationContainer) {
+                    let durSpan = durationContainer.querySelector('span[style*="font-family"]');
+                    if (durStr && durStr !== '—') {
+                        if (durSpan) {
+                            durSpan.innerHTML = `⏱ ${durStr}`;
+                        } else {
+                            durationContainer.insertAdjacentHTML('beforeend',
+                                `<span style="font-size:11px; font-weight:600; font-family:var(--mono); color:var(--tx2); background:var(--sur3); padding:1px 7px; border-radius:var(--rx);">⏱ ${durStr}</span>`);
+                        }
+                    }
+                }
+            }
+
+            // If this step's detail panel is open, update it live too
+            if (selectedStepOrder === step.stepOrder) {
+                renderDetailPanel(step);
+            }
+        }
     }
 
     // ── RENDER STEPS ────────────────────────────────────────────────────
@@ -1036,7 +1259,7 @@
                             <span class="action-badge" style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.bc};font-size:10px;padding:1px 6px;">${cfg.icon} ${cfg.label}</span>
                         </div>
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <span style="font-size:11px; color:var(--tx3);" id="ss-count-${step.stepOrder}">Loading screenshots…</span>
+                            <span style="font-size:11px; color:var(--tx3);" id="ss-count-${step.stepOrder}"></span>
                             ${durationStr && durationStr !== '—' ? `<span style="font-size:11px; font-weight:600; font-family:var(--mono); color:var(--tx2); background:var(--sur3); padding:1px 7px; border-radius:var(--rx);">⏱ ${durationStr}</span>` : ''}
                         </div>
                     </div>
@@ -1289,7 +1512,6 @@
 
     function updateStepList() {
         renderSteps();
-        loadScreenshotThumbnails();
     }
 
     window.goStepPage = function(p) {
@@ -1314,12 +1536,17 @@
         const btn = document.getElementById('rerun-btn');
         if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Starting…'; }
         try {
+            // Close any existing SSE stream before starting a new run
+            stopSseStream();
             await api.flows.execute(flowId);
             console.log("executing");
             toast('Flow execution started!', 'success');
-            // Reload to pick up RUNNING status
-            setTimeout(() => load(), 1000);
-            console.log("reloaded to pickup state");
+            // Reload flow state and immediately connect SSE for real-time updates
+            setTimeout(async () => {
+                flow = await api.flows.get(flowId);
+                renderPage();
+                startSseStream();
+            }, 500);
         } catch (e) {
             console.log("Failed "+e.message);
             console.log("exception "+ e);

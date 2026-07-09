@@ -71,6 +71,9 @@ dependencies {
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
 
     implementation 'tech.tablesaw:tablesaw-core:0.43.1'
+
+    //websocket
+    implementation 'org.springframework.boot:spring-boot-starter-websocket'
 }
 tasks.named('test') {
     useJUnitPlatform()

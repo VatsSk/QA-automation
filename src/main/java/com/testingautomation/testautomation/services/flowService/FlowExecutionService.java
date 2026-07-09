@@ -40,9 +40,13 @@ public class FlowExecutionService {
     private ScreenshotService screenshotService;
 
 
+
+
     private final String resultsBaseDir = "test-results";
     @Autowired
     private VerificationService verificationService;
+    @Autowired
+    private FlowSseService flowSseService;
 
     public void executeStep(WebDriver driver, FlowStep step, Flow flow) {
 
@@ -62,7 +66,8 @@ public class FlowExecutionService {
         logger.info("Executing step [{}] of ActionType [{}] with Locator [{}]", step.getName(), actionType,step.getSelector());
         step.setExecutionStartedAt(Instant.now());
         step.setExecutionStatus(ExecutionStatus.RUNNING);
-        flowRepository.save(flow); // Immediately persist RUNNING state so UI updates
+        flowSseService.sendFlowUpdate(flow);
+//        flowRepository.save(flow); // Immediately persist RUNNING state so UI updates via SSE
 
         int retries = step.getRetryCount() != null ? step.getRetryCount() : 0;
         int attempts = 0;
@@ -137,6 +142,7 @@ public class FlowExecutionService {
                     logger.error("Step [{}] failed after {} attempts in flowExecutionStatus. Error: {}", step.getName(), attempts, ex.getMessage());
                     step.setExecutionCompletedAt(Instant.now());
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
+//                        logger.info("flowExecutionException {}",ex.getMessage());
                         throw ex;
                     }
                 } else {
@@ -152,6 +158,7 @@ public class FlowExecutionService {
                     step.setExecutionCompletedAt(Instant.now());
                     
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
+                        logger.info("changing exception into flowExecutionException");
                         throw new com.testingautomation.testautomation.globalException.GlobalExceptionHandler.FlowExecutionException(
                                 step.getStepOrder(),
                                 step.getName(),

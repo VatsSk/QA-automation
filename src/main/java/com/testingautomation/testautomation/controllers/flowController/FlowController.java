@@ -2,11 +2,14 @@ package com.testingautomation.testautomation.controllers.flowController;
 
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.services.flowService.FlowService;
+import com.testingautomation.testautomation.services.flowService.FlowSseService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Optional;
@@ -19,6 +22,9 @@ public class FlowController {
 
     @Autowired
     private FlowService flowService;
+
+    @Autowired
+    private FlowSseService flowSseService;
 
     @Autowired
     private com.testingautomation.testautomation.services.flowService.FlowOrchestratorService flowOrchestratorService;
@@ -79,4 +85,16 @@ public class FlowController {
             return ResponseEntity.notFound().build();
         }
     }
+
+    /**
+     * SSE endpoint for real-time flow execution progress.
+     * Clients connect to this endpoint to receive step-by-step updates
+     * as the flow executes in the background.
+     */
+    @GetMapping(value = "/{id}/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamFlow(@PathVariable String id) {
+        logger.info("SSE stream requested for flow [{}]", id);
+        return flowSseService.register(id);
+    }
 }
+

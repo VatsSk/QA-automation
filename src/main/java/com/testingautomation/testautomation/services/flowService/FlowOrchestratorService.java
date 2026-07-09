@@ -30,6 +30,9 @@ public class FlowOrchestratorService {
     @Autowired
     private FlowRepository flowRepository;
 
+    @Autowired
+    private FlowSseService flowSseService;
+
     @Value("${storage.s3.base-prefix}")
     private String basePrefix;
     @Value("${storage.s3.bucket-name}")
@@ -63,6 +66,8 @@ public class FlowOrchestratorService {
                 step.setExecutionStatus(ExecutionStatus.DRAFT);
             }
             flowRepository.save(flow);
+            // SSE: notify clients that flow execution has started
+            flowSseService.sendFlowUpdate(flow);
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
             
@@ -75,12 +80,15 @@ public class FlowOrchestratorService {
                 flow.setExecutionCompletedAt(Instant.now());
                 flow.setUpdatedAt(Instant.now());
                 flowRepository.save(flow);
+                flowSseService.complete(flow.getId(), flow);
                 return;
             }
 
             for (FlowStep step : flow.getSteps()) {
 
                 flowExecutionService.executeStep(driver, step, flow);
+                // SSE: send progress after each step completes
+//                flowSseService.sendFlowUpdate(flow);
 
             }
 
@@ -92,16 +100,18 @@ public class FlowOrchestratorService {
         catch(GlobalExceptionHandler.FlowExecutionException ex){
             logger.error("Error executing flow [{}]: {}", flow.getName(), ex.getMessage(), ex);
             flow.setExecutionStatus(ExecutionStatus.FAILED);
-            flow.setExecutionMessage(ex.getMessage());
+            flow.setExecutionMessage(ex.getUserMessage());
         }
         catch (Exception e) {
             logger.error("Error executing flow [{}]: {}", flow.getName(), e.getMessage(), e);
             flow.setExecutionStatus(ExecutionStatus.FAILED);
-            flow.setExecutionMessage("unExpected");
+            flow.setExecutionMessage("Unexpectedly step failed!");
         } finally {
             flow.setExecutionCompletedAt(Instant.now());
             flow.setUpdatedAt(Instant.now());
             flowRepository.save(flow);
+            // SSE: send final state and complete all emitters
+            flowSseService.complete(flow.getId(), flow);
             if (driver != null) {
                 logger.info("Quitting WebDriver for flow: {}", flow.getName());
                 driver.quit();
