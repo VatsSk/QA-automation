@@ -55,21 +55,95 @@ public class ActionHandlerService {
 
     public void handleClick(WebDriver driver, WebElement element, FlowStep step) {
         if (element == null) return;
-        logger.info("Clicking element");
+
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+
         try {
-            logger.info("Clicking");
+            // Scroll into view
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].scrollIntoView({block:'center',inline:'center'});",
+                    element);
+
+            // Wait until clickable
+            wait.until(ExpectedConditions.elementToBeClickable(element));
+
+            // Native Selenium click (preferred)
             element.click();
-            logger.info("clicked [{}]",step.getSelector());
+
+            logger.info("Clicked [{}]", step.getSelector());
+            return;
+
         } catch (ElementClickInterceptedException e) {
-            logger.warn("Standard click intercepted, using Javascript executor to click.");
-            ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
-        }
-        catch(Exception e){
-                throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Click error!","Unable to Click on "+step.getSelector(),e);
+
+            logger.warn("Click intercepted, trying Actions click.");
+
+        } catch (ElementNotInteractableException e) {
+
+            logger.warn("Element not interactable, trying Actions click.");
+
+        } catch (StaleElementReferenceException e) {
+
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(), step.getName(), step.getActionType(),
+                    "Click error!", "Element became stale: " + step.getSelector(), e);
         }
 
+        // Fallback 1 - Actions API
+        try {
+            new Actions(driver)
+                    .moveToElement(element)
+                    .pause(Duration.ofMillis(100))
+                    .click()
+                    .perform();
+
+            logger.info("Clicked using Actions [{}]", step.getSelector());
+            return;
+
+        } catch (Exception ignored) {
+        }
+
+        // Fallback 2 - JavaScript click
+        try {
+            ((JavascriptExecutor) driver)
+                    .executeScript("arguments[0].click();", element);
+
+            logger.info("Clicked using JavaScript [{}]", step.getSelector());
+            return;
+
+        } catch (Exception ignored) {
+        }
+
+        // Fallback 3 - Full mouse event sequence
+        try {
+            ((JavascriptExecutor) driver).executeScript("""
+            const el = arguments[0];
+            ['pointerover','mouseover','mousemove',
+             'pointerdown','mousedown',
+             'pointerup','mouseup','click']
+            .forEach(type => {
+                const C = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+                el.dispatchEvent(new C(type,{
+                    bubbles:true,
+                    cancelable:true,
+                    view:window
+                }));
+            });
+        """, element);
+
+            logger.info("Clicked using mouse event sequence [{}]", step.getSelector());
+            return;
+
+        } catch (Exception e) {
+
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(),
+                    step.getName(),
+                    step.getActionType(),
+                    "Click error!",
+                    "Unable to click " + step.getSelector(),
+                    e);
+        }
     }
-
     public void handleCheckbox(WebElement element, FlowStep step) {
         if (element == null) return;
         boolean targetState = Boolean.parseBoolean(step.getValue());
