@@ -262,12 +262,12 @@ public class ActionHandlerService {
                     throw new RuntimeException("TEXT verification failed: element is null. Selector: " + step.getSelector());
                 }
 
-                logger.info("Element here {}",element);
+//                logger.info("Element here {}",element);
                 // element.getText() only returns rendered visible text and can return "" when
                 // the text lives in raw DOM text nodes or the element is not in the viewport.
                 // Fall back to JS textContent which always returns the raw string.
 //                element = verificationService.findBestElement(driver, step.getSelector(), Duration.ofMillis(waitTime));
-                logger.info("Element from verificationService {}",element);
+//                logger.info("Element from verificationService {}",element);
 
                 String rawActual = element.getText();
                 if (rawActual == null || rawActual.isEmpty()) {
