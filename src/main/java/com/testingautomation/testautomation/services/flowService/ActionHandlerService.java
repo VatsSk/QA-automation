@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
 import lombok.AllArgsConstructor;
 import org.openqa.selenium.*;
@@ -32,15 +33,23 @@ public class ActionHandlerService {
             return;
         }
         logger.info("Navigating to URL: {}", url);
-        driver.get(url);
+        try{
+            driver.get(url);
+        }catch(Exception e){
+            throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Navigation error!","Unable to Navigate on "+step.getValue(),e);
+        }
     }
 
     public void handleType(WebElement element, FlowStep step) {
         if (element == null) return;
         logger.info("Typing value [{}] into element", step.getValue());
-        element.clear();
-        if (step.getValue() != null) {
-            element.sendKeys(step.getValue());
+        try{
+            element.clear();
+            if (step.getValue() != null) {
+                element.sendKeys(step.getValue());
+            }
+        }catch(Exception e){
+            throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Type error!","Unable to Type on element with "+step.getSelector()+" selector",e);
         }
     }
 
@@ -55,6 +64,10 @@ public class ActionHandlerService {
             logger.warn("Standard click intercepted, using Javascript executor to click.");
             ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
         }
+        catch(Exception e){
+                throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Click error!","Unable to Click on "+step.getSelector(),e);
+        }
+
     }
 
     public void handleCheckbox(WebElement element, FlowStep step) {
@@ -67,7 +80,11 @@ public class ActionHandlerService {
         logger.info("Selected  : {}", element.isSelected());
         logger.info("Location  : {}", element.getLocation());
         logger.info("Size      : {}", element.getSize());
-        element.click();
+        try{
+            element.click();
+        }catch(Exception e){
+            throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"CheckBox error!","Unable to click (checkbox) on "+step.getSelector(),e);
+        }
     }
 
     public void handleRadio(WebElement element, FlowStep step) {
@@ -115,8 +132,13 @@ public class ActionHandlerService {
     public void handleHover(WebDriver driver, WebElement element, FlowStep step) {
         if (element == null) return;
         logger.info("Hovering over element");
-        Actions actions = new Actions(driver);
-        actions.moveToElement(element).perform();
+        try{
+            Actions actions = new Actions(driver);
+            actions.moveToElement(element).perform();
+        }catch(Exception e){
+            throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Hover error!","Unable to hover on "+step.getSelector(),e);
+        }
+
     }
 
     public void handleWait(FlowStep step) {
@@ -188,7 +210,7 @@ public class ActionHandlerService {
                 logger.info("Verifying visibility of element [{}]", step.getName());
                 logger.info("Element : {}",element);
                 if (element == null || !element.isDisplayed()) {
-                    throw new RuntimeException("VISIBLE verification failed: element is not visible. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"VISIBLE verification failed","VISIBLE verification failed: element is not visible. Selector: " + step.getSelector(),null);
                 }
                 logger.info("VISIBLE verification passed.");
                 break;
@@ -198,7 +220,7 @@ public class ActionHandlerService {
                 // element may already be null (not found), or present but hidden — both are acceptable
                 boolean notVisible = (element == null) || !element.isDisplayed();
                 if (!notVisible) {
-                    throw new RuntimeException("NOT_VISIBLE verification failed: element is visible. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_VISIBLE verification failed","NOT_VISIBLE verification failed: element is visible. Selector: " + step.getSelector(),null);
                 }
                 logger.info("NOT_VISIBLE verification passed.");
                 break;
@@ -208,7 +230,7 @@ public class ActionHandlerService {
                 // Presence in the DOM is sufficient — it need not be displayed
                 java.util.List<WebElement> existsMatches = driver.findElements(By.cssSelector(step.getSelector()));
                 if (existsMatches.isEmpty()) {
-                    throw new RuntimeException("EXISTS verification failed: no element found in DOM. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"EXISTS verification failed","EXISTS verification failed: no element found in DOM. Selector: " + step.getSelector(),null);
                 }
                 logger.info("EXISTS verification passed. Found {} element(s).", existsMatches.size());
                 break;
@@ -217,7 +239,7 @@ public class ActionHandlerService {
             case NOT_EXISTS: {
                 java.util.List<WebElement> notExistsMatches = driver.findElements(By.cssSelector(step.getSelector()));
                 if (!notExistsMatches.isEmpty()) {
-                    throw new RuntimeException("NOT_EXISTS verification failed: element(s) found in DOM. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_EXISTS verification failed","NOT_EXISTS verification failed: element(s) found in DOM. Selector: " + step.getSelector(),null);
                 }
                 logger.info("NOT_EXISTS verification passed.");
                 break;
@@ -225,7 +247,7 @@ public class ActionHandlerService {
 
             case ENABLED: {
                 if (element == null || !element.isEnabled()) {
-                    throw new RuntimeException("ENABLED verification failed: element is not enabled. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"ENABLED verification failed","ENABLED verification failed: element is not enabled. Selector: " + step.getSelector(),null);
                 }
                 logger.info("ENABLED verification passed.");
                 break;
@@ -233,7 +255,7 @@ public class ActionHandlerService {
 
             case DISABLED: {
                 if (element == null || element.isEnabled()) {
-                    throw new RuntimeException("DISABLED verification failed: element is enabled (expected disabled). Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"DISABLED verification failed","DISABLED verification failed: element is enabled (expected disabled). Selector: " + step.getSelector(),null);
                 }
                 logger.info("DISABLED verification passed.");
                 break;
@@ -241,7 +263,7 @@ public class ActionHandlerService {
 
             case CHECKED: {
                 if (element == null || !element.isSelected()) {
-                    throw new RuntimeException("CHECKED verification failed: element is not checked/selected. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"CHECKED verification failed","CHECKED verification failed: element is not checked/selected. Selector: " + step.getSelector(),null);
                 }
                 logger.info("CHECKED verification passed.");
                 break;
@@ -249,7 +271,7 @@ public class ActionHandlerService {
 
             case UNCHECKED: {
                 if (element == null || element.isSelected()) {
-                    throw new RuntimeException("UNCHECKED verification failed: element is checked/selected (expected unchecked). Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"UNCHECKED verification failed","UNCHECKED verification failed: element is checked/selected (expected unchecked). Selector: " + step.getSelector(),null);
                 }
                 logger.info("UNCHECKED verification passed.");
                 break;
@@ -259,7 +281,7 @@ public class ActionHandlerService {
             case TEXT: {
                 logger.info("Element before {}",element);
                 if (element == null) {
-                    throw new RuntimeException("TEXT verification failed: element is null. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TEXT verification failed","TEXT verification failed: element is null. Selector: " + step.getSelector(),null);
                 }
 
 //                logger.info("Element here {}",element);
@@ -282,10 +304,7 @@ public class ActionHandlerService {
                 logger.info("TEXT verification. Expected: [{}], Actual: [{}]", expected, rawActual);
 
                 if (!rawActual.trim().equals(expected.trim())) {
-                    throw new RuntimeException(
-                            String.format("TEXT verification failed: expected [%s] but found [%s]. Selector: %s",
-                                    expected, rawActual, step.getSelector())
-                    );
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TEXT verification failed",String.format("TEXT verification failed: expected [%s] but found [%s]. Selector: %s", expected, rawActual, step.getSelector()),null);
                 }
                 logger.info("TEXT verification passed. Value: [{}]", rawActual);
                 break;
@@ -293,16 +312,15 @@ public class ActionHandlerService {
 
             case VALUE: {
                 if (element == null) {
-                    throw new RuntimeException("VALUE verification failed: element is null. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"VALUE verification failed","VALUE verification failed: element is null. Selector: " + step.getSelector(),null);
                 }
                 String actualValue = element.getAttribute("value");
                 if (actualValue == null) actualValue = "";
                 String expectedValue = expected != null ? expected.trim() : "";
                 if (!actualValue.trim().equals(expectedValue)) {
-                    throw new RuntimeException(
-                            String.format("VALUE verification failed: expected [%s] but found [%s]. Selector: %s",
-                                    expectedValue, actualValue.trim(), step.getSelector())
-                    );
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"VALUE verification failed",String.format("VALUE verification failed: expected [%s] but found [%s]. Selector: %s",
+                            expectedValue, actualValue.trim(), step.getSelector()),null);
+
                 }
                 logger.info("VALUE verification passed. Value: [{}]", actualValue);
                 break;
@@ -311,20 +329,18 @@ public class ActionHandlerService {
             // ── Attribute ────────────────────────────────────────────────────────────
             case ATTRIBUTE: {
                 if (element == null) {
-                    throw new RuntimeException("ATTRIBUTE verification failed: element is null. Selector: " + step.getSelector());
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"ATTRIBUTE verification failed","ATTRIBUTE verification failed: element is null. Selector: " + step.getSelector(),null);
                 }
                 String attrName = step.getAttribute();
                 if (attrName == null || attrName.trim().isEmpty()) {
-                    throw new RuntimeException("ATTRIBUTE verification failed: attribute name is not specified in step [" + step.getName() + "]");
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"ATTRIBUTE verification failed","ATTRIBUTE verification failed: attribute name is not specified in step [" + step.getName() + "]",null);
                 }
                 String actualAttr = element.getAttribute(attrName);
                 if (actualAttr == null) actualAttr = "";
                 String expectedAttr = expected != null ? expected.trim() : "";
                 if (!actualAttr.trim().equals(expectedAttr)) {
-                    throw new RuntimeException(
-                            String.format("ATTRIBUTE [%s] verification failed: expected [%s] but found [%s]. Selector: %s",
-                                    attrName, expectedAttr, actualAttr.trim(), step.getSelector())
-                    );
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"ATTRIBUTE verification failed", String.format("ATTRIBUTE [%s] verification failed: expected [%s] but found [%s]. Selector: %s",
+                            attrName, expectedAttr, actualAttr.trim(), step.getSelector()),null);
                 }
                 logger.info("ATTRIBUTE [{}] verification passed. Value: [{}]", attrName, actualAttr);
                 break;

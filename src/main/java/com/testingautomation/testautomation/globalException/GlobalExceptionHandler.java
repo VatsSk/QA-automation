@@ -241,7 +241,6 @@ public class GlobalExceptionHandler {
         }
 
     }
-
     public static class FlowExecutionException extends AutomationException {
         private final Integer stepOrder;
         private final String stepName;

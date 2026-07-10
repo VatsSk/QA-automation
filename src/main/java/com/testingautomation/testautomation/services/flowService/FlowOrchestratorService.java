@@ -4,6 +4,7 @@ import com.testingautomation.testautomation.config.WebDriverConfig.WebDriverFact
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
+import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
 import com.testingautomation.testautomation.services.s3Service.StorageService;
 import org.openqa.selenium.WebDriver;
@@ -28,6 +29,9 @@ public class FlowOrchestratorService {
     private FlowExecutionService flowExecutionService;
     @Autowired
     private FlowRepository flowRepository;
+
+    @Autowired
+    private FlowSseService flowSseService;
 
     @Value("${storage.s3.base-prefix}")
     private String basePrefix;
@@ -62,6 +66,8 @@ public class FlowOrchestratorService {
                 step.setExecutionStatus(ExecutionStatus.DRAFT);
             }
             flowRepository.save(flow);
+            // SSE: notify clients that flow execution has started
+            flowSseService.sendFlowUpdate(flow);
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
             
@@ -74,12 +80,15 @@ public class FlowOrchestratorService {
                 flow.setExecutionCompletedAt(Instant.now());
                 flow.setUpdatedAt(Instant.now());
                 flowRepository.save(flow);
+                flowSseService.complete(flow.getId(), flow);
                 return;
             }
 
             for (FlowStep step : flow.getSteps()) {
 
                 flowExecutionService.executeStep(driver, step, flow);
+                // SSE: send progress after each step completes
+//                flowSseService.sendFlowUpdate(flow);
 
             }
 
@@ -87,14 +96,22 @@ public class FlowOrchestratorService {
             flow.setExecutionMessage("Flow executed successfully");
             logger.info("Successfully executed flow: {}", flow.getName());
 
-        } catch (Exception e) {
+        }
+        catch(GlobalExceptionHandler.FlowExecutionException ex){
+            logger.error("Error executing flow [{}]: {}", flow.getName(), ex.getMessage(), ex);
+            flow.setExecutionStatus(ExecutionStatus.FAILED);
+            flow.setExecutionMessage(ex.getUserMessage());
+        }
+        catch (Exception e) {
             logger.error("Error executing flow [{}]: {}", flow.getName(), e.getMessage(), e);
             flow.setExecutionStatus(ExecutionStatus.FAILED);
-            flow.setExecutionMessage(e.getMessage());
+            flow.setExecutionMessage("Unexpectedly step failed!");
         } finally {
             flow.setExecutionCompletedAt(Instant.now());
             flow.setUpdatedAt(Instant.now());
             flowRepository.save(flow);
+            // SSE: send final state and complete all emitters
+            flowSseService.complete(flow.getId(), flow);
             if (driver != null) {
                 logger.info("Quitting WebDriver for flow: {}", flow.getName());
                 driver.quit();

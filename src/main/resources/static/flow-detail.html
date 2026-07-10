@@ -86,11 +86,28 @@
             margin-left: auto;
         }
 
-        /* Step list */
+        /* Step list (single column layout) */
         .step-list {
             display: flex;
             flex-direction: column;
             gap: 6px;
+            max-width: 1000px;
+        }
+
+        /* Inline detail panel (expands below step card) */
+        .step-inline-detail {
+            display: none;
+            border-top: 1px solid var(--bd);
+            background: var(--sur2);
+            padding: 20px;
+            animation: slideDown .2s ease;
+        }
+        .step-card.selected .step-inline-detail {
+            display: block;
+        }
+        @keyframes slideDown {
+            from { opacity: 0; max-height: 0; }
+            to   { opacity: 1; max-height: 3000px; }
         }
 
         /* Step card */
@@ -100,16 +117,26 @@
             border-radius: var(--r);
             overflow: hidden;
             transition: border-color .14s, box-shadow .14s;
+            cursor: pointer;
+        }
+        .step-card.selected {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 1px var(--blue);
+            background: var(--sur2);
         }
         .step-card:hover {
             border-color: var(--bd2);
         }
+        .step-card.selected:hover {
+            border-color: var(--blue);
+        }
         .step-card.step-failed {
             border-left: 3px solid var(--rd);
-            background: linear-gradient(90deg, rgba(239,68,98,.04) 0%, transparent 40%);
         }
-        .step-card.step-failed:hover {
-            border-color: var(--rd-b);
+        .step-card.step-failed.selected {
+            background: linear-gradient(90deg, rgba(239,68,98,.04) 0%, transparent 40%);
+            border-color: var(--rd);
+            box-shadow: 0 0 0 1px var(--rd);
         }
         .step-card.step-passed {
             border-left: 3px solid var(--gr);
@@ -125,7 +152,6 @@
             align-items: center;
             gap: 10px;
             padding: 12px 16px;
-            cursor: pointer;
             user-select: none;
             transition: background .12s;
         }
@@ -403,6 +429,106 @@
             color: var(--tx3);
         }
 
+        /* Thumbnail strip & Preview */
+        .sv-main {
+            position: relative;
+            background: var(--sur2);
+            border: 1px solid var(--bd);
+            border-radius: var(--rs);
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 400px;
+            overflow: hidden;
+        }
+        .sv-image-container {
+            width: 100%;
+            display: flex;
+            justify-content: center;
+        }
+        .sv-image-container img {
+            max-width: 100%;
+            max-height: 600px;
+            object-fit: contain;
+            cursor: pointer;
+            border-radius: var(--rs);
+        }
+        .sv-nav-btn {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(0,0,0,0.6);
+            color: #fff;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            cursor: pointer;
+            z-index: 10;
+            transition: background .2s;
+        }
+        .sv-nav-btn:hover:not(:disabled) {
+            background: rgba(0,0,0,0.9);
+        }
+        .sv-nav-btn:disabled {
+            opacity: 0.2;
+            cursor: not-allowed;
+        }
+        .sv-nav-btn.prev { left: 16px; }
+        .sv-nav-btn.next { right: 16px; }
+        
+        .sv-thumbnails {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+        .sv-thumb {
+            flex: 0 0 140px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            cursor: pointer;
+        }
+        .sv-thumb-img-wrap {
+            width: 140px;
+            height: 85px;
+            border: 2px solid transparent;
+            border-radius: var(--rx);
+            overflow: hidden;
+            background: var(--sur2);
+            transition: border-color .2s;
+        }
+        .sv-thumb.selected .sv-thumb-img-wrap {
+            border-color: var(--blue);
+        }
+        .sv-thumb:hover .sv-thumb-img-wrap {
+            border-color: var(--blue-b);
+        }
+        .sv-thumb.selected:hover .sv-thumb-img-wrap {
+            border-color: var(--blue);
+        }
+        .sv-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .sv-thumb-label {
+            font-size: 11px;
+            text-align: center;
+            color: var(--tx2);
+            font-weight: 500;
+        }
+        .sv-thumb.selected .sv-thumb-label {
+            color: var(--blue);
+            font-weight: 700;
+        }
+
         /* Progress bar for running flows */
         .flow-progress {
             margin-top: 14px;
@@ -493,7 +619,8 @@
         toggleTheme,
         buildSidebar,
         showLightbox,
-        debounce
+        debounce,
+        paginationHTML
     } from './js/utils.js';
 
     window.toggleTheme = toggleTheme;
@@ -515,12 +642,19 @@
     }
 
     let flow = null;
-    let pollTimer = null;
+    let eventSource = null;
     let activeFilter = 'ALL';
     let searchQuery = '';
+    let stepPage = 0;
+    const stepsPerPage = 15;
 
     // Screenshot presigned URL cache
     const ssCache = {};
+    
+    // Viewer state
+    let selectedStepOrder = null;
+    let selectedScreenshotIndex = 0;
+    let currentScreenshots = [];
 
     // ── ACTION TYPE CONFIG ─────────────────────────────────────────────
     const ACTION_CONFIG = {
@@ -624,14 +758,13 @@
             }
 
             renderPage();
-            loadScreenshotThumbnails();
 
             if (flow.executionStatus === 'RUNNING') {
-                startPolling();
+                startSseStream();
+            } else if (flow.executionStatus === 'FAILED') {
+                // Only auto-open failed step when flow is already completed with failure
+                setTimeout(() => navigateToFirstFailed(), 350);
             }
-
-            // Auto-scroll to first failed step
-            setTimeout(scrollToFirstFailed, 350);
 
         } catch (e) {
             document.getElementById('page-content').innerHTML = `
@@ -644,30 +777,107 @@
         }
     }
 
-    // ── POLLING ─────────────────────────────────────────────────────────
-    function startPolling() {
-        if (pollTimer) return;
-        pollTimer = setInterval(async () => {
+    // ── SSE STREAM ──────────────────────────────────────────────────────
+    function startSseStream() {
+        // Don't open duplicate connections
+        if (eventSource) return;
+
+        console.log('[SSE] Connecting to /api/flows/' + flowId + '/stream');
+        eventSource = new EventSource(`/api/flows/${flowId}/stream`);
+
+        // Handle real-time flow updates (step progress)
+        eventSource.addEventListener('flow-update', (event) => {
             try {
-                flow = await api.flows.get(flowId);
-                renderPage();
-                loadScreenshotThumbnails();
-                if (flow.executionStatus !== 'RUNNING') {
-                    clearInterval(pollTimer);
-                    pollTimer = null;
-                    toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
-                    scrollToFirstFailed();
+                flow = JSON.parse(event.data);
+                updateLiveProgress();
+                console.log('[SSE] flow-update received, status:', flow.executionStatus);
+            } catch (err) {
+                console.error('[SSE] Error parsing flow-update:', err);
+            }
+        });
+
+        // Handle flow completion
+        eventSource.addEventListener('flow-completed', (event) => {
+            try {
+                flow = JSON.parse(event.data);
+                updateLiveProgress();
+                toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
+                if (flow.executionStatus === 'FAILED') {
+                    setTimeout(() => navigateToFirstFailed(), 350);
                 }
-            } catch {}
-        }, 3000);
+                console.log('[SSE] flow-completed, status:', flow.executionStatus);
+            } catch (err) {
+                console.error('[SSE] Error parsing flow-completed:', err);
+            }
+            stopSseStream();
+        });
+
+        // Handle connection errors — fall back to a one-time poll
+        eventSource.onerror = (err) => {
+            console.warn('[SSE] Connection error, falling back to poll', err);
+            stopSseStream();
+            // Fallback: do a single poll after a delay to see if the flow is done
+            setTimeout(async () => {
+                try {
+                    flow = await api.flows.get(flowId);
+                    updateLiveProgress();
+                    if (flow.executionStatus === 'RUNNING') {
+                        // Retry SSE connection
+                        startSseStream();
+                    } else {
+                        toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
+                        if (flow.executionStatus === 'FAILED') {
+                            setTimeout(() => navigateToFirstFailed(), 350);
+                        }
+                    }
+                } catch {}
+            }, 2000);
+        };
     }
 
-    // ── SCROLL TO FIRST FAILED ──────────────────────────────────────────
-    function scrollToFirstFailed() {
-        const el = document.querySelector('.step-failed');
-        if (el) {
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    function stopSseStream() {
+        if (eventSource) {
+            eventSource.close();
+            eventSource = null;
+            console.log('[SSE] Stream closed');
         }
+    }
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', stopSseStream);
+
+    // ── NAVIGATE TO FIRST FAILED STEP ────────────────────────────────────
+    function navigateToFirstFailed() {
+        if (!flow || !flow.steps || flow.steps.length === 0) return;
+
+        const sorted = [...flow.steps].sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
+        const failedStep = sorted.find(s => s.executionStatus === 'FAILED');
+        if (!failedStep) return; // No failed step — don't auto-open anything
+
+        // Apply current filter/search and find which page this step is on
+        const filtered = filterSteps(sorted);
+        const idx = filtered.findIndex(s => s.stepOrder === failedStep.stepOrder);
+        if (idx === -1) {
+            // Failed step is hidden by current filter — reset filter to ALL
+            activeFilter = 'ALL';
+            searchQuery = '';
+            const filtered2 = filterSteps(sorted);
+            const idx2 = filtered2.findIndex(s => s.stepOrder === failedStep.stepOrder);
+            if (idx2 === -1) return;
+            stepPage = Math.floor(idx2 / stepsPerPage);
+        } else {
+            stepPage = Math.floor(idx / stepsPerPage);
+        }
+
+        // Re-render steps with the correct page
+        renderSteps();
+
+        // Expand the failed step and scroll to it
+        selectStep(failedStep.stepOrder);
+        setTimeout(() => {
+            const card = document.getElementById(`step-card-${failedStep.stepOrder}`);
+            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
     }
 
     // ── RENDER PAGE ─────────────────────────────────────────────────────
@@ -682,9 +892,14 @@
         const total = steps.length;
         const passed = steps.filter(s => s.executionStatus === 'PASSED').length;
         const failed = steps.filter(s => s.executionStatus === 'FAILED').length;
-        const notStarted = steps.filter(s => !s.executionStatus || s.executionStatus === 'NOT_STARTED').length;
+        const draft = steps.filter(s => !s.executionStatus || s.executionStatus === 'DRAFT').length;
         const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
         const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
+        let flowCalculatedDuration = flow.executionTime;
+        if (flow.executionCompletedAt && flow.executionStartedAt) {
+            flowCalculatedDuration = new Date(flow.executionCompletedAt) - new Date(flow.executionStartedAt);
+        }
+
 
         // Progress for running
         const completedSteps = passed + failed + skipped;
@@ -732,7 +947,7 @@
                             ${passed ? `<span class="badge badge-passed">${passed} Passed</span>` : ''}
                             ${failed ? `<span class="badge badge-failed">${failed} Failed</span>` : ''}
                             ${running ? `<span class="badge badge-running">${running} Running</span>` : ''}
-                            ${notStarted ? `<span class="badge badge-pending">${notStarted} Pending</span>` : ''}
+                            ${draft ? `<span class="badge badge-pending">${draft} DRAFT</span>` : ''}
                             ${skipped ? `<span class="badge badge-pending">${skipped} Skipped</span>` : ''}
                         </div>
                     </div>
@@ -746,7 +961,7 @@
                     </div>
                     <div>
                         <div class="flow-stat-label">Duration</div>
-                        <div class="flow-stat-val"><strong>${formatDuration(flow.executionTime)}</strong></div>
+                        <div class="flow-stat-val"><strong>${formatDuration(flowCalculatedDuration)}</strong></div>
                     </div>
                     <div>
                         <div class="flow-stat-label">Default Wait</div>
@@ -778,7 +993,7 @@
                     <button class="sf-btn ${activeFilter === 'ALL' ? 'sel-all' : ''}" onclick="setFilter('ALL')">All</button>
                     <button class="sf-btn ${activeFilter === 'PASSED' ? 'sel-passed' : ''}" onclick="setFilter('PASSED')">Passed</button>
                     <button class="sf-btn ${activeFilter === 'FAILED' ? 'sel-failed' : ''}" onclick="setFilter('FAILED')">Failed</button>
-                    <button class="sf-btn ${activeFilter === 'NOT_STARTED' ? 'sel-partial' : ''}" onclick="setFilter('NOT_STARTED')">Not Started</button>
+                    <button class="sf-btn ${activeFilter === 'DRAFT' ? 'sel-partial' : ''}" onclick="setFilter('DRAFT')">DRAFT</button>
                 </div>
                 <div class="filter-sep"></div>
                 <input class="inp inp-sm" style="width:220px" id="step-search-inp"
@@ -786,9 +1001,10 @@
                 <span class="step-count-label" id="step-count-label"></span>
             </div>
 
-            <!-- Step list -->
-            <div class="step-list" id="step-list">
-                ${renderSteps(steps)}
+            <!-- Step List with Inline Details -->
+            <div id="step-list-wrap">
+                <div class="step-list" id="step-list"></div>
+                <div id="step-pagination"></div>
             </div>
         `;
 
@@ -797,29 +1013,203 @@
         if (searchInp) {
             searchInp.addEventListener('input', debounce(e => {
                 searchQuery = e.target.value.trim();
+                stepPage = 0;
                 updateStepList();
             }, 300));
         }
 
-        updateStepCount();
+        updateStepList();
+    }
+
+    // ── LIVE PROGRESS UPDATE (no full re-render) ────────────────────────
+    // Updates hero stats, progress bar, and individual step badges/statuses
+    // WITHOUT destroying the DOM — preserves open detail panels.
+    function updateLiveProgress() {
+        const steps = flow.steps || [];
+        const isRunning = flow.executionStatus === 'RUNNING';
+        const total = steps.length;
+        const passed = steps.filter(s => s.executionStatus === 'PASSED').length;
+        const failed = steps.filter(s => s.executionStatus === 'FAILED').length;
+        const draft = steps.filter(s => s.executionStatus === 'DRAFT').length;
+        console.log("draft count "+draft);
+        const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
+        const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
+        const completedSteps = passed + failed + skipped;
+        const progressPct = total > 0 ? Math.round((completedSteps / total) * 100) : 0;
+
+        // ── Update rerun button ──
+        const rerunBtn = document.getElementById('rerun-btn');
+        if (rerunBtn) {
+            rerunBtn.disabled = isRunning;
+            rerunBtn.innerHTML = isRunning ? '⏳ Running…' : '▶ Run Again';
+        }
+
+        // ── Update flow hero status badge ──
+        const heroName = document.querySelector('.flow-hero-name');
+        if (heroName) {
+            const badgeContainer = heroName.nextElementSibling;
+            if (badgeContainer) {
+                badgeContainer.innerHTML = statusBadge(flow.executionStatus || 'NOT_STARTED');
+            }
+        }
+
+        // ── Update progress bar ──
+        let progressDiv = document.querySelector('.flow-progress');
+        if (isRunning) {
+            if (!progressDiv) {
+                // Insert progress bar after the hero top section
+                const heroTop = document.querySelector('.flow-hero-top');
+                if (heroTop) {
+                    const div = document.createElement('div');
+                    div.className = 'flow-progress';
+                    div.innerHTML = `
+                        <div class="flow-progress-bar">
+                            <div class="flow-progress-fill" style="width:${progressPct}%;background:linear-gradient(90deg, var(--blue), var(--te))"></div>
+                        </div>
+                        <div class="flow-progress-label">${completedSteps}/${total} steps completed (${progressPct}%)</div>
+                    `;
+                    heroTop.after(div);
+                }
+            } else {
+                const fill = progressDiv.querySelector('.flow-progress-fill');
+                const label = progressDiv.querySelector('.flow-progress-label');
+                if (fill) fill.style.width = progressPct + '%';
+                if (label) label.textContent = `${completedSteps}/${total} steps completed (${progressPct}%)`;
+            }
+        } else if (progressDiv) {
+            progressDiv.remove();
+        }
+
+        // ── Update stat counts ──
+        const statCounts = document.querySelector('.stat-counts');
+        if (statCounts) {
+            statCounts.innerHTML = [
+                passed ? `<span class="badge badge-passed">${passed} Passed</span>` : '',
+                failed ? `<span class="badge badge-failed">${failed} Failed</span>` : '',
+                running ? `<span class="badge badge-running">${running} Running</span>` : '',
+                draft ? `<span class="badge badge-pending">${draft} Pending</span>` : '',
+                skipped ? `<span class="badge badge-pending">${skipped} Skipped</span>` : '',
+            ].join('');
+        }
+
+        // ── Update timestamps & duration ──
+        let flowCalculatedDuration = flow.executionTime;
+        if (flow.executionCompletedAt && flow.executionStartedAt) {
+            flowCalculatedDuration = new Date(flow.executionCompletedAt) - new Date(flow.executionStartedAt);
+        }
+        const statVals = document.querySelectorAll('.flow-stats .flow-stat-val');
+        // statVals order: [0]=Total Steps, [1]=Results(stat-counts), [2]=Started, [3]=Completed, [4]=Duration, [5]=Default Wait
+        if (statVals[2]) statVals[2].innerHTML = `${fmtDate(flow.executionStartedAt)}`;
+        if (statVals[3]) statVals[3].innerHTML = `${fmtDate(flow.executionCompletedAt)}`;
+        if (statVals[4]) statVals[4].innerHTML = `<strong>${formatDuration(flowCalculatedDuration)}</strong>`;
+
+        // ── Update execution message alert ──
+        const heroEl = document.querySelector('.flow-hero');
+        let existingAlert = heroEl ? heroEl.querySelector('.step-error-alert') : null;
+        if (flow.executionMessage && heroEl) {
+            const alertHtml = `
+                <div class="step-error-alert"
+                     style="margin-top:16px;
+                            background:${flow.executionStatus === 'FAILED' ? '#ffe5e5' : '#e6ffed'};
+                            color:${flow.executionStatus === 'FAILED' ? '#d32f2f' : '#2e7d32'};
+                            border:1px solid ${flow.executionStatus === 'FAILED' ? '#f5c2c2' : '#b7ebc6'};">
+                    <span class="alert-icon">${flow.executionStatus === 'FAILED' ? '⚠️' : '✅'}</span>
+                    <span class="alert-text">${esc(flow.executionMessage)}</span>
+                </div>`;
+            if (existingAlert) {
+                existingAlert.outerHTML = alertHtml;
+            } else {
+                // Insert before the closing </div> of the hero
+                const statsDiv = heroEl.querySelector('.flow-stats');
+                if (statsDiv) statsDiv.insertAdjacentHTML('afterend', alertHtml);
+            }
+        } else if (existingAlert) {
+            existingAlert.remove();
+        }
+
+        // ── Update individual step cards (status badge, duration, status class) ──
+        for (const step of steps) {
+            const card = document.getElementById(`step-card-${step.stepOrder}`);
+            if (!card) continue;
+
+            // Update status class
+            card.classList.remove('step-passed', 'step-failed', 'step-running');
+            const newCls = stepStatusClass(step.executionStatus);
+            if (newCls) card.classList.add(newCls);
+
+            // Update status badge in .step-meta
+            const meta = card.querySelector('.step-meta');
+            if (meta) {
+                meta.innerHTML = statusBadge(step.executionStatus || 'NOT_STARTED');
+            }
+
+            // Update duration
+            let dur = step.executionTime;
+            if (step.executionCompletedAt && step.executionStartedAt) {
+                dur = new Date(step.executionCompletedAt) - new Date(step.executionStartedAt);
+            }
+            const durStr = formatDuration(dur);
+            // Find or create the duration span
+            const infoDiv = card.querySelector('.step-info');
+            if (infoDiv) {
+                const durationContainer = infoDiv.querySelectorAll('div')[1]; // second div has duration
+                if (durationContainer) {
+                    let durSpan = durationContainer.querySelector('span[style*="font-family"]');
+                    if (durStr && durStr !== '—') {
+                        if (durSpan) {
+                            durSpan.innerHTML = `⏱ ${durStr}`;
+                        } else {
+                            durationContainer.insertAdjacentHTML('beforeend',
+                                `<span style="font-size:11px; font-weight:600; font-family:var(--mono); color:var(--tx2); background:var(--sur3); padding:1px 7px; border-radius:var(--rx);">⏱ ${durStr}</span>`);
+                        }
+                    }
+                }
+            }
+
+            // If this step's detail panel is open, update it live too
+            if (selectedStepOrder === step.stepOrder) {
+                renderDetailPanel(step);
+            }
+        }
     }
 
     // ── RENDER STEPS ────────────────────────────────────────────────────
-    function renderSteps(steps) {
+    function renderSteps() {
+        const steps = flow.steps || [];
         const sorted = [...steps].sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
         const filtered = filterSteps(sorted);
+        const total = filtered.length;
+        const totalPages = Math.max(1, Math.ceil(total / stepsPerPage));
+        stepPage = Math.max(0, Math.min(stepPage, totalPages - 1));
+        const start = stepPage * stepsPerPage;
+        const pageItems = filtered.slice(start, start + stepsPerPage);
+
+        const listEl = document.getElementById('step-list');
+        const pagEl = document.getElementById('step-pagination');
+        if (!listEl) return;
 
         if (!filtered.length) {
-            return `
+            listEl.innerHTML = `
                 <div class="empty" style="padding:28px">
                     <div class="ei">${steps.length ? '🔍' : '📋'}</div>
                     <h3>${steps.length ? 'No matching steps' : 'No steps in this flow'}</h3>
                     <p>${steps.length ? 'Try adjusting your filter or search.' : 'This flow has no steps defined.'}</p>
                 </div>
             `;
+            if (pagEl) pagEl.innerHTML = '';
+            return;
         }
 
-        return filtered.map(step => renderStepCard(step)).join('');
+        listEl.innerHTML = pageItems.map(step => renderStepCard(step)).join('');
+        if (pagEl) {
+            pagEl.innerHTML = totalPages > 1 ? paginationHTML(stepPage, totalPages, 'goStepPage') : '';
+        }
+
+        // Update count label
+        const label = document.getElementById('step-count-label');
+        if (label) {
+            label.textContent = `${start + 1}–${Math.min(start + stepsPerPage, total)} of ${total} steps (${steps.length} total)`;
+        }
     }
 
     function filterSteps(steps) {
@@ -851,55 +1241,53 @@
     function renderStepCard(step) {
         const cfg = getActionCfg(step.actionType);
         const statusCls = stepStatusClass(step.executionStatus);
-        const isFailed = step.executionStatus === 'FAILED';
-        const displayValue = step.actionType === 'VERIFY' ? step.expectedValue : step.value;
-        const sensitive = isSensitive(step);
-        const hasScreenshot = !!flow.flowBasePath;
+        const isSelected = selectedStepOrder === step.stepOrder;
+        
+        let calculatedDuration = step.executionTime;
+        if (step.executionCompletedAt && step.executionStartedAt) {
+            calculatedDuration = new Date(step.executionCompletedAt) - new Date(step.executionStartedAt);
+        }
+        const durationStr = formatDuration(calculatedDuration);
 
         return `
-            <div class="step-card ${statusCls}" id="step-card-${step.stepOrder}">
-                <div class="step-head" onclick="toggleStep(${step.stepOrder})">
+            <div class="step-card ${statusCls} ${isSelected ? 'selected' : ''}" id="step-card-${step.stepOrder}">
+                <div class="step-head" onclick="selectStep(${step.stepOrder})">
                     <div class="step-num">${step.stepOrder}</div>
-                    <span class="action-badge" style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.bc}">${cfg.icon} ${cfg.label}</span>
                     <div class="step-info">
-                        <div class="step-name-text">${esc(step.name || `Step ${step.stepOrder}`)}</div>
-                        ${step.selector ? `
-                            <div class="has-tooltip">
-                                <div class="step-selector-text">${esc(truncate(step.selector, 45))}</div>
-                                ${step.selector.length > 45 ? `<div class="tooltip-text">${esc(step.selector)}</div>` : ''}
-                            </div>
-                        ` : ''}
-                    </div>
-                    ${displayValue ? `
-                        <div class="step-value-text">
-                            ${sensitive ? `<span class="masked-value">${maskValue(displayValue)}</span>` : esc(truncate(displayValue, 25))}
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
+                            <span class="step-name-text" style="font-size:13px; font-weight:600;">${esc(step.name || `Step ${step.stepOrder}`)}</span>
+                            <span class="action-badge" style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.bc};font-size:10px;padding:1px 6px;">${cfg.icon} ${cfg.label}</span>
                         </div>
-                    ` : ''}
-                    <div class="step-meta">
+                        <div style="display:flex; align-items:center; gap:10px;">
+                            <span style="font-size:11px; color:var(--tx3);" id="ss-count-${step.stepOrder}"></span>
+                            ${durationStr && durationStr !== '—' ? `<span style="font-size:11px; font-weight:600; font-family:var(--mono); color:var(--tx2); background:var(--sur3); padding:1px 7px; border-radius:var(--rx);">⏱ ${durationStr}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="step-meta" style="flex-direction:column; align-items:flex-end; gap:4px;">
                         ${statusBadge(step.executionStatus || 'NOT_STARTED')}
-                        <span class="step-duration">${formatDuration(step.executionTime)}</span>
                     </div>
-                    ${hasScreenshot ? `
-                        <div class="step-thumb" id="thumb-${step.stepOrder}" onclick="event.stopPropagation(); openStepScreenshot(${step.stepOrder})">
-                            <div class="step-thumb-placeholder">📷</div>
-                        </div>
-                    ` : ''}
-                    <span class="step-chevron">▼</span>
                 </div>
-                <div class="step-body" id="step-body-${step.stepOrder}">
-                    ${renderStepDetails(step)}
-                </div>
+                <div class="step-inline-detail" id="detail-panel-${step.stepOrder}"></div>
             </div>
         `;
     }
 
-    function renderStepDetails(step) {
+    function renderDetailPanel(step) {
+        if (!step) return;
+
+        const panel = document.getElementById(`detail-panel-${step.stepOrder}`);
+        if (!panel) return;
+
         const cfg = getActionCfg(step.actionType);
         const isFailed = step.executionStatus === 'FAILED';
-        const hasScreenshot = !!flow.flowBasePath;
         const sensitive = isSensitive(step);
+        
+        let calculatedDuration = step.executionTime;
+        if (step.executionCompletedAt && step.executionStartedAt) {
+            calculatedDuration = new Date(step.executionCompletedAt) - new Date(step.executionStartedAt);
+        }
 
-        return `
+        let html = `
             <div class="step-detail-grid">
                 <div class="step-detail-item">
                     <div class="step-detail-label">Action Type</div>
@@ -908,13 +1296,15 @@
                     </div>
                 </div>
                 <div class="step-detail-item">
-                    <div class="step-detail-label">Execution Status</div>
+                    <div class="step-detail-label">Status</div>
                     <div class="step-detail-value">${statusBadge(step.executionStatus || 'NOT_STARTED')}</div>
                 </div>
+                ${step.selector ? `
                 <div class="step-detail-item" style="grid-column: 1 / -1">
                     <div class="step-detail-label">Selector</div>
-                    <div class="step-detail-value"><code>${esc(step.selector || '—')}</code></div>
+                    <div class="step-detail-value"><code>${esc(step.selector)}</code></div>
                 </div>
+                ` : ''}
                 ${step.value ? `
                     <div class="step-detail-item">
                         <div class="step-detail-label">Value</div>
@@ -929,37 +1319,37 @@
                         <div class="step-detail-value"><code>${esc(step.expectedValue)}</code></div>
                     </div>
                 ` : ''}
-                ${step.verificationType ? `
-                    <div class="step-detail-item">
-                        <div class="step-detail-label">Verification Type</div>
-                        <div class="step-detail-value">${esc(step.verificationType)}</div>
-                    </div>
-                ` : ''}
-                ${step.attribute ? `
-                    <div class="step-detail-item">
-                        <div class="step-detail-label">Attribute</div>
-                        <div class="step-detail-value"><code>${esc(step.attribute)}</code></div>
-                    </div>
-                ` : ''}
+            </div>
+            
+            <div class="step-detail-label" style="margin-top:20px; border-bottom:1px solid var(--bd); padding-bottom:4px; margin-bottom:12px;">Execution & Settings</div>
+            <div class="step-detail-grid">
                 <div class="step-detail-item">
                     <div class="step-detail-label">Started At</div>
-                    <div class="step-detail-value" style="font-size:12px">${fmtDate(step.executionStartedAt)}</div>
+                    <div class="step-detail-value" style="font-size:12px">${step.executionStartedAt ? fmtDate(step.executionStartedAt) : '—'}</div>
                 </div>
                 <div class="step-detail-item">
                     <div class="step-detail-label">Completed At</div>
-                    <div class="step-detail-value" style="font-size:12px">${fmtDate(step.executionCompletedAt)}</div>
+                    <div class="step-detail-value" style="font-size:12px">${step.executionCompletedAt ? fmtDate(step.executionCompletedAt) : '—'}</div>
                 </div>
                 <div class="step-detail-item">
                     <div class="step-detail-label">Duration</div>
-                    <div class="step-detail-value"><strong>${formatDuration(step.executionTime)}</strong></div>
+                    <div class="step-detail-value"><strong>${formatDuration(calculatedDuration)}</strong></div>
                 </div>
                 <div class="step-detail-item">
-                    <div class="step-detail-label">Settings</div>
-                    <div class="step-detail-value" style="font-size:12px;color:var(--tx2)">
-                        Retry: ${step.retryCount || 0}
-                        · Wait: ${step.overrideWait ? `${step.wait}ms (override)` : 'default'}
-                        ${step.continueOnFailure ? '· Continue on failure' : ''}
-                    </div>
+                    <div class="step-detail-label">Retry Count</div>
+                    <div class="step-detail-value"><code>${step.retryCount ?? 0}</code></div>
+                </div>
+                <div class="step-detail-item">
+                    <div class="step-detail-label">Override Wait</div>
+                    <div class="step-detail-value"><code>${step.overrideWait ? 'true' : 'false'}</code></div>
+                </div>
+                <div class="step-detail-item">
+                    <div class="step-detail-label">Continue On Failure</div>
+                    <div class="step-detail-value"><code>${step.continueOnFailure ? 'true' : 'false'}</code></div>
+                </div>
+                <div class="step-detail-item">
+                    <div class="step-detail-label">Capture Screenshot</div>
+                    <div class="step-detail-value"><code>${step.captureScreenshot !== false ? 'true' : 'false'}</code></div>
                 </div>
             </div>
 
@@ -969,90 +1359,167 @@
                     <span class="alert-text">${esc(step.executionMessage)}</span>
                 </div>
             ` : ''}
-
+            
             ${(!isFailed && step.executionMessage) ? `
                 <div style="margin-top:8px;padding:8px 12px;background:var(--sur3);border-radius:var(--rs);font-size:12px;color:var(--tx2)">
                     <strong>Message:</strong> ${esc(step.executionMessage)}
                 </div>
             ` : ''}
 
-            ${hasScreenshot ? `
-                <div class="step-screenshot-section">
-                    <div class="step-detail-label" style="margin-bottom:8px">Screenshots</div>
-                    <div class="step-screenshots-grid" id="ss-preview-container-${step.stepOrder}">
-                        <div style="padding:24px;text-align:center;color:var(--tx3);font-size:12px">
-                            Loading screenshots…
-                        </div>
-                    </div>
-                </div>
-            ` : ''}
+            <div id="screenshot-viewer-container" style="margin-top: 24px;"></div>
         `;
+        panel.innerHTML = html;
+    }
+
+    function renderDetailScreenshots(screenshots) {
+        const container = document.getElementById('screenshot-viewer-container');
+        if (!container) return;
+        
+        if (screenshots === null) {
+            container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--tx3);font-size:13px"><div class="spinner" style="margin:0 auto 12px"></div>Loading screenshots…</div>';
+            return;
+        }
+        
+        if (screenshots.length === 0) {
+            container.innerHTML = `
+                <div class="step-detail-label" style="margin-bottom:12px">Screenshots</div>
+                <div style="padding:40px;text-align:center;color:var(--tx3);font-size:13px;border:1px dashed var(--bd);border-radius:var(--rs)">No screenshots available for this step</div>
+            `;
+            return;
+        }
+        
+        const total = screenshots.length;
+        const current = screenshots[selectedScreenshotIndex];
+        const hasPrev = selectedScreenshotIndex > 0;
+        const hasNext = selectedScreenshotIndex < total - 1;
+        
+        let html = `
+            <div class="step-detail-label" style="margin-bottom:12px">Screenshots (${total})</div>
+            <div class="sv-main">
+                <button class="sv-nav-btn prev" onclick="prevScreenshot()" ${!hasPrev ? 'disabled' : ''}>‹</button>
+                <div class="sv-image-container">
+                    <img id="sv-main-img" src="${esc(current.url)}" onclick="showLightbox('${esc(current.url)}')" alt="Screenshot" loading="lazy" />
+                </div>
+                <button class="sv-nav-btn next" onclick="nextScreenshot()" ${!hasNext ? 'disabled' : ''}>›</button>
+            </div>
+            
+            <div class="sv-thumbnails">
+                ${screenshots.map((ss, idx) => `
+                    <div class="sv-thumb ${idx === selectedScreenshotIndex ? 'selected' : ''}" onclick="selectScreenshot(${idx})" id="sv-thumb-${idx}">
+                        <div class="sv-thumb-img-wrap">
+                            <img src="${esc(ss.url)}" loading="lazy" />
+                        </div>
+                        <div class="sv-thumb-label">Attempt ${idx + 1}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        container.innerHTML = html;
+        
+        const thumb = document.getElementById(`sv-thumb-${selectedScreenshotIndex}`);
+        if (thumb) {
+            thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+        }
     }
 
     // ── LOAD SCREENSHOT THUMBNAILS ──────────────────────────────────────
     async function loadScreenshotThumbnails() {
-        if (!flow.flowBasePath) return;
+        if (!flow.flowBasePath) {
+            document.querySelectorAll('[id^="ss-count-"]').forEach(el => el.textContent = '0 screenshots');
+            return;
+        }
         const steps = flow.steps || [];
 
         for (const step of steps) {
             const screenshots = await getScreenshotUrls(step);
-            const thumbEl = document.getElementById(`thumb-${step.stepOrder}`);
-            const containerEl = document.getElementById(`ss-preview-container-${step.stepOrder}`);
-
-            if (screenshots.length > 0) {
-                if (thumbEl) {
-                    thumbEl.innerHTML = `<img src="${esc(screenshots[0].url)}" alt="Step ${step.stepOrder}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=\\'step-thumb-placeholder\\'>📷</div>'">`;
-                }
-                if (containerEl) {
-                    containerEl.innerHTML = screenshots.map((ss, idx) => `
-                        <div class="step-screenshot-preview" onclick="showLightbox('${esc(ss.url)}')">
-                            <img src="${esc(ss.url)}" alt="Step ${step.stepOrder} screenshot ${idx+1}" loading="lazy" onerror="this.parentElement.style.display='none'">
-                            <div class="step-screenshot-caption">Step ${step.stepOrder} · ${esc(step.name || '')} (${esc(ss.fileName)})</div>
-                        </div>
-                    `).join('');
-                }
-            } else {
-                if (thumbEl) {
-                    thumbEl.innerHTML = '<div class="step-thumb-placeholder">📷</div>';
-                }
-                if (containerEl) {
-                    containerEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--tx3);font-size:12px">No screenshots available</div>';
-                }
+            const countEl = document.getElementById(`ss-count-${step.stepOrder}`);
+            if (countEl) {
+                countEl.textContent = `${screenshots.length} screenshot${screenshots.length !== 1 ? 's' : ''}`;
+            }
+            
+            if (selectedStepOrder === step.stepOrder) {
+                currentScreenshots = screenshots;
+                renderDetailScreenshots(screenshots);
             }
         }
     }
 
     // ── INTERACTIVE HANDLERS ────────────────────────────────────────────
 
-    window.toggleStep = function (stepOrder) {
+    window.selectStep = async function (stepOrder) {
+        // Toggle: clicking same step collapses it
+        if (selectedStepOrder === stepOrder) {
+            selectedStepOrder = null;
+            currentScreenshots = [];
+            document.querySelectorAll('.step-card').forEach(el => el.classList.remove('selected'));
+            return;
+        }
+        
+        // Collapse previous
+        document.querySelectorAll('.step-card').forEach(el => el.classList.remove('selected'));
+        selectedStepOrder = stepOrder;
+        
         const card = document.getElementById(`step-card-${stepOrder}`);
-        if (!card) return;
-        card.classList.toggle('open');
+        if (card) {
+            card.classList.add('selected');
+        }
+        
+        const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
+        renderDetailPanel(step);
+        renderDetailScreenshots(null);
+        
+        // Scroll the card into view after expansion
+        setTimeout(() => {
+            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }, 50);
+        
+        const screenshots = await getScreenshotUrls(step);
+        currentScreenshots = screenshots;
+        selectedScreenshotIndex = screenshots.length > 0 ? screenshots.length - 1 : 0;
+        
+        renderDetailScreenshots(screenshots);
     };
+
+    window.selectScreenshot = function(idx) {
+        if (idx < 0 || idx >= currentScreenshots.length) return;
+        selectedScreenshotIndex = idx;
+        renderDetailScreenshots(currentScreenshots);
+    };
+
+    window.prevScreenshot = function() {
+        window.selectScreenshot(selectedScreenshotIndex - 1);
+    };
+
+    window.nextScreenshot = function() {
+        window.selectScreenshot(selectedScreenshotIndex + 1);
+    };
+
+    document.addEventListener('keydown', (e) => {
+        if (selectedStepOrder && currentScreenshots.length > 0) {
+            if (e.key === 'ArrowLeft') {
+                window.prevScreenshot();
+            } else if (e.key === 'ArrowRight') {
+                window.nextScreenshot();
+            }
+        }
+    });
 
     window.setFilter = function (f) {
         activeFilter = f;
+        stepPage = 0;
         updateStepList();
     };
 
     function updateStepList() {
-        const container = document.getElementById('step-list');
-        if (!container) return;
-        container.innerHTML = renderSteps(flow.steps || []);
-        updateStepCount();
-        loadScreenshotThumbnails();
+        renderSteps();
     }
 
-    function updateStepCount() {
-        const steps = flow.steps || [];
-        const filtered = filterSteps(
-            [...steps].sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0))
-        );
-        const label = document.getElementById('step-count-label');
-        if (label) {
-            label.textContent = `${filtered.length} of ${steps.length} steps`;
-        }
-    }
+    window.goStepPage = function(p) {
+        stepPage = p;
+        updateStepList();
+        const listEl = document.getElementById('step-list');
+        if (listEl) listEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     window.openStepScreenshot = async function (stepOrder) {
         const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
@@ -1069,12 +1536,17 @@
         const btn = document.getElementById('rerun-btn');
         if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Starting…'; }
         try {
+            // Close any existing SSE stream before starting a new run
+            stopSseStream();
             await api.flows.execute(flowId);
             console.log("executing");
             toast('Flow execution started!', 'success');
-            // Reload to pick up RUNNING status
-            setTimeout(() => load(), 1000);
-            console.log("reloaded to pickup state");
+            // Reload flow state and immediately connect SSE for real-time updates
+            setTimeout(async () => {
+                flow = await api.flows.get(flowId);
+                renderPage();
+                startSseStream();
+            }, 500);
         } catch (e) {
             console.log("Failed "+e.message);
             console.log("exception "+ e);

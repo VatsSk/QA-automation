@@ -87,6 +87,7 @@ public class WebDriverFactory {
 
         WebDriver driver = new ChromeDriver(options);
 
+        // Maximize only when not headless
         if (!headless) {
             driver.manage().window().maximize();
         }
