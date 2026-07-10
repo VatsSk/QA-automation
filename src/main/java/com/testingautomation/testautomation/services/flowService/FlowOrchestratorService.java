@@ -98,12 +98,13 @@ public class FlowOrchestratorService {
 
         }
         catch(GlobalExceptionHandler.FlowExecutionException ex){
-            logger.error("Error executing flow [{}]: {}", flow.getName(), ex.getMessage(), ex);
+            logger.error("Error executing flow in execute flow of flowExecutionException type [{}]: {}", flow.getName(), ex.getMessage(), ex);
             flow.setExecutionStatus(ExecutionStatus.FAILED);
+            logger.info("user message {}",ex.getUserMessage());
             flow.setExecutionMessage(ex.getUserMessage());
         }
         catch (Exception e) {
-            logger.error("Error executing flow [{}]: {}", flow.getName(), e.getMessage(), e);
+            logger.error("Error executing flow in Exception [{}]: {}", flow.getName(), e.getMessage(), e);
             flow.setExecutionStatus(ExecutionStatus.FAILED);
             flow.setExecutionMessage("Unexpectedly step failed!");
         } finally {

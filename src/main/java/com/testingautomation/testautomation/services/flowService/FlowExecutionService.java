@@ -138,11 +138,11 @@ public class FlowExecutionService {
                 takeScreenshotIfRequired(driver, step, flow,attempts);
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);
-                    step.setExecutionMessage(ex.getMessage());
+                    step.setExecutionMessage(ex.getUserMessage());
                     logger.error("Step [{}] failed after {} attempts in flowExecutionStatus. Error: {}", step.getName(), attempts, ex.getMessage());
                     step.setExecutionCompletedAt(Instant.now());
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
-//                        logger.info("flowExecutionException {}",ex.getMessage());
+                        logger.info("flowExecutionException {}",ex.getMessage());
                         throw ex;
                     }
                 } else {
@@ -153,7 +153,7 @@ public class FlowExecutionService {
                 takeScreenshotIfRequired(driver, step, flow,attempts);
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);
-                    step.setExecutionMessage(e.getMessage());
+                    step.setExecutionMessage("Unexpected error");
                     logger.error("Step [{}] failed after {} attempts. Error: {}", step.getName(), attempts, e.getMessage());
                     step.setExecutionCompletedAt(Instant.now());
                     
