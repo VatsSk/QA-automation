@@ -25,7 +25,7 @@ public class VerificationService {
 
     private final Logger logger = LoggerFactory.getLogger(VerificationService.class);
     private WebElement getTopMostModal(WebDriver driver) {
-        List<WebElement> candidates = driver.findElements(By.cssSelector(".modal.show"));
+        List<WebElement> candidates = driver.findElements(By.cssSelector(".modal.show, .swal2-container"));
 
         logger.info("[ModalDetection] Total modal candidates found: {}", candidates.size());
 
@@ -95,8 +95,6 @@ public class VerificationService {
                 logger.warn("[FindElement] Error finding elements for selector '{}': {}", cssSelector, e.getMessage());
                 return null;
             }
-
-            logger.info("[FindElement] Total elements found for '{}': {}", cssSelector, elements.size());
 
             if (elements.isEmpty()) {
                 return null;
