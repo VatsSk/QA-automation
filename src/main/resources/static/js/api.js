@@ -175,4 +175,4 @@ export const uploads = {
 
         return uploadFile('/api/uploads/project-login', fd);
     }
-};
+};
