@@ -646,7 +646,30 @@
     let activeFilter = 'ALL';
     let searchQuery = '';
     let stepPage = 0;
-    const stepsPerPage = 15;
+    const stepsPerPage = 50;
+
+    // O(1) Lookup Maps
+    let stepById = new Map();
+    let domById = new Map();
+
+    function rebuildMaps() {
+        stepById.clear();
+        if (flow && flow.steps) {
+            flow.steps.forEach(s => stepById.set(s.stepOrder, s));
+        }
+        rebuildDomMap();
+    }
+
+    function rebuildDomMap() {
+        domById.clear();
+        const cards = document.querySelectorAll('.step-card');
+        cards.forEach(card => {
+            const stepOrderStr = card.getAttribute('data-step-order');
+            if (stepOrderStr) {
+                domById.set(Number(stepOrderStr), card);
+            }
+        });
+    }
 
     // Screenshot presigned URL cache
     const ssCache = {};
@@ -785,32 +808,80 @@
         console.log('[SSE] Connecting to /api/flows/' + flowId + '/stream');
         eventSource = new EventSource(`/api/flows/${flowId}/stream`);
 
-        // Handle real-time flow updates (step progress)
-        eventSource.addEventListener('flow-update', (event) => {
+        // Handle flow start
+        eventSource.addEventListener('flow-started', (event) => {
             try {
                 flow = JSON.parse(event.data);
-                updateLiveProgress();
-                console.log('[SSE] flow-update received, status:', flow.executionStatus);
+                rebuildMaps();
+                updateHeroStats();
+                updateStepList(); // force full refresh to reset all UI
+                console.log('[SSE] flow-started');
             } catch (err) {
-                console.error('[SSE] Error parsing flow-update:', err);
+                console.error('[SSE] Error parsing flow-started:', err);
             }
         });
 
-        // Handle flow completion
-        eventSource.addEventListener('flow-completed', (event) => {
+        // Helper to update a single step incrementally using O(1) lookups
+        const updateFlowStepLocal = (event) => {
+            try {
+                const stepEvent = JSON.parse(event.data);
+                if (stepById.has(stepEvent.stepOrder)) {
+                    const step = stepById.get(stepEvent.stepOrder);
+                    step.executionStatus = stepEvent.executionStatus;
+                    step.executionMessage = stepEvent.executionMessage;
+                    if (stepEvent.screenshotUrl) {
+                        step.screenshotUrl = stepEvent.screenshotUrl;
+                    }
+                    
+                    // Update overall hero statistics
+                    updateHeroStats();
+
+                    // O(1) DOM update for the specific step if it's currently rendered
+                    const card = domById.get(step.stepOrder);
+                    if (card) {
+                        card.classList.remove('step-passed', 'step-failed', 'step-running');
+                        const newCls = stepStatusClass(step.executionStatus);
+                        if (newCls) card.classList.add(newCls);
+
+                        const meta = card.querySelector('.step-meta');
+                        if (meta) {
+                            meta.innerHTML = statusBadge(step.executionStatus || 'NOT_STARTED');
+                        }
+
+                        if (selectedStepOrder === step.stepOrder) {
+                            renderDetailPanel(step);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('[SSE] Error updating step local:', err);
+            }
+        };
+
+        // Handle fine-grained step events
+        eventSource.addEventListener('step-started', updateFlowStepLocal);
+        eventSource.addEventListener('step-updated', updateFlowStepLocal);
+        eventSource.addEventListener('step-failed', updateFlowStepLocal);
+
+        // Handle completion/failure
+        const handleFlowEnd = (event) => {
             try {
                 flow = JSON.parse(event.data);
-                updateLiveProgress();
+                rebuildMaps();
+                updateHeroStats();
                 toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
                 if (flow.executionStatus === 'FAILED') {
                     setTimeout(() => navigateToFirstFailed(), 350);
                 }
-                console.log('[SSE] flow-completed, status:', flow.executionStatus);
+                console.log('[SSE] flow ended, status:', flow.executionStatus);
             } catch (err) {
-                console.error('[SSE] Error parsing flow-completed:', err);
+                console.error('[SSE] Error parsing flow end event:', err);
             }
             stopSseStream();
-        });
+        };
+
+        eventSource.addEventListener('flow-completed', handleFlowEnd);
+        eventSource.addEventListener('flow-failed', handleFlowEnd);
 
         // Handle connection errors — fall back to a one-time poll
         eventSource.onerror = (err) => {
@@ -820,7 +891,8 @@
             setTimeout(async () => {
                 try {
                     flow = await api.flows.get(flowId);
-                    updateLiveProgress();
+                    rebuildMaps();
+                    updateHeroStats();
                     if (flow.executionStatus === 'RUNNING') {
                         // Retry SSE connection
                         startSseStream();
@@ -1022,9 +1094,9 @@
     }
 
     // ── LIVE PROGRESS UPDATE (no full re-render) ────────────────────────
-    // Updates hero stats, progress bar, and individual step badges/statuses
-    // WITHOUT destroying the DOM — preserves open detail panels.
-    function updateLiveProgress() {
+    // Updates hero stats and progress bar without destroying the DOM.
+    // Step individual DOMs are updated via domById map in updateFlowStepLocal.
+    function updateHeroStats() {
         const steps = flow.steps || [];
         const isRunning = flow.executionStatus === 'RUNNING';
         const total = steps.length;
@@ -1126,51 +1198,6 @@
         } else if (existingAlert) {
             existingAlert.remove();
         }
-
-        // ── Update individual step cards (status badge, duration, status class) ──
-        for (const step of steps) {
-            const card = document.getElementById(`step-card-${step.stepOrder}`);
-            if (!card) continue;
-
-            // Update status class
-            card.classList.remove('step-passed', 'step-failed', 'step-running');
-            const newCls = stepStatusClass(step.executionStatus);
-            if (newCls) card.classList.add(newCls);
-
-            // Update status badge in .step-meta
-            const meta = card.querySelector('.step-meta');
-            if (meta) {
-                meta.innerHTML = statusBadge(step.executionStatus || 'NOT_STARTED');
-            }
-
-            // Update duration
-            let dur = step.executionTime;
-            if (step.executionCompletedAt && step.executionStartedAt) {
-                dur = new Date(step.executionCompletedAt) - new Date(step.executionStartedAt);
-            }
-            const durStr = formatDuration(dur);
-            // Find or create the duration span
-            const infoDiv = card.querySelector('.step-info');
-            if (infoDiv) {
-                const durationContainer = infoDiv.querySelectorAll('div')[1]; // second div has duration
-                if (durationContainer) {
-                    let durSpan = durationContainer.querySelector('span[style*="font-family"]');
-                    if (durStr && durStr !== '—') {
-                        if (durSpan) {
-                            durSpan.innerHTML = `⏱ ${durStr}`;
-                        } else {
-                            durationContainer.insertAdjacentHTML('beforeend',
-                                `<span style="font-size:11px; font-weight:600; font-family:var(--mono); color:var(--tx2); background:var(--sur3); padding:1px 7px; border-radius:var(--rx);">⏱ ${durStr}</span>`);
-                        }
-                    }
-                }
-            }
-
-            // If this step's detail panel is open, update it live too
-            if (selectedStepOrder === step.stepOrder) {
-                renderDetailPanel(step);
-            }
-        }
     }
 
     // ── RENDER STEPS ────────────────────────────────────────────────────
@@ -1210,6 +1237,8 @@
         if (label) {
             label.textContent = `${start + 1}–${Math.min(start + stepsPerPage, total)} of ${total} steps (${steps.length} total)`;
         }
+        
+        rebuildDomMap();
     }
 
     function filterSteps(steps) {
@@ -1250,7 +1279,7 @@
         const durationStr = formatDuration(calculatedDuration);
 
         return `
-            <div class="step-card ${statusCls} ${isSelected ? 'selected' : ''}" id="step-card-${step.stepOrder}">
+            <div class="step-card ${statusCls} ${isSelected ? 'selected' : ''}" id="step-card-${step.stepOrder}" data-step-order="${step.stepOrder}">
                 <div class="step-head" onclick="selectStep(${step.stepOrder})">
                     <div class="step-num">${step.stepOrder}</div>
                     <div class="step-info">

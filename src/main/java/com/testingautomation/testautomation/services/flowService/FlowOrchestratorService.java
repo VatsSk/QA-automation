@@ -67,7 +67,7 @@ public class FlowOrchestratorService {
             }
             flowRepository.save(flow);
             // SSE: notify clients that flow execution has started
-            flowSseService.sendFlowUpdate(flow);
+            flowSseService.sendFlowStarted(flow);
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
             
@@ -80,7 +80,7 @@ public class FlowOrchestratorService {
                 flow.setExecutionCompletedAt(Instant.now());
                 flow.setUpdatedAt(Instant.now());
                 flowRepository.save(flow);
-                flowSseService.complete(flow.getId(), flow);
+                flowSseService.sendFlowCompleted(flow);
                 return;
             }
 
@@ -112,7 +112,11 @@ public class FlowOrchestratorService {
             flow.setUpdatedAt(Instant.now());
             flowRepository.save(flow);
             // SSE: send final state and complete all emitters
-            flowSseService.complete(flow.getId(), flow);
+            if (flow.getExecutionStatus() == ExecutionStatus.FAILED) {
+                flowSseService.sendFlowFailed(flow);
+            } else {
+                flowSseService.sendFlowCompleted(flow);
+            }
             if (driver != null) {
                 logger.info("Quitting WebDriver for flow: {}", flow.getName());
                 driver.quit();

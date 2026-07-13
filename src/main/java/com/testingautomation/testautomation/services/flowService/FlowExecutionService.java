@@ -67,10 +67,12 @@ public class FlowExecutionService {
         logger.info("Executing step [{}] of ActionType [{}] with Locator [{}]", step.getName(), actionType,step.getSelector());
         step.setExecutionStartedAt(Instant.now());
         step.setExecutionStatus(ExecutionStatus.RUNNING);
-        flowSseService.sendFlowUpdate(flow);
+        flowSseService.sendStepStarted(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
+                flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
+        ));
 //        flowRepository.save(flow); // Immediately persist RUNNING state so UI updates via SSE
 
-        int retries = step.getRetryCount() != null ? step.getRetryCount() : 0;
+        int retries = step.getRetryCount() != null ? step.getRetryCount() : 1;
         int attempts = 0;
         boolean success = false;
 
@@ -80,8 +82,7 @@ public class FlowExecutionService {
                 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
 
-        while (attempts <= retries && !success) {
-            attempts++;
+        while (attempts < retries && !success) {
             try {
                 WebElement element = null;
                 
@@ -133,6 +134,9 @@ public class FlowExecutionService {
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
                 takeScreenshotIfRequired(driver, step, flow,attempts);
+                flowSseService.sendStepUpdated(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
+                        flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
+                ));
             }catch(GlobalExceptionHandler.FlowExecutionException ex){
                 takeScreenshotIfRequired(driver, step, flow,attempts);
                 if (attempts > retries) {
@@ -140,6 +144,9 @@ public class FlowExecutionService {
                     step.setExecutionMessage(ex.getUserMessage());
                     logger.error("Step [{}] failed after {} attempts in flowExecutionStatus. Error: {}", step.getName(), attempts, ex.getMessage());
                     step.setExecutionCompletedAt(Instant.now());
+                    flowSseService.sendStepFailed(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
+                            flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
+                    ));
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
                         logger.info("flowExecutionException {}",ex.getMessage());
                         throw ex;
@@ -155,6 +162,9 @@ public class FlowExecutionService {
                     step.setExecutionMessage("Unexpected error");
                     logger.error("Step [{}] failed after {} attempts. Error: {}", step.getName(), attempts, e.getMessage());
                     step.setExecutionCompletedAt(Instant.now());
+                    flowSseService.sendStepFailed(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
+                            flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
+                    ));
                     
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
                         logger.info("changing exception into flowExecutionException");
@@ -171,7 +181,7 @@ public class FlowExecutionService {
                     logger.warn("Step [{}] failed, retrying... Attempt {}/{}", step.getName(), attempts, retries);
                 }
             }
-
+            attempts++;
         }
 
 

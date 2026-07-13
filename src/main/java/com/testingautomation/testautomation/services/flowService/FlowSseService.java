@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.services.flowService;
 
+import com.testingautomation.testautomation.dto.FlowStepEvent;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,19 +91,40 @@ public class FlowSseService {
 
     /**
      * Send the full flow state as a progress update.
-     * This is the most common event — sent after each step completes.
+     * Deprecated in favor of fine-grained events.
      */
+    @Deprecated
     public void sendFlowUpdate(Flow flow) {
         send(flow.getId(), "flow-update", flow);
     }
 
-    /**
-     * Complete all emitters for a flow (called when execution finishes).
-     * Sends a final "flow-completed" event before completing the streams.
-     */
-    public void complete(String flowId, Flow flow) {
-        send(flowId, "flow-completed", flow);
+    public void sendFlowStarted(Flow flow) {
+        send(flow.getId(), "flow-started", flow);
+    }
 
+    public void sendStepStarted(String flowId, FlowStepEvent event) {
+        send(flowId, "step-started", event);
+    }
+
+    public void sendStepUpdated(String flowId, FlowStepEvent event) {
+        send(flowId, "step-updated", event);
+    }
+
+    public void sendStepFailed(String flowId, FlowStepEvent event) {
+        send(flowId, "step-failed", event);
+    }
+
+    public void sendFlowCompleted(Flow flow) {
+        send(flow.getId(), "flow-completed", flow);
+        completeEmitters(flow.getId());
+    }
+
+    public void sendFlowFailed(Flow flow) {
+        send(flow.getId(), "flow-failed", flow);
+        completeEmitters(flow.getId());
+    }
+
+    private void completeEmitters(String flowId) {
         List<SseEmitter> flowEmitters = emitters.remove(flowId);
         if (flowEmitters != null) {
             for (SseEmitter emitter : flowEmitters) {
@@ -114,5 +136,15 @@ public class FlowSseService {
             }
             logger.info("All SSE emitters completed for flow [{}]", flowId);
         }
+    }
+
+    /**
+     * Complete all emitters for a flow (called when execution finishes).
+     * Sends a final "flow-completed" event before completing the streams.
+     * Deprecated in favor of sendFlowCompleted / sendFlowFailed.
+     */
+    @Deprecated
+    public void complete(String flowId, Flow flow) {
+        sendFlowCompleted(flow);
     }
 }
