@@ -7,6 +7,7 @@ import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
+import com.testingautomation.testautomation.utils.TextExtractor;
 import org.openqa.selenium.By;
 import org.openqa.selenium.InvalidSelectorException;
 import org.openqa.selenium.WebDriver;
@@ -94,20 +95,18 @@ public class FlowExecutionService {
                 }
                 else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL) {
                     if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
-                        try{
-                            element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
-                        }catch(InvalidSelectorException e){
-                            element= wait.until(ExpectedConditions.presenceOfElementLocated(By.xpath(step.getSelector())));
+                        try {
+                            element = wait.until(ExpectedConditions.presenceOfElementLocated(TextExtractor.resolveLocator(step.getSelector())));
+                        }catch(Exception ex) {
+                            throw new GlobalExceptionHandler.FlowExecutionException(
+                                    step.getStepOrder(),
+                                    step.getName(),
+                                    actionType,
+                                    "Locator is empty but action type requires an element",
+                                    "Missing locator",
+                                    null
+                            );
                         }
-                    } else {
-                        throw new GlobalExceptionHandler.FlowExecutionException(
-                                step.getStepOrder(),
-                                step.getName(),
-                                actionType,
-                                "Locator is empty but action type requires an element",
-                                "Missing locator",
-                                null
-                        );
                     }
                 } else if (actionType == ActionType.SCROLL && step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
                     element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));

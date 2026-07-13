@@ -11,6 +11,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import com.testingautomation.testautomation.utils.TextExtractor;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -89,7 +90,7 @@ public class VerificationService {
             // 🔹 Step 3: Collect all elements
             List<WebElement> elements;
             try {
-                elements = context.findElements(By.cssSelector(cssSelector));
+                elements = context.findElements(TextExtractor.resolveLocator(cssSelector));
             } catch (Exception e) {
                 logger.warn("[FindElement] Error finding elements for selector '{}': {}", cssSelector, e.getMessage());
                 return null;

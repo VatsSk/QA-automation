@@ -1,5 +1,7 @@
 package com.testingautomation.testautomation.utils;
 
+import org.openqa.selenium.By;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -54,5 +56,26 @@ public class TextExtractor {
             e.printStackTrace();
             return null;
         }
+    }
+
+    public static By resolveLocator(String selector) {
+
+        if (selector == null || selector.trim().isEmpty()) {
+            throw new IllegalArgumentException("Selector cannot be null or empty");
+        }
+
+        selector = selector.trim();
+
+        if (selector.startsWith("/")
+                || selector.startsWith("(//")
+                || selector.startsWith("./")
+                || selector.contains("::")
+                || selector.contains("normalize-space(")
+                || selector.contains("text()")) {
+
+            return By.xpath(selector);
+        }
+
+        return By.cssSelector(selector);
     }
 }
