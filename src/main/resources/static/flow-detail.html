@@ -1366,13 +1366,14 @@
                 </div>
             ` : ''}
 
-            <div id="screenshot-viewer-container" style="margin-top: 24px;"></div>
+            <div id="screenshot-viewer-container-${step.stepOrder}" style="margin-top: 24px;"></div>
         `;
         panel.innerHTML = html;
     }
 
     function renderDetailScreenshots(screenshots) {
-        const container = document.getElementById('screenshot-viewer-container');
+        if (!selectedStepOrder) return;
+        const container = document.getElementById(`screenshot-viewer-container-${selectedStepOrder}`);
         if (!container) return;
         
         if (screenshots === null) {
@@ -1405,7 +1406,7 @@
             
             <div class="sv-thumbnails">
                 ${screenshots.map((ss, idx) => `
-                    <div class="sv-thumb ${idx === selectedScreenshotIndex ? 'selected' : ''}" onclick="selectScreenshot(${idx})" id="sv-thumb-${idx}">
+                    <div class="sv-thumb ${idx === selectedScreenshotIndex ? 'selected' : ''}" onclick="selectScreenshot(${idx})" id="sv-thumb-${selectedStepOrder}-${idx}">
                         <div class="sv-thumb-img-wrap">
                             <img src="${esc(ss.url)}" loading="lazy" />
                         </div>
@@ -1416,7 +1417,7 @@
         `;
         container.innerHTML = html;
         
-        const thumb = document.getElementById(`sv-thumb-${selectedScreenshotIndex}`);
+        const thumb = document.getElementById(`sv-thumb-${selectedStepOrder}-${selectedScreenshotIndex}`);
         if (thumb) {
             thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
         }
