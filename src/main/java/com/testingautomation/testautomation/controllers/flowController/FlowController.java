@@ -50,6 +50,10 @@ public class FlowController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Flow> getFlowById(@PathVariable String id) {
+        Optional<Flow> activeFlow = flowOrchestratorService.getActiveFlow(id);
+        if (activeFlow.isPresent()) {
+            return ResponseEntity.ok(activeFlow.get());
+        }
         Optional<Flow> flow = flowService.getFlowById(id);
         return flow.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }

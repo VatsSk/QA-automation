@@ -233,8 +233,7 @@ private boolean isActuallyVisible(WebDriver driver, WebElement element) {
 
     if (
         style.display === 'none' ||
-        style.visibility === 'hidden' ||
-        parseFloat(style.opacity) === 0
+        style.visibility === 'hidden'
     ) {
         log.push("Element hidden due to CSS");
         return { visible: false, log };

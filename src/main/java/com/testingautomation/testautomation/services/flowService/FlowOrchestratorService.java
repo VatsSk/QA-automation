@@ -15,12 +15,21 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class FlowOrchestratorService {
 
     private static final Logger logger = LoggerFactory.getLogger(FlowOrchestratorService.class);
+
+    private final Map<String, Flow> activeFlows = new ConcurrentHashMap<>();
+
+    public Optional<Flow> getActiveFlow(String id) {
+        return Optional.ofNullable(activeFlows.get(id));
+    }
 
     @Autowired
     private WebDriverFactory webDriverFactory;
@@ -46,7 +55,7 @@ public class FlowOrchestratorService {
     }
 
     private void executeFlow(Flow flow) {
-
+        activeFlows.put(flow.getId(), flow);
         WebDriver driver = null;
         try {
             flow.setExecutionStartedAt(Instant.now());
@@ -108,6 +117,7 @@ public class FlowOrchestratorService {
             flow.setExecutionStatus(ExecutionStatus.FAILED);
             flow.setExecutionMessage("Unexpectedly step failed!");
         } finally {
+            activeFlows.remove(flow.getId());
             flow.setExecutionCompletedAt(Instant.now());
             flow.setUpdatedAt(Instant.now());
             flowRepository.save(flow);

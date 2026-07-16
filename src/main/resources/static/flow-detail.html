@@ -646,7 +646,7 @@
     let activeFilter = 'ALL';
     let searchQuery = '';
     let stepPage = 0;
-    const stepsPerPage = 50;
+    const stepsPerPage = 25;
 
     // O(1) Lookup Maps
     let stepById = new Map();
@@ -756,6 +756,7 @@
     async function load() {
         try {
             flow = await api.flows.get(flowId);
+            rebuildMaps();
 
             document.getElementById('crumb-flow').textContent = flow.name || 'Flow Detail';
             document.title = `${flow.name || 'Flow Detail'} — QA Studio`;

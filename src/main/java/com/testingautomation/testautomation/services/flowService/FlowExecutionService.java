@@ -82,7 +82,8 @@ public class FlowExecutionService {
                 
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
 
-        while (attempts < retries && !success) {
+        while (attempts <= retries && !success) {
+            attempts++;
             try {
                 WebElement element = null;
                 
@@ -104,7 +105,7 @@ public class FlowExecutionService {
                                     step.getName(),
                                     actionType,
                                     "Locator is empty but action type requires an element",
-                                    "Missing locator",
+                                    "unable to find element using locator "+step.getSelector(),
                                     null
                             );
                         }
@@ -181,7 +182,6 @@ public class FlowExecutionService {
                     logger.warn("Step [{}] failed, retrying... Attempt {}/{}", step.getName(), attempts, retries);
                 }
             }
-            attempts++;
         }
 
 
