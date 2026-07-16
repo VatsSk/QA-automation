@@ -138,6 +138,7 @@ export const flows = {
     list:    (projectId, moduleId) =>
         request('GET', `/api/flows/${projectId}/${moduleId}`),
     get:     (id)      => request('GET',    `/api/flows/${id}`),
+    update:  (id, d)   => request('PUT',    `/api/flows/${id}`, d),
     remove:  (id)      => request('DELETE', `/api/flows/${id}`),
     clone:   (id)      => request('POST',   `/api/flows/${id}/clone`),
     execute: (id)      => request('POST',   `/api/flows/${id}/run`),

@@ -982,9 +982,10 @@
             <!-- Action bar -->
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
                 <a href="${backUrl}" class="btn btn-ghost btn-sm">← Back to Flows</a>
+                <button class="btn btn-outline btn-sm" onclick="editFlow()">✏️ Edit Flow</button>
                 <button id="rerun-btn" class="btn btn-success btn-sm"
                     onclick="rerunFlow()" ${isRunning ? 'disabled' : ''}>
-                    ${isRunning ? '⏳ Running…' : '▶ Run Again'}
+                    ${isRunning ? '⏳ Running…' : '▶ Run'}
                 </button>
             </div>
 
@@ -1114,7 +1115,7 @@
         const rerunBtn = document.getElementById('rerun-btn');
         if (rerunBtn) {
             rerunBtn.disabled = isRunning;
-            rerunBtn.innerHTML = isRunning ? '⏳ Running…' : '▶ Run Again';
+            rerunBtn.innerHTML = isRunning ? '⏳ Running…' : '▶ Run';
         }
 
         // ── Update flow hero status badge ──
@@ -1284,13 +1285,15 @@
                 <div class="step-head" onclick="selectStep(${step.stepOrder})">
                     <div class="step-num">${step.stepOrder}</div>
                     <div class="step-info">
-                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">
-                            <span class="step-name-text" style="font-size:13px; font-weight:600;">${esc(step.name || `Step ${step.stepOrder}`)}</span>
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                             <span class="action-badge" style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.bc};font-size:10px;padding:1px 6px;">${cfg.icon} ${cfg.label}</span>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <span style="font-size:11px; color:var(--tx3);" id="ss-count-${step.stepOrder}"></span>
                             ${durationStr && durationStr !== '—' ? `<span style="font-size:11px; font-weight:600; font-family:var(--mono); color:var(--tx2); background:var(--sur3); padding:1px 7px; border-radius:var(--rx);">⏱ ${durationStr}</span>` : ''}
+                            <span style="font-size:11px; color:var(--tx3);" id="ss-count-${step.stepOrder}"></span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:6px;">
+                            ${step.selector ? `<span class="step-selector-text" title="${esc(step.selector)}">${esc(step.selector.length > 35 ? step.selector.substring(0, 35) + '...' : step.selector)}</span>` : ''}
+                            ${step.value ? `<span class="step-value-text" title="${esc(step.value)}">${esc(step.value.length > 35 ? step.value.substring(0, 35) + '...' : step.value)}</span>` : ''}
+                            ${step.expectedValue && !step.value ? `<span class="step-value-text" title="${esc(step.expectedValue)}">${esc(step.expectedValue.length > 35 ? step.expectedValue.substring(0, 35) + '...' : step.expectedValue)}</span>` : ''}
                         </div>
                     </div>
                     <div class="step-meta" style="flex-direction:column; align-items:flex-end; gap:4px;">
@@ -1350,8 +1353,10 @@
                     </div>
                 ` : ''}
             </div>
-            
-            <div class="step-detail-label" style="margin-top:20px; border-bottom:1px solid var(--bd); padding-bottom:4px; margin-bottom:12px;">Execution & Settings</div>
+            <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:20px; border-bottom:1px solid var(--bd); padding-bottom:4px; margin-bottom:12px;">
+                <div class="step-detail-label" style="margin:0; border:none; padding:0;">Execution & Settings</div>
+                <button class="btn btn-ghost btn-xs" onclick="openStepEditor(${step.stepOrder})">✏️ Edit Step</button>
+            </div>
             <div class="step-detail-grid">
                 <div class="step-detail-item">
                     <div class="step-detail-label">Started At</div>
@@ -1582,7 +1587,150 @@
             console.log("Failed "+e.message);
             console.log("exception "+ e);
             toast('Failed to start flow: ' + e.message, 'error');
-            if (btn) { btn.disabled = false; btn.innerHTML = '▶ Run Again'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '▶ Run'; }
+        }
+    };
+    window.editFlow = async function () {
+        try {
+            const projectData = await fetch(`/api/projects/url/${flow.projectId || projectId}`).then(r => { if (!r.ok) throw new Error('Failed to fetch project'); return r.json(); });
+
+            let extensionId;
+            try {
+                const res = await api.users.getExtensionId(user.username);
+                extensionId = res.extensionId;
+            } catch (e) {
+                console.error('Failed to fetch extension ID', e);
+            }
+
+            if (!extensionId) {
+                toast('Please configure your Chrome Extension ID from the Projects page.', 'warning', 5000);
+                return;
+            }
+
+            if (!window.chrome || !window.chrome.runtime) {
+                toast('Chrome extension is not installed or not accessible from this page.', 'error', 5000);
+                return;
+            }
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                {
+                    action: "START_RECORDING",
+                    projectId: flow.projectId || projectId,
+                    moduleId: flow.moduleId || moduleId,
+                    flowId: flowId,
+                    createdBy: user.username,
+                    url: projectData.loginUrl,
+                    existingFlow: flow,
+                    flag: "FLOW"
+                },
+                (res) => {
+                    if (chrome.runtime.lastError) {
+                        console.error("Extension message failed:", chrome.runtime.lastError.message);
+                        toast('Failed to connect to extension', 'error');
+                        return;
+                    }
+                    console.log("Extension ack:", res);
+                    window.open(projectData.loginUrl, "_blank");
+                }
+            );
+        } catch (e) {
+            toast('Edit flow failed: ' + e.message, 'error');
+        }
+    };
+
+    window.openStepEditor = function (stepOrder) {
+        const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
+        if (!step) return;
+
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>✏️ Edit Step ${step.stepOrder}: ${esc(step.name || 'Step')}</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+                    <div>
+                        <label class="form-label" style="font-size:12px;color:var(--tx2)">Selector</label>
+                        <input id="edit-step-selector" class="inp" value="${esc(step.selector || '')}" placeholder="Selector (e.g. #id, .class)">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size:12px;color:var(--tx2)">Value</label>
+                        <input id="edit-step-value" class="inp" value="${esc(step.value || '')}" placeholder="Input value">
+                    </div>
+                    <div>
+                        <label class="form-label" style="font-size:12px;color:var(--tx2)">Expected Value</label>
+                        <input id="edit-step-expected" class="inp" value="${esc(step.expectedValue || '')}" placeholder="Expected value">
+                    </div>
+                    <div style="display:flex; gap:12px;">
+                        <div style="flex:1">
+                            <label class="form-label" style="font-size:12px;color:var(--tx2)">Wait (ms)</label>
+                            <input id="edit-step-wait" type="number" class="inp" value="${step.wait || ''}" placeholder="e.g. 5000">
+                        </div>
+                        <div style="flex:1">
+                            <label class="form-label" style="font-size:12px;color:var(--tx2)">Retry Count</label>
+                            <input id="edit-step-retry" type="number" class="inp" value="${step.retryCount ?? 0}" placeholder="e.g. 0">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:20px; margin-top:8px;">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--tx2); cursor:pointer;">
+                            <input type="checkbox" id="edit-step-continue" ${step.continueOnFailure ? 'checked' : ''}>
+                            Continue On Failure
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--tx2); cursor:pointer;">
+                            <input type="checkbox" id="edit-step-capture" ${step.captureScreenshot !== false ? 'checked' : ''}>
+                            Capture Screenshot
+                        </label>
+                    </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveStep(${step.stepOrder})">Save Changes</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.saveStep = async function (stepOrder) {
+        const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
+        if (!step) return;
+
+        step.selector = document.getElementById('edit-step-selector').value;
+        step.value = document.getElementById('edit-step-value').value;
+        step.expectedValue = document.getElementById('edit-step-expected').value;
+        
+        const waitVal = document.getElementById('edit-step-wait').value;
+        step.wait = waitVal ? parseInt(waitVal, 10) : null;
+        
+        const retryVal = document.getElementById('edit-step-retry').value;
+        step.retryCount = retryVal ? parseInt(retryVal, 10) : 0;
+        
+        step.continueOnFailure = document.getElementById('edit-step-continue').checked;
+        step.captureScreenshot = document.getElementById('edit-step-capture').checked;
+
+        try {
+            await api.flows.update(flow.id, flow);
+            toast('Step updated successfully', 'success');
+            closeModal();
+            rebuildMaps();
+            renderDetailPanel(step);
+            updateStepList();
+            
+            // Re-select to show panel properly if closed
+            setTimeout(() => {
+                if (selectedStepOrder !== stepOrder) {
+                    selectStep(stepOrder);
+                } else {
+                    const card = document.getElementById('step-card-' + stepOrder);
+                    if (card) {
+                        card.classList.add('selected');
+                        renderDetailPanel(step);
+                    }
+                }
+            }, 50);
+
+        } catch(e) {
+            toast('Failed to save step: ' + e.message, 'error');
         }
     };
 
