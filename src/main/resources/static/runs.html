@@ -394,7 +394,7 @@ const user = requireLogin();
                     return;
                 }
                 console.log("Extension ack:", res);
-                window.open(loginUrl, "_blank");
+                // Window creation should now be handled by the extension
             }
         );
     };
@@ -488,7 +488,7 @@ const user = requireLogin();
                         return;
                     }
                     console.log("Extension ack:", res);
-                    window.open(projectData.loginUrl, "_blank");
+                    // Window creation should now be handled by the extension
                 }
             );
         } catch (e) {
