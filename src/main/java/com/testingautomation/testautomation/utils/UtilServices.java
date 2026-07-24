@@ -128,8 +128,10 @@ public class UtilServices {
         return s == null ? "" : s;
     }
 
-    public void highlightElement(WebDriver driver, WebElement element) {
+    public void highlightElement(WebDriver driver, WebElement element, String color) {
         if (driver == null || element == null) return;
+        
+        String highlightColor = (color != null && !color.trim().isEmpty()) ? color : "red";
 
         try {
             JavascriptExecutor js = (JavascriptExecutor) driver;
@@ -140,8 +142,8 @@ public class UtilServices {
             // Save original style + apply highlight
             js.executeScript(
                     "arguments[0].setAttribute('data-original-style', arguments[0].getAttribute('style') || '');" +
-                            "arguments[0].style.border='3px solid red';" +
-                            "arguments[0].style.boxShadow='0 0 12px 4px red';",
+                            "arguments[0].style.border='3px solid " + highlightColor + "';" +
+                            "arguments[0].style.boxShadow='0 0 12px 4px " + highlightColor + "';",
                     element
             );
 
