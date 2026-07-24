@@ -147,6 +147,9 @@
                     }
                     console.log("Extension ack:", res);
                     // window.open(projectData.loginUrl, "_blank");
+                    setTimeout(() => {
+                        toast('window is already open close it to open new one', 'error', 10000);
+                    }, 1000);
                 }
             );
         } catch (e) {
