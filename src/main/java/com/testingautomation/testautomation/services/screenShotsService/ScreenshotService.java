@@ -60,11 +60,12 @@ public class ScreenshotService {
                                  String testCaseId,
                                  String name,
                                  Path screenshotsDir,
-                                 String scenarioPrefix) {
+                                 String scenarioPrefix,
+                                 String color) {
 
         try {
             // 🔥 highlight before capture
-            utilServices.highlightElement(driver1, element);
+            utilServices.highlightElement(driver1, element, color);
             File src = ((TakesScreenshot) driver1).getScreenshotAs(OutputType.FILE);
             String filename = name  + ".png";
             Path localPath = screenshotsDir.resolve(filename);

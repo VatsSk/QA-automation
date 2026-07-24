@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.controllers.flowController;
 
 import com.testingautomation.testautomation.entities.flow.Flow;
+import com.testingautomation.testautomation.services.flowService.FlowOrchestratorService;
 import com.testingautomation.testautomation.services.flowService.FlowService;
 import com.testingautomation.testautomation.services.flowService.FlowSseService;
 import org.slf4j.Logger;
@@ -27,7 +28,7 @@ public class FlowController {
     private FlowSseService flowSseService;
 
     @Autowired
-    private com.testingautomation.testautomation.services.flowService.FlowOrchestratorService flowOrchestratorService;
+    private FlowOrchestratorService flowOrchestratorService;
 
     @PutMapping("/{id}")
     public ResponseEntity<Flow> createOrUpdateFlow(@PathVariable String id,@RequestBody Flow flow) {
@@ -75,10 +76,37 @@ public class FlowController {
         logger.info("Triggering execution for Flow: {}", flow.getName());
         
         // Pass to orchestrator which will handle it in a background thread
-        flowOrchestratorService.orchestrate(flow);
+        flowOrchestratorService.executeFlow(flow);
         
         return ResponseEntity.ok("Flow execution started for: " + flow.getName());
     }
+    @PostMapping("/execute-queue")
+    public ResponseEntity<?> executeQueue(@RequestBody List<String> flowIds) {
+
+        logger.info("Executing queue: {}", flowIds);
+        flowService.executeAllFlows(flowIds);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/execute-module/{moduleId}")
+    public ResponseEntity<?> executeModule(@PathVariable String moduleId) {
+        logger.info("Executing module: {}", moduleId);
+        List<String> flowIds=flowService.getFlowIdsByModuleId(moduleId);
+        logger.info("Executing flows: {}", flowIds);
+        flowService.executeAllFlows(flowIds);
+
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/execute-project/{projectId}")
+    public ResponseEntity<?> executeProject(@PathVariable String projectId) {
+        List<String> flowIds=flowService.getFlowIdsByProjectId(projectId);
+        flowService.executeAllFlows(flowIds);
+
+        return ResponseEntity.ok().build();
+    }
+
 
     @PostMapping("/{id}/clone")
     public ResponseEntity<Flow> cloneFlow(@PathVariable String id) {

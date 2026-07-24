@@ -115,6 +115,8 @@
         return `
     <div class="proj-card" onclick="window.location.href='/modules.html?projectId=${pid}'">
       <div class="proj-card-actions">
+        <button class="btn btn-primary btn-xs"
+          onclick="event.stopPropagation();executeProjectFlows('${pid}')">▶ Run All Flows</button>
         <button class="btn btn-ghost btn-xs"
           data-project='${pj}'
           onclick="event.stopPropagation();showEditModal(JSON.parse(this.dataset.project))">⚙</button>
@@ -130,6 +132,34 @@
       </div>
     </div>`;
     }
+
+    window.executeProjectFlows = function(projectId) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>▶ Run All Flows</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to run all flows for this project?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmExecuteProjectFlows('${projectId}')">Run</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmExecuteProjectFlows = async function(projectId) {
+        closeModal();
+        try {
+            await api.flows.executeProject(projectId);
+            toast('Project flows execution started', 'success');
+        } catch (e) {
+            toast('Failed to run project flows: ' + e.message, 'error');
+        }
+    };
 
     // ── New project ────────────────────────────────────────────────────────
     window.showNewProjectModal = function () {
@@ -240,8 +270,26 @@
     };
 
     // ── Delete project ─────────────────────────────────────────────────────
-    window.deleteProject = async function (id) {
-        if (!confirm('Delete this project and all its modules/runs?')) return;
+    window.deleteProject = function (id) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>✕ Delete Project</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Delete this project and all its modules/runs?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteProject('${id}')">Delete</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmDeleteProject = async function (id) {
+        closeModal();
         try {
             await api.projects.delete(id);
             projects = projects.filter(p => (p.id || p._id) !== id);

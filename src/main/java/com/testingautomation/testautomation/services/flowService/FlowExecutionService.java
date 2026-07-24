@@ -135,12 +135,12 @@ public class FlowExecutionService {
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
-                takeScreenshotIfRequired(driver, element,step, flow,attempts);
+                takeScreenshotIfRequired(driver, element,step, flow,attempts, "green");
                 flowSseService.sendStepUpdated(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
                         flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
                 ));
             }catch(GlobalExceptionHandler.FlowExecutionException ex){
-                takeScreenshotIfRequired(driver,element ,step, flow,attempts);
+                takeScreenshotIfRequired(driver,element ,step, flow,attempts, "red");
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);
                     step.setExecutionMessage(ex.getUserMessage());
@@ -158,7 +158,7 @@ public class FlowExecutionService {
                 }
             }
             catch (Exception e) {
-                takeScreenshotIfRequired(driver, element,step, flow,attempts);
+                takeScreenshotIfRequired(driver, element,step, flow,attempts, "red");
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);
                     step.setExecutionMessage("Unexpected error");
@@ -190,7 +190,7 @@ public class FlowExecutionService {
 
     }
 
-    private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow,int attempt) {
+    private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow,int attempt, String color) {
         if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
             try {
                 String stepId = ""+ step.getStepOrder();
@@ -204,7 +204,7 @@ public class FlowExecutionService {
             }
         }
     }
-    private void takeScreenshotIfRequired(WebDriver driver,WebElement element ,FlowStep step, Flow flow,int attempt) {
+    private void takeScreenshotIfRequired(WebDriver driver,WebElement element ,FlowStep step, Flow flow,int attempt, String color) {
         if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
             try {
                 String stepId = ""+ step.getStepOrder();
@@ -212,7 +212,7 @@ public class FlowExecutionService {
                 Path scenarioDir = Paths.get(resultsBaseDir, flow.getFlowBasePath());
                 Files.createDirectories(scenarioDir);
 
-                screenshotService.takeScreenshot(driver,element,stepId, stepId+"_"+attempt + "_screenshot", scenarioDir, flow.getFlowBasePath());
+                screenshotService.takeScreenshot(driver,element,stepId, stepId+"_"+attempt + "_screenshot", scenarioDir, flow.getFlowBasePath(), color);
             } catch (Exception e) {
                 logger.error("Failed to capture screenshot for step [{}]", step.getName(), e);
             }
