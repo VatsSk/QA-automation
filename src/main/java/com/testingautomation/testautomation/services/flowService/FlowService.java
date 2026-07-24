@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.services.flowService;
 
+import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.entities.Run;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
@@ -11,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -25,6 +27,9 @@ public class FlowService {
     private FlowRepository flowRepository;
     @Autowired
     private StorageService storageService;
+
+    @Autowired
+    private FlowOrchestratorService flowOrchestratorService;
 
     public Flow saveFlow(Flow flow) {
         if (flow.getId() == null) {
@@ -107,5 +112,28 @@ public class FlowService {
         clone.setSteps(clonedSteps);
 
         return flowRepository.save(clone);
+    }
+
+    public void executeAllFlows(List<String> flowIds) {
+        List<Flow> flowsToExecute = new ArrayList<>();
+        for (String flowId : flowIds) {
+            Optional<Flow> flowOpt = flowRepository.findById(flowId);
+            flowOpt.ifPresent(flowsToExecute::add);
+        }
+        if (!flowsToExecute.isEmpty()) {
+            flowOrchestratorService.orchestrateQueue(flowsToExecute);
+        }
+    }
+
+    public List<String> getFlowIdsByModuleId(String moduleId) {
+        return flowRepository.getFlowsOnlyIdsByModuleId(moduleId).stream()
+                .map(Flow::getId)
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    public List<String> getFlowIdsByProjectId(String projectId) {
+        return flowRepository.getFlowsOnlyIdsByProjectId(projectId).stream()
+                .map(Flow::getId)
+                .collect(java.util.stream.Collectors.toList());
     }
 }

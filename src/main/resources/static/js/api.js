@@ -142,6 +142,9 @@ export const flows = {
     remove:  (id)      => request('DELETE', `/api/flows/${id}`),
     clone:   (id)      => request('POST',   `/api/flows/${id}/clone`),
     execute: (id)      => request('POST',   `/api/flows/${id}/run`),
+    executeQueue: (flowIds) => request('POST', `/api/flows/execute-queue`, flowIds),
+    executeModule: (moduleId) => request('POST', `/api/flows/execute-module/${moduleId}`),
+    executeProject: (projectId) => request('POST', `/api/flows/execute-project/${projectId}`),
 };
 
 // ── Files / S3 access ──────────────────────────────────────────────────────
