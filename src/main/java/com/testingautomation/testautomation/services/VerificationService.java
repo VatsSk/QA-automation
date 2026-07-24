@@ -84,13 +84,26 @@ public class VerificationService {
                 logger.info("[FindElement] Modal present: false");
             }
 
-            // 🔹 Step 2: Context
-            SearchContext context = (modal != null) ? modal : d;
-
             // 🔹 Step 3: Collect all elements
-            List<WebElement> elements;
+            List<WebElement> elements = new ArrayList<>();
             try {
-                elements = context.findElements(TextExtractor.resolveLocator(cssSelector));
+                if (modal != null) {
+                    elements = modal.findElements(TextExtractor.resolveLocator(cssSelector));
+                }
+                // If not found in modal (or if no modal exists), fallback to full document
+                if (elements.isEmpty()) {
+                    logger.debug("[FindElement] Element not found in modal context, falling back to full document for '{}'", cssSelector);
+                    elements = d.findElements(TextExtractor.resolveLocator(cssSelector));
+                }
+                
+                // If STILL not found, relax the selector by stripping out fragile nth-of-type indexes
+                if (elements.isEmpty() && (cssSelector.contains(":nth-") || cssSelector.contains(":first-") || cssSelector.contains(":last-"))) {
+                    String relaxedSelector = cssSelector.replaceAll(":nth-[a-zA-Z-]+\\([0-9]+\\)", "")
+                                                        .replaceAll(":first-[a-zA-Z-]+", "")
+                                                        .replaceAll(":last-[a-zA-Z-]+", "");
+                    logger.debug("[FindElement] Element still not found. Trying relaxed selector: '{}'", relaxedSelector);
+                    elements = d.findElements(TextExtractor.resolveLocator(relaxedSelector));
+                }
             } catch (Exception e) {
                 logger.warn("[FindElement] Error finding elements for selector '{}': {}", cssSelector, e.getMessage());
                 return null;
