@@ -268,6 +268,13 @@ public class ActionHandlerService {
     }
 
     public void handleVerify(WebDriver driver, WebElement element, FlowStep step,int waitTime) {
+//        if(element!=null){
+//            handleHover(driver,element,step);
+//        }
+
+        ((JavascriptExecutor) driver).executeScript(
+                "arguments[0].scrollIntoView({block:'center',inline:'center'});",
+                element);
         com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
         if (vType == null) {
             logger.warn("VerificationType is null for step [{}], defaulting to VISIBLE check", step.getName());
