@@ -481,7 +481,7 @@
         }
         .sv-nav-btn.prev { left: 16px; }
         .sv-nav-btn.next { right: 16px; }
-        
+
         .sv-thumbnails {
             display: flex;
             gap: 12px;
@@ -549,6 +549,205 @@
             color: var(--tx3);
             margin-top: 5px;
             text-align: right;
+        }
+
+        /* ── Step Slideshow (carousel navigation) ──────────────────── */
+        .slideshow-toggle-group {
+            display: inline-flex;
+            background: var(--sur2);
+            border: 1px solid var(--bd);
+            border-radius: 999px;
+            padding: 3px;
+            gap: 2px;
+        }
+        .slideshow-toggle-group .btn {
+            border-radius: 999px !important;
+        }
+
+        .autoslide-switch {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--tx2);
+            cursor: pointer;
+            margin-left: 8px;
+            user-select: none;
+        }
+        .autoslide-switch input { display: none; }
+        .autoslide-switch .switch-track {
+            position: relative;
+            width: 30px;
+            height: 17px;
+            border-radius: 99px;
+            background: var(--sur3);
+            border: 1px solid var(--bd);
+            transition: background .18s, border-color .18s;
+            flex-shrink: 0;
+        }
+        .autoslide-switch .switch-thumb {
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            width: 13px;
+            height: 13px;
+            border-radius: 50%;
+            background: var(--tx3);
+            transition: transform .18s, background .18s;
+        }
+        .autoslide-switch input:checked + .switch-track {
+            background: var(--blue);
+            border-color: var(--blue);
+        }
+        .autoslide-switch input:checked + .switch-track .switch-thumb {
+            transform: translateX(13px);
+            background: #fff;
+        }
+
+        .step-slideshow-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .step-slideshow-container {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .slideshow-nav-btn {
+            width: 42px;
+            height: 42px;
+            border-radius: 50%;
+            background: var(--sur);
+            border: 1.5px solid var(--bd);
+            color: var(--tx);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: border-color .15s, background .15s, transform .1s, box-shadow .15s, opacity .15s;
+            box-shadow: 0 2px 10px rgba(0,0,0,.14);
+        }
+        .slideshow-nav-btn svg { width: 18px; height: 18px; }
+        .slideshow-nav-btn:hover:not(:disabled) {
+            border-color: var(--blue);
+            color: var(--blue);
+            background: var(--sur2);
+        }
+        .slideshow-nav-btn:active:not(:disabled) { transform: scale(0.92); }
+        .slideshow-nav-btn:disabled {
+            opacity: .3;
+            cursor: not-allowed;
+        }
+
+        .step-slideshow-stage {
+            flex: 1;
+            min-width: 0;
+            position: relative;
+            overflow: hidden;
+            touch-action: pan-y;
+        }
+        .step-slideshow-track {
+            animation: slideFadeInNext .28s ease;
+        }
+        .step-slideshow-track.dir-prev {
+            animation-name: slideFadeInPrev;
+        }
+        @keyframes slideFadeInNext {
+            from { opacity: 0; transform: translateX(18px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideFadeInPrev {
+            from { opacity: 0; transform: translateX(-18px); }
+            to   { opacity: 1; transform: translateX(0); }
+        }
+
+        .slideshow-progress-line {
+            height: 3px;
+            border-radius: 99px;
+            background: var(--sur3);
+            overflow: hidden;
+        }
+        .slideshow-progress-line .fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, var(--blue), var(--te));
+            border-radius: 99px;
+        }
+        .slideshow-progress-line .fill.animating {
+            animation: fillProgress linear forwards;
+        }
+        @keyframes fillProgress {
+            from { width: 0%; }
+            to   { width: 100%; }
+        }
+
+        .step-slide-counter {
+            text-align: center;
+            font-size: 12px;
+            color: var(--tx2);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .step-slide-counter .kbd-hint {
+            font-family: var(--mono);
+            font-size: 10px;
+            color: var(--tx3);
+            background: var(--sur3);
+            border: 1px solid var(--bd);
+            padding: 1px 6px;
+            border-radius: var(--rx);
+        }
+
+        .step-rail {
+            display: flex;
+            gap: 6px;
+            overflow-x: auto;
+            padding: 8px 4px 10px;
+            scroll-behavior: smooth;
+        }
+        .step-rail::-webkit-scrollbar { height: 5px; }
+        .step-rail::-webkit-scrollbar-thumb { background: var(--bd2); border-radius: 99px; }
+        .step-rail-dot {
+            flex-shrink: 0;
+            min-width: 30px;
+            height: 26px;
+            padding: 0 6px;
+            border-radius: 8px;
+            border: 1.5px solid var(--bd);
+            background: var(--sur);
+            color: var(--tx2);
+            font-family: var(--mono);
+            font-size: 10.5px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .13s;
+        }
+        .step-rail-dot:hover { border-color: var(--bd2); transform: translateY(-1px); }
+        .step-rail-dot.rail-passed { border-color: var(--gr-b); color: var(--gr); background: var(--gr-d); }
+        .step-rail-dot.rail-failed { border-color: var(--rd-b); color: var(--rd); background: var(--rd-d); }
+        .step-rail-dot.rail-running { border-color: var(--am-b); color: var(--am); background: var(--am-d); }
+        .step-rail-dot.active {
+            background: var(--blue);
+            border-color: var(--blue);
+            color: #fff;
+            box-shadow: 0 0 0 3px rgba(47,128,240,.22);
+            transform: translateY(-1px);
+        }
+
+        @media (max-width: 768px) {
+            .step-slideshow-container { gap: 8px; }
+            .slideshow-nav-btn { width: 34px; height: 34px; }
+            .slideshow-nav-btn svg { width: 15px; height: 15px; }
         }
 
         /* Responsive */
@@ -673,11 +872,21 @@
 
     // Screenshot presigned URL cache
     const ssCache = {};
-    
+
     // Viewer state
     let selectedStepOrder = null;
     let selectedScreenshotIndex = 0;
     let currentScreenshots = [];
+    let screenshotViewMode = 'slideshow'; // 'vertical' or 'slideshow'
+    let autoSlideTimer = null;
+
+    // Step list viewer state
+    let stepViewMode = 'vertical'; // 'vertical' or 'slideshow'
+    let stepSlideshowIndex = 0;
+    let stepSlideDirection = 'next'; // 'next' or 'prev' — drives the slide transition direction
+    const stepAutoSlideMs = 4000;
+    let stepAutoSlideTimer = null;
+
 
     // ── ACTION TYPE CONFIG ─────────────────────────────────────────────
     const ACTION_CONFIG = {
@@ -714,7 +923,7 @@
     function isSensitive(step) {
         const name = (step.name || '').toLowerCase();
         return (step.actionType === 'TYPE') &&
-               (name.includes('password') || name.includes('secret') || name.includes('token'));
+            (name.includes('password') || name.includes('secret') || name.includes('token'));
     }
 
     function maskValue(val) {
@@ -833,7 +1042,7 @@
                     if (stepEvent.screenshotUrl) {
                         step.screenshotUrl = stepEvent.screenshotUrl;
                     }
-                    
+
                     // Update overall hero statistics
                     updateHeroStats();
 
@@ -1072,6 +1281,20 @@
                 <div class="filter-sep"></div>
                 <input class="inp inp-sm" style="width:220px" id="step-search-inp"
                        placeholder="🔍 Search steps…" value="${esc(searchQuery)}">
+
+                <div class="filter-sep"></div>
+                <div class="slideshow-toggle-group">
+                    <button class="btn btn-xs ${stepViewMode === 'vertical' ? 'btn-primary' : 'btn-ghost'}" onclick="setStepViewMode('vertical')">☰ List</button>
+                    <button class="btn btn-xs ${stepViewMode === 'slideshow' ? 'btn-primary' : 'btn-ghost'}" onclick="setStepViewMode('slideshow')">⇄ Slideshow</button>
+                </div>
+                ${stepViewMode === 'slideshow' ? `
+                <label class="autoslide-switch">
+                    <input type="checkbox" onchange="toggleStepAutoSlide(this.checked)" ${stepAutoSlideTimer ? 'checked' : ''}>
+                    <span class="switch-track"><span class="switch-thumb"></span></span>
+                    Auto Slide
+                </label>
+                ` : ''}
+
                 <span class="step-count-label" id="step-count-label"></span>
             </div>
 
@@ -1208,10 +1431,6 @@
         const sorted = [...steps].sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0));
         const filtered = filterSteps(sorted);
         const total = filtered.length;
-        const totalPages = Math.max(1, Math.ceil(total / stepsPerPage));
-        stepPage = Math.max(0, Math.min(stepPage, totalPages - 1));
-        const start = stepPage * stepsPerPage;
-        const pageItems = filtered.slice(start, start + stepsPerPage);
 
         const listEl = document.getElementById('step-list');
         const pagEl = document.getElementById('step-pagination');
@@ -1229,6 +1448,87 @@
             return;
         }
 
+        if (stepViewMode === 'slideshow') {
+            if (stepSlideshowIndex >= total) stepSlideshowIndex = 0;
+            if (stepSlideshowIndex < 0) stepSlideshowIndex = total - 1;
+
+            const step = filtered[stepSlideshowIndex];
+            const hasMultiple = total > 1;
+            const dirClass = stepSlideDirection === 'prev' ? 'dir-prev' : '';
+            const autoOn = !!stepAutoSlideTimer;
+
+            listEl.innerHTML = `
+                <div class="step-slideshow-wrap">
+                    <div class="step-slideshow-container">
+                        <button class="slideshow-nav-btn" onclick="prevStepSlide()" ${!hasMultiple ? 'disabled' : ''} aria-label="Previous step" title="Previous step (←)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                        </button>
+                        <div class="step-slideshow-stage" id="step-slideshow-stage">
+                            <div class="step-slideshow-track ${dirClass}">
+                                ${renderStepCard(step)}
+                            </div>
+                        </div>
+                        <button class="slideshow-nav-btn" onclick="nextStepSlide()" ${!hasMultiple ? 'disabled' : ''} aria-label="Next step" title="Next step (→)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                        </button>
+                    </div>
+
+                    ${autoOn ? `<div class="slideshow-progress-line"><div class="fill animating" style="animation-duration:${stepAutoSlideMs}ms"></div></div>` : ''}
+
+                    <div class="step-slide-counter">
+                        <span>Step ${stepSlideshowIndex + 1} of ${total}</span>
+                        <span class="kbd-hint">← →</span>
+                        ${hasMultiple ? `<span style="color:var(--tx3)">swipe, use arrow keys, or tap a step below to jump</span>` : ''}
+                    </div>
+
+                    ${hasMultiple ? `
+                    <div class="step-rail" id="step-rail">
+                        ${filtered.map((s, idx) => {
+                const rs = (s.executionStatus || '').toUpperCase();
+                const railCls = rs === 'PASSED' ? 'rail-passed' : rs === 'FAILED' ? 'rail-failed' : rs === 'RUNNING' ? 'rail-running' : '';
+                return `<button class="step-rail-dot ${railCls} ${idx === stepSlideshowIndex ? 'active' : ''}" onclick="jumpToStepSlide(${idx})" title="Step ${s.stepOrder}${s.name ? ': ' + esc(s.name) : ''}">${s.stepOrder}</button>`;
+            }).join('')}
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+
+            if (pagEl) pagEl.innerHTML = '';
+            const label = document.getElementById('step-count-label');
+            if (label) label.textContent = `Showing step ${stepSlideshowIndex + 1} of ${total}`;
+
+            rebuildDomMap();
+
+            // Keep the active rail dot scrolled into view
+            const activeDot = document.querySelector('.step-rail-dot.active');
+            if (activeDot) activeDot.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+            // Auto expand the step card in slideshow mode
+            setTimeout(() => {
+                if (selectedStepOrder !== step.stepOrder) {
+                    selectStep(step.stepOrder);
+                } else {
+                    const card = document.getElementById('step-card-' + step.stepOrder);
+                    if (card) {
+                        card.classList.add('selected');
+                        renderDetailPanel(step);
+                        getScreenshotUrls(step).then(screenshots => {
+                            currentScreenshots = screenshots;
+                            selectedScreenshotIndex = screenshots.length > 0 ? screenshots.length - 1 : 0;
+                            renderDetailScreenshots(screenshots);
+                        });
+                    }
+                }
+            }, 0);
+            return;
+        }
+
+        // Vertical mode pagination
+        const totalPages = Math.max(1, Math.ceil(total / stepsPerPage));
+        stepPage = Math.max(0, Math.min(stepPage, totalPages - 1));
+        const start = stepPage * stepsPerPage;
+        const pageItems = filtered.slice(start, start + stepsPerPage);
+
         listEl.innerHTML = pageItems.map(step => renderStepCard(step)).join('');
         if (pagEl) {
             pagEl.innerHTML = totalPages > 1 ? paginationHTML(stepPage, totalPages, 'goStepPage') : '';
@@ -1239,8 +1539,25 @@
         if (label) {
             label.textContent = `${start + 1}–${Math.min(start + stepsPerPage, total)} of ${total} steps (${steps.length} total)`;
         }
-        
+
         rebuildDomMap();
+
+        // Restore selected panel state if re-rendered
+        setTimeout(() => {
+            if (selectedStepOrder) {
+                const card = document.getElementById('step-card-' + selectedStepOrder);
+                if (card) {
+                    const step = pageItems.find(s => s.stepOrder === selectedStepOrder);
+                    if (step) {
+                        renderDetailPanel(step);
+                        getScreenshotUrls(step).then(screenshots => {
+                            currentScreenshots = screenshots;
+                            renderDetailScreenshots(screenshots);
+                        });
+                    }
+                }
+            }
+        }, 0);
     }
 
     function filterSteps(steps) {
@@ -1273,7 +1590,7 @@
         const cfg = getActionCfg(step.actionType);
         const statusCls = stepStatusClass(step.executionStatus);
         const isSelected = selectedStepOrder === step.stepOrder;
-        
+
         let calculatedDuration = step.executionTime;
         if (step.executionCompletedAt && step.executionStartedAt) {
             calculatedDuration = new Date(step.executionCompletedAt) - new Date(step.executionStartedAt);
@@ -1314,7 +1631,7 @@
         const cfg = getActionCfg(step.actionType);
         const isFailed = step.executionStatus === 'FAILED';
         const sensitive = isSensitive(step);
-        
+
         let calculatedDuration = step.executionTime;
         if (step.executionCompletedAt && step.executionStartedAt) {
             calculatedDuration = new Date(step.executionCompletedAt) - new Date(step.executionStartedAt);
@@ -1355,7 +1672,10 @@
             </div>
             <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:20px; border-bottom:1px solid var(--bd); padding-bottom:4px; margin-bottom:12px;">
                 <div class="step-detail-label" style="margin:0; border:none; padding:0;">Execution & Settings</div>
-                <button class="btn btn-ghost btn-xs" onclick="openStepEditor(${step.stepOrder})">✏️ Edit Step</button>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-ghost btn-xs" onclick="openStepEditor(${step.stepOrder})">✏️ Edit Step</button>
+                    <button class="btn btn-outline btn-xs" style="color:#d32f2f; border-color:#d32f2f;" onclick="deleteStep(${step.stepOrder})">🗑️ Delete</button>
+                </div>
             </div>
             <div class="step-detail-grid">
                 <div class="step-detail-item">
@@ -1394,7 +1714,7 @@
                     <span class="alert-text">${esc(step.executionMessage)}</span>
                 </div>
             ` : ''}
-            
+
             ${(!isFailed && step.executionMessage) ? `
                 <div style="margin-top:8px;padding:8px 12px;background:var(--sur3);border-radius:var(--rs);font-size:12px;color:var(--tx2)">
                     <strong>Message:</strong> ${esc(step.executionMessage)}
@@ -1410,12 +1730,12 @@
         if (!selectedStepOrder) return;
         const container = document.getElementById(`screenshot-viewer-container-${selectedStepOrder}`);
         if (!container) return;
-        
+
         if (screenshots === null) {
             container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--tx3);font-size:13px"><div class="spinner" style="margin:0 auto 12px"></div>Loading screenshots…</div>';
             return;
         }
-        
+
         if (screenshots.length === 0) {
             container.innerHTML = `
                 <div class="step-detail-label" style="margin-bottom:12px">Screenshots</div>
@@ -1423,38 +1743,68 @@
             `;
             return;
         }
-        
+
         const total = screenshots.length;
         const current = screenshots[selectedScreenshotIndex];
         const hasPrev = selectedScreenshotIndex > 0;
         const hasNext = selectedScreenshotIndex < total - 1;
-        
+
         let html = `
-            <div class="step-detail-label" style="margin-bottom:12px">Screenshots (${total})</div>
-            <div class="sv-main">
-                <button class="sv-nav-btn prev" onclick="prevScreenshot()" ${!hasPrev ? 'disabled' : ''}>‹</button>
-                <div class="sv-image-container">
-                    <img id="sv-main-img" src="${esc(current.url)}" onclick="showLightbox('${esc(current.url)}')" alt="Screenshot" loading="lazy" />
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px">
+                <div class="step-detail-label" style="margin-bottom:0">Screenshots (${total})</div>
+                <div style="display:flex; gap: 8px; align-items:center">
+                    <button class="btn btn-xs ${screenshotViewMode === 'vertical' ? 'btn-primary' : 'btn-ghost'}" onclick="setScreenshotViewMode('vertical')">Vertical</button>
+                    <button class="btn btn-xs ${screenshotViewMode === 'slideshow' ? 'btn-primary' : 'btn-ghost'}" onclick="setScreenshotViewMode('slideshow')">Slideshow</button>
+                    ${screenshotViewMode === 'slideshow' ? `
+                    <label style="font-size:11px; display:flex; align-items:center; gap:4px; margin-left:8px; cursor:pointer;">
+                        <input type="checkbox" onchange="toggleAutoSlide(this.checked)" ${autoSlideTimer ? 'checked' : ''}> Auto
+                    </label>
+                    ` : ''}
                 </div>
-                <button class="sv-nav-btn next" onclick="nextScreenshot()" ${!hasNext ? 'disabled' : ''}>›</button>
-            </div>
-            
-            <div class="sv-thumbnails">
-                ${screenshots.map((ss, idx) => `
-                    <div class="sv-thumb ${idx === selectedScreenshotIndex ? 'selected' : ''}" onclick="selectScreenshot(${idx})" id="sv-thumb-${selectedStepOrder}-${idx}">
-                        <div class="sv-thumb-img-wrap">
-                            <img src="${esc(ss.url)}" loading="lazy" />
-                        </div>
-                        <div class="sv-thumb-label">Attempt ${idx + 1}</div>
-                    </div>
-                `).join('')}
             </div>
         `;
+
+        if (screenshotViewMode === 'slideshow') {
+            html += `
+                <div class="sv-main">
+                    <button class="sv-nav-btn prev" onclick="prevScreenshot()" ${!hasPrev ? 'disabled' : ''}>‹</button>
+                    <div class="sv-image-container">
+                        <img id="sv-main-img" src="${esc(current.url)}" onclick="showLightbox('${esc(current.url)}')" alt="Screenshot" loading="lazy" />
+                    </div>
+                    <button class="sv-nav-btn next" onclick="nextScreenshot()" ${!hasNext ? 'disabled' : ''}>›</button>
+                </div>
+
+                <div class="sv-thumbnails">
+                    ${screenshots.map((ss, idx) => `
+                        <div class="sv-thumb ${idx === selectedScreenshotIndex ? 'selected' : ''}" onclick="selectScreenshot(${idx})" id="sv-thumb-${selectedStepOrder}-${idx}">
+                            <div class="sv-thumb-img-wrap">
+                                <img src="${esc(ss.url)}" loading="lazy" />
+                            </div>
+                            <div class="sv-thumb-label">Attempt ${idx + 1}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            html += `
+                <div class="sv-vertical-list" style="display:flex; flex-direction:column; gap:16px;">
+                    ${screenshots.map((ss, idx) => `
+                        <div style="border:1px solid var(--bd); border-radius:var(--rs); padding:8px; background:var(--sur2)">
+                            <div style="font-size:12px; font-weight:bold; margin-bottom:8px; color:var(--tx2)">Attempt ${idx + 1}</div>
+                            <img src="${esc(ss.url)}" style="width:100%; border-radius:var(--rs); cursor:pointer; display:block" onclick="showLightbox('${esc(ss.url)}')" loading="lazy" />
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
         container.innerHTML = html;
-        
-        const thumb = document.getElementById(`sv-thumb-${selectedStepOrder}-${selectedScreenshotIndex}`);
-        if (thumb) {
-            thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+        if (screenshotViewMode === 'slideshow') {
+            const thumb = document.getElementById(`sv-thumb-${selectedStepOrder}-${selectedScreenshotIndex}`);
+            if (thumb) {
+                thumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
         }
     }
 
@@ -1472,7 +1822,7 @@
             if (countEl) {
                 countEl.textContent = `${screenshots.length} screenshot${screenshots.length !== 1 ? 's' : ''}`;
             }
-            
+
             if (selectedStepOrder === step.stepOrder) {
                 currentScreenshots = screenshots;
                 renderDetailScreenshots(screenshots);
@@ -1490,29 +1840,29 @@
             document.querySelectorAll('.step-card').forEach(el => el.classList.remove('selected'));
             return;
         }
-        
+
         // Collapse previous
         document.querySelectorAll('.step-card').forEach(el => el.classList.remove('selected'));
         selectedStepOrder = stepOrder;
-        
+
         const card = document.getElementById(`step-card-${stepOrder}`);
         if (card) {
             card.classList.add('selected');
         }
-        
+
         const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
         renderDetailPanel(step);
         renderDetailScreenshots(null);
-        
+
         // Scroll the card into view after expansion
         setTimeout(() => {
             if (card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }, 50);
-        
+
         const screenshots = await getScreenshotUrls(step);
         currentScreenshots = screenshots;
         selectedScreenshotIndex = screenshots.length > 0 ? screenshots.length - 1 : 0;
-        
+
         renderDetailScreenshots(screenshots);
     };
 
@@ -1523,27 +1873,149 @@
     };
 
     window.prevScreenshot = function() {
-        window.selectScreenshot(selectedScreenshotIndex - 1);
+        // If auto slide is on and we manually navigate, maybe we should not stop it, or just let it continue.
+        window.selectScreenshot(selectedScreenshotIndex > 0 ? selectedScreenshotIndex - 1 : currentScreenshots.length - 1); // Loop support for slider
     };
 
     window.nextScreenshot = function() {
-        window.selectScreenshot(selectedScreenshotIndex + 1);
+        window.selectScreenshot((selectedScreenshotIndex + 1) % currentScreenshots.length); // Loop support for slider
+    };
+
+    window.setScreenshotViewMode = function(mode) {
+        screenshotViewMode = mode;
+        if (mode !== 'slideshow') {
+            if (autoSlideTimer) {
+                clearInterval(autoSlideTimer);
+                autoSlideTimer = null;
+            }
+        }
+        renderDetailScreenshots(currentScreenshots);
+    };
+
+    window.toggleAutoSlide = function(checked) {
+        if (checked) {
+            if (!autoSlideTimer) {
+                autoSlideTimer = setInterval(() => {
+                    if (currentScreenshots && currentScreenshots.length > 1) {
+                        window.nextScreenshot();
+                    }
+                }, 2500); // 2.5s slide
+            }
+        } else {
+            if (autoSlideTimer) {
+                clearInterval(autoSlideTimer);
+                autoSlideTimer = null;
+            }
+        }
+        // renderDetailScreenshots(currentScreenshots); // Re-rendering checkboxes could steal focus, but here it's fine or we just keep it
     };
 
     document.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+        const tag = ((e.target && e.target.tagName) || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return; // don't hijack typing (e.g. the search box)
+
+        // In step-slideshow mode, arrow keys move between steps.
+        if (stepViewMode === 'slideshow') {
+            e.preventDefault();
+            if (e.key === 'ArrowLeft') window.prevStepSlide();
+            else window.nextStepSlide();
+            return;
+        }
+
+        // Otherwise, if a step is expanded and has multiple screenshots, browse those instead.
         if (selectedStepOrder && currentScreenshots.length > 0) {
-            if (e.key === 'ArrowLeft') {
-                window.prevScreenshot();
-            } else if (e.key === 'ArrowRight') {
-                window.nextScreenshot();
-            }
+            if (e.key === 'ArrowLeft') window.prevScreenshot();
+            else window.nextScreenshot();
         }
     });
+
+    // ── SWIPE NAVIGATION (touch) for the horizontal step slideshow ──────
+    (function enableStepSlideshowSwipe() {
+        let touchStartX = null;
+        let touchStartY = null;
+
+        document.addEventListener('touchstart', (e) => {
+            if (stepViewMode !== 'slideshow') return;
+            if (!e.target.closest('#step-slideshow-stage')) return;
+            const t = e.changedTouches[0];
+            touchStartX = t.clientX;
+            touchStartY = t.clientY;
+        }, { passive: true });
+
+        document.addEventListener('touchend', (e) => {
+            if (touchStartX === null || stepViewMode !== 'slideshow') return;
+            const t = e.changedTouches[0];
+            const dx = t.clientX - touchStartX;
+            const dy = t.clientY - touchStartY;
+            touchStartX = null;
+            touchStartY = null;
+            // Require a clearly horizontal swipe so vertical scrolling isn't hijacked
+            if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+                if (dx < 0) window.nextStepSlide();
+                else window.prevStepSlide();
+            }
+        }, { passive: true });
+    })();
 
     window.setFilter = function (f) {
         activeFilter = f;
         stepPage = 0;
+        stepSlideshowIndex = 0;
         updateStepList();
+    };
+
+    window.setStepViewMode = function(mode) {
+        stepViewMode = mode;
+        if (mode !== 'slideshow') {
+            if (stepAutoSlideTimer) {
+                clearInterval(stepAutoSlideTimer);
+                stepAutoSlideTimer = null;
+            }
+        }
+        renderPage();
+    };
+
+    window.prevStepSlide = function() {
+        stepSlideDirection = 'prev';
+        stepSlideshowIndex--;
+        renderSteps();
+    };
+
+    window.nextStepSlide = function() {
+        stepSlideDirection = 'next';
+        stepSlideshowIndex++;
+        renderSteps();
+    };
+
+    // Jump straight to any step from the rail — direction is inferred so the
+    // transition still feels natural (forward vs. backward).
+    window.jumpToStepSlide = function(idx) {
+        if (idx === stepSlideshowIndex) return;
+        stepSlideDirection = idx >= stepSlideshowIndex ? 'next' : 'prev';
+        stepSlideshowIndex = idx;
+        renderSteps();
+    };
+
+    window.toggleStepAutoSlide = function(checked) {
+        if (checked) {
+            if (!stepAutoSlideTimer) {
+                stepAutoSlideTimer = setInterval(() => {
+                    const steps = flow.steps || [];
+                    const filtered = filterSteps([...steps].sort((a, b) => (a.stepOrder || 0) - (b.stepOrder || 0)));
+                    if (filtered.length > 1) {
+                        window.nextStepSlide();
+                    }
+                }, stepAutoSlideMs);
+            }
+            renderSteps(); // draw the progress bar immediately
+        } else {
+            if (stepAutoSlideTimer) {
+                clearInterval(stepAutoSlideTimer);
+                stepAutoSlideTimer = null;
+            }
+            renderSteps(); // remove the progress bar
+        }
     };
 
     function updateStepList() {
@@ -1632,6 +2104,9 @@
                     }
                     console.log("Extension ack:", res);
                     // window.open(projectData.loginUrl, "_blank");
+                    setTimeout(() => {
+                        toast('window is already open close it to open new one', 'error', 10000);
+                    }, 1000);
                 }
             );
         } catch (e) {
@@ -1698,13 +2173,13 @@
         step.selector = document.getElementById('edit-step-selector').value;
         step.value = document.getElementById('edit-step-value').value;
         step.expectedValue = document.getElementById('edit-step-expected').value;
-        
+
         const waitVal = document.getElementById('edit-step-wait').value;
         step.wait = waitVal ? parseInt(waitVal, 10) : null;
-        
+
         const retryVal = document.getElementById('edit-step-retry').value;
         step.retryCount = retryVal ? parseInt(retryVal, 10) : 0;
-        
+
         step.continueOnFailure = document.getElementById('edit-step-continue').checked;
         step.captureScreenshot = document.getElementById('edit-step-capture').checked;
 
@@ -1715,7 +2190,7 @@
             rebuildMaps();
             renderDetailPanel(step);
             updateStepList();
-            
+
             // Re-select to show panel properly if closed
             setTimeout(() => {
                 if (selectedStepOrder !== stepOrder) {
@@ -1731,6 +2206,37 @@
 
         } catch(e) {
             toast('Failed to save step: ' + e.message, 'error');
+        }
+    };
+
+    window.deleteStep = async function (stepOrder) {
+        if (!confirm(`Are you sure you want to delete step ${stepOrder}? This action cannot be undone.`)) return;
+
+        const stepIndex = (flow.steps || []).findIndex(s => s.stepOrder === stepOrder);
+        if (stepIndex === -1) return;
+
+        // Remove the step
+        flow.steps.splice(stepIndex, 1);
+
+        // Re-number remaining steps
+        flow.steps.sort((a, b) => a.stepOrder - b.stepOrder).forEach((s, idx) => {
+            s.stepOrder = idx + 1;
+        });
+
+        try {
+            await api.flows.update(flow.id, flow);
+            toast('Step deleted successfully', 'success');
+            
+            // Adjust slideshow index if needed
+            if (stepSlideshowIndex >= flow.steps.length) {
+                stepSlideshowIndex = Math.max(0, flow.steps.length - 1);
+            }
+            
+            selectedStepOrder = null;
+            rebuildMaps();
+            renderPage();
+        } catch(e) {
+            toast('Failed to delete step: ' + e.message, 'error');
         }
     };
 
