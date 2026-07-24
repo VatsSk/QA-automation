@@ -84,8 +84,9 @@ public class FlowExecutionService {
 
         while (attempts <= retries && !success) {
             attempts++;
+            WebElement element = null;
             try {
-                WebElement element = null;
+
                 
                 // Fetch element if required
                 if(actionType==ActionType.VERIFY){
@@ -134,12 +135,12 @@ public class FlowExecutionService {
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
-                takeScreenshotIfRequired(driver, step, flow,attempts);
+                takeScreenshotIfRequired(driver, element,step, flow,attempts);
                 flowSseService.sendStepUpdated(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
                         flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
                 ));
             }catch(GlobalExceptionHandler.FlowExecutionException ex){
-                takeScreenshotIfRequired(driver, step, flow,attempts);
+                takeScreenshotIfRequired(driver,element ,step, flow,attempts);
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);
                     step.setExecutionMessage(ex.getUserMessage());
@@ -157,7 +158,7 @@ public class FlowExecutionService {
                 }
             }
             catch (Exception e) {
-                takeScreenshotIfRequired(driver, step, flow,attempts);
+                takeScreenshotIfRequired(driver, element,step, flow,attempts);
                 if (attempts > retries) {
                     step.setExecutionStatus(ExecutionStatus.FAILED);
                     step.setExecutionMessage("Unexpected error");
@@ -198,6 +199,20 @@ public class FlowExecutionService {
                 Files.createDirectories(scenarioDir);
                 
                 screenshotService.takeScreenshot(driver, stepId, stepId+"_"+attempt + "_screenshot", scenarioDir, flow.getFlowBasePath());
+            } catch (Exception e) {
+                logger.error("Failed to capture screenshot for step [{}]", step.getName(), e);
+            }
+        }
+    }
+    private void takeScreenshotIfRequired(WebDriver driver,WebElement element ,FlowStep step, Flow flow,int attempt) {
+        if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
+            try {
+                String stepId = ""+ step.getStepOrder();
+
+                Path scenarioDir = Paths.get(resultsBaseDir, flow.getFlowBasePath());
+                Files.createDirectories(scenarioDir);
+
+                screenshotService.takeScreenshot(driver,element,stepId, stepId+"_"+attempt + "_screenshot", scenarioDir, flow.getFlowBasePath());
             } catch (Exception e) {
                 logger.error("Failed to capture screenshot for step [{}]", step.getName(), e);
             }

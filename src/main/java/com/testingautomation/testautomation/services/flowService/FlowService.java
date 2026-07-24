@@ -3,6 +3,7 @@ package com.testingautomation.testautomation.services.flowService;
 import com.testingautomation.testautomation.entities.Run;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
+import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
 import com.testingautomation.testautomation.services.s3Service.StorageService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,6 +49,9 @@ public class FlowService {
 
     public void deleteFlow(String id) {
         Flow flow =flowRepository.flowWithProjIdAndModId(id);
+        if(flow==null){
+            throw new GlobalExceptionHandler.ResourceNotFoundException("Already been deleted !");
+        }
         String projectId = flow.getProjectId();
         String moduleId = flow.getModuleId();
 

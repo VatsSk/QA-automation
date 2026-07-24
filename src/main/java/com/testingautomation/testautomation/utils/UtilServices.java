@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.utils;
 
 import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.springframework.stereotype.Service;
@@ -125,5 +126,41 @@ public class UtilServices {
 
     private static String safe(String s) {
         return s == null ? "" : s;
+    }
+
+    public void highlightElement(WebDriver driver, WebElement element) {
+        if (driver == null || element == null) return;
+
+        try {
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+
+            // Scroll to element
+            js.executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
+
+            // Save original style + apply highlight
+            js.executeScript(
+                    "arguments[0].setAttribute('data-original-style', arguments[0].getAttribute('style') || '');" +
+                            "arguments[0].style.border='3px solid red';" +
+                            "arguments[0].style.boxShadow='0 0 12px 4px red';",
+                    element
+            );
+
+            Thread.sleep(150); // small delay for rendering
+        } catch (Exception e) {
+            // don't fail test just because highlight failed
+        }
+    }
+    public void restoreElement(WebDriver driver, WebElement element) {
+        if (driver == null || element == null) return;
+
+        try {
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            js.executeScript(
+                    "arguments[0].setAttribute('style', arguments[0].getAttribute('data-original-style'));",
+                    element
+            );
+        } catch (Exception e) {
+            // ignore
+        }
     }
 }
