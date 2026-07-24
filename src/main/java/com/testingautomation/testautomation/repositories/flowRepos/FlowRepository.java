@@ -20,4 +20,18 @@ public interface FlowRepository extends MongoRepository<Flow, String> {
             fields = "{'projectId': 1,'moduleId': 1,'_id': 0}"
     )
     Flow flowWithProjIdAndModId(String Id);
+
+    List<Flow> getFlowsByModuleId(String moduleId);
+
+    @Query(
+            value = "{'moduleId': ?0}",
+            fields = "{'_id': 1}"
+    )
+    List<Flow> getFlowsOnlyIdsByModuleId(String moduleId);
+
+    @Query(
+            value = "{'projectId': ?0}",
+            fields = "{'_id': 1}"
+    )
+    List<Flow> getFlowsOnlyIdsByProjectId(String projectId);
 }

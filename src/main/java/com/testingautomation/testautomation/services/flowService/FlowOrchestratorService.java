@@ -49,16 +49,29 @@ public class FlowOrchestratorService {
     @Autowired
     private StorageService storageService;
 
-    public void orchestrate(Flow flow) {
-        logger.info("Orchestrating background execution for flow: {}", flow.getName());
-        CompletableFuture.runAsync(() -> executeFlow(flow));
+//    public void orchestrate(Flow flow) {
+//        logger.info("Orchestrating background execution for flow: {}", flow.getName());
+//        CompletableFuture.runAsync(() -> executeFlow(flow));
+//    }
+
+    public void orchestrateQueue(java.util.List<Flow> flows) {
+        logger.info("Orchestrating sequential background execution for {} flows", flows.size());
+//        CompletableFuture.runAsync(() -> {
+//            for (Flow flow : flows) {
+//                executeFlow(flow);
+//            }
+//        });
+        for (Flow flow : flows) {
+            executeFlow(flow);
+        }
     }
 
-    private void executeFlow(Flow flow) {
+    public void executeFlow(Flow flow) {
         activeFlows.put(flow.getId(), flow);
         WebDriver driver = null;
         try {
             flow.setExecutionStartedAt(Instant.now());
+            flow.setExecutionCompletedAt(null);
             flow.setExecutionStatus(ExecutionStatus.RUNNING);
             flow.setExecutionMessage(null);
             String flowPrefix = basePrefix + "/" + flow.getProjectId() + "/" + flow.getModuleId() + "/" + flow.getId();

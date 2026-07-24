@@ -104,9 +104,7 @@ public class RunControllerNew {
     public ResponseEntity<?> executeQueue(@RequestBody List<String> runIds) {
 
         log.info("Executing queue: {}", runIds);
-
         runService.executeAllRun(runIds);
-
         return ResponseEntity.ok().build();
     }
 
