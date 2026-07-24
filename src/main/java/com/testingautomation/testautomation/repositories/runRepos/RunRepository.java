@@ -41,7 +41,7 @@ public interface RunRepository extends MongoRepository<Run, String>, RunReposito
 
     @Query(
             value = "{'_id': ?0}",
-            fields = "{'projectId': 1,'moduleId': 1,'_id': 0}"
+            fields = "{'projectId': 1,'moduleId': 1,'_id': 1}"
     )
     Run runWithProjIdAndModId(String Id);
 

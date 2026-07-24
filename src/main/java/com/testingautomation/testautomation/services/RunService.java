@@ -130,6 +130,9 @@ public class RunService {
         System.out.println("prefix"+prefix);
 
         Run run = runRepository.runWithProjIdAndModId(id);
+        if(run==null){
+            throw new GlobalExceptionHandler.ResourceNotFoundException("Already has been deleted!");
+        }
         String projectId = run.getProjectId();
         String moduleId = run.getModuleId();
 
