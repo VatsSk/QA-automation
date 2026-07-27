@@ -75,6 +75,12 @@ public class FlowExecutionService {
         int retries = step.getRetryCount() != null ? step.getRetryCount() : 1;
         int attempts = 0;
         boolean success = false;
+        String color = "green";
+        if (actionType == ActionType.VERIFY) {
+            color = "yellow";
+        } else if (actionType == ActionType.HOVER) {
+            color = "purple";
+        }
 
         int waitTime = Boolean.TRUE.equals(step.getOverrideWait()) && step.getWait() != null 
                 ? step.getWait() 
@@ -135,7 +141,7 @@ public class FlowExecutionService {
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
-                takeScreenshotIfRequired(driver, element,step, flow,attempts, "green");
+                takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
                 flowSseService.sendStepUpdated(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
                         flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
                 ));
@@ -190,7 +196,7 @@ public class FlowExecutionService {
 
     }
 
-    private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow,int attempt, String color) {
+    private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow, int attempt) {
         if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
             try {
                 String stepId = ""+ step.getStepOrder();

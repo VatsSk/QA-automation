@@ -1216,12 +1216,25 @@
             <!-- Flow summary hero -->
             <div class="flow-hero">
                 <div class="flow-hero-top">
-                    <div>
+                    <div style="width:100%">
                         <div class="flow-hero-name">${esc(flow.name || '—')}</div>
                         <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:5px">
                             ${statusBadge(flow.executionStatus || 'NOT_STARTED')}
                         </div>
                         ${flow.description ? `<div class="flow-hero-desc">${esc(flow.description)}</div>` : ''}
+
+                        <!-- Sleek Environment & Base URL Banner -->
+                        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:14px;background:var(--sur2);padding:8px 14px;border-radius:6px;border:1px solid var(--bd);">
+                            <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;">
+                                <span style="color:var(--tx2);font-weight:600;">🌍 Environment:</span>
+                                <span class="badge badge-blue" style="font-size:11.5px;padding:2px 8px;">${esc(flow.environment || 'Default')}</span>
+                            </div>
+                            <div style="height:14px;width:1px;background:var(--bd);margin:0 4px;"></div>
+                            <div style="display:flex;align-items:center;gap:6px;font-size:12.5px;flex:1;min-width:200px;">
+                                <span style="color:var(--tx2);font-weight:600;">🔗 Base URL:</span>
+                                <code style="background:var(--sur1);padding:3px 8px;border-radius:4px;color:var(--blue);font-size:12px;border:1px solid var(--bd);word-break:break-all;">${esc(flow.baseUrl || 'Not overridden (using recorded URLs)')}</code>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1251,15 +1264,15 @@
                     </div>
                     <div>
                         <div class="flow-stat-label">Started</div>
-                        <div class="flow-stat-val" style="font-size:12px">${fmtDate(flow.executionStartedAt)}</div>
+                        <div class="flow-stat-val" id="stat-started" style="font-size:12px">${fmtDate(flow.executionStartedAt)}</div>
                     </div>
                     <div>
                         <div class="flow-stat-label">Completed</div>
-                        <div class="flow-stat-val" style="font-size:12px">${fmtDate(flow.executionCompletedAt)}</div>
+                        <div class="flow-stat-val" id="stat-completed" style="font-size:12px">${fmtDate(flow.executionCompletedAt)}</div>
                     </div>
                     <div>
                         <div class="flow-stat-label">Duration</div>
-                        <div class="flow-stat-val"><strong>${formatDuration(flowCalculatedDuration)}</strong></div>
+                        <div class="flow-stat-val" id="stat-duration"><strong>${formatDuration(flowCalculatedDuration)}</strong></div>
                     </div>
                     <div>
                         <div class="flow-stat-label">Default Wait</div>
@@ -1408,11 +1421,12 @@
         if (flow.executionCompletedAt && flow.executionStartedAt) {
             flowCalculatedDuration = new Date(flow.executionCompletedAt) - new Date(flow.executionStartedAt);
         }
-        const statVals = document.querySelectorAll('.flow-stats .flow-stat-val');
-        // statVals order: [0]=Total Steps, [1]=Results(stat-counts), [2]=Started, [3]=Completed, [4]=Duration, [5]=Default Wait
-        if (statVals[2]) statVals[2].innerHTML = `${fmtDate(flow.executionStartedAt)}`;
-        if (statVals[3]) statVals[3].innerHTML = `${fmtDate(flow.executionCompletedAt)}`;
-        if (statVals[4]) statVals[4].innerHTML = `<strong>${formatDuration(flowCalculatedDuration)}</strong>`;
+        const elStarted = document.getElementById('stat-started');
+        const elCompleted = document.getElementById('stat-completed');
+        const elDuration = document.getElementById('stat-duration');
+        if (elStarted) elStarted.innerHTML = `${fmtDate(flow.executionStartedAt)}`;
+        if (elCompleted) elCompleted.innerHTML = `${fmtDate(flow.executionCompletedAt)}`;
+        if (elDuration) elDuration.innerHTML = `<strong>${formatDuration(flowCalculatedDuration)}</strong>`;
 
         // ── Update execution message alert ──
         const heroEl = document.querySelector('.flow-hero');

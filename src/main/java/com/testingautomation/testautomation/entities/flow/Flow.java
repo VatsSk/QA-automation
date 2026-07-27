@@ -13,6 +13,10 @@ import java.util.List;
 @Document(collection = "flows")
 public class Flow extends ExecutionEntity {
 
+    private String environment;
+
+    private String baseUrl;
+
     private String projectId;
 
     private String moduleId;
