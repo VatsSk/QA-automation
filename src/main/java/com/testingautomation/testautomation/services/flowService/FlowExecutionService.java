@@ -77,7 +77,7 @@ public class FlowExecutionService {
         boolean success = false;
         String color = "green";
         if (actionType == ActionType.VERIFY) {
-            color = "yellow";
+            color = "#e6b800"; // dark yellow / gold
         } else if (actionType == ActionType.HOVER) {
             color = "purple";
         }
@@ -120,6 +120,12 @@ public class FlowExecutionService {
                 } else if (actionType == ActionType.SCROLL && step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
                     element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
                 }
+
+                boolean takePreScreenshot = (actionType == ActionType.CLICK || actionType == ActionType.VERIFY || actionType == ActionType.HOVER || actionType == ActionType.SELECT);
+                if (takePreScreenshot) {
+                    takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
+                }
+
                 switch (actionType) {
                     case NAVIGATE: actionHandlerService.handleNavigate(driver, step); break;
                     case WAIT: actionHandlerService.handleWait(step); break;
@@ -141,7 +147,9 @@ public class FlowExecutionService {
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
-                takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
+                if (!takePreScreenshot) {
+                    takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
+                }
                 flowSseService.sendStepUpdated(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
                         flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
                 ));

@@ -272,9 +272,11 @@ public class ActionHandlerService {
 //            handleHover(driver,element,step);
 //        }
 
-        ((JavascriptExecutor) driver).executeScript(
-                "arguments[0].scrollIntoView({block:'center',inline:'center'});",
-                element);
+        if (element != null) {
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].scrollIntoView({block:'center',inline:'center'});",
+                    element);
+        }
         com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
         if (vType == null) {
             logger.warn("VerificationType is null for step [{}], defaulting to VISIBLE check", step.getName());

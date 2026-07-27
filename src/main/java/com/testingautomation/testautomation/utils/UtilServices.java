@@ -132,6 +132,9 @@ public class UtilServices {
         if (driver == null || element == null) return;
         
         String highlightColor = (color != null && !color.trim().isEmpty()) ? color : "red";
+        if ("yellow".equalsIgnoreCase(highlightColor) || "dark yellow".equalsIgnoreCase(highlightColor)) {
+            highlightColor = "#e6b800";
+        }
 
         try {
             JavascriptExecutor js = (JavascriptExecutor) driver;
@@ -143,7 +146,7 @@ public class UtilServices {
             js.executeScript(
                     "arguments[0].setAttribute('data-original-style', arguments[0].getAttribute('style') || '');" +
                             "arguments[0].style.border='3px solid " + highlightColor + "';" +
-                            "arguments[0].style.boxShadow='0 0 12px 4px " + highlightColor + "';",
+                            "arguments[0].style.boxShadow='0 0 6px 1px " + highlightColor + "';",
                     element
             );
 
