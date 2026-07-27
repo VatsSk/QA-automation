@@ -181,9 +181,14 @@
             <div id="search-results" class="search-results"></div>
         </div>
 
-        <button id="btn-run-queue" class="btn btn-primary" style="width: 100%;" disabled onclick="executeQueue()">
-            ▶ Execute Queue
-        </button>
+        <div style="display:flex;gap:8px;width:100%">
+            <button id="btn-run-queue" class="btn btn-primary" style="flex:1;" disabled onclick="executeQueue()">
+                ▶ Execute Queue
+            </button>
+            <button id="btn-stop-queue" class="btn btn-danger" style="display:none;" onclick="stopQueueExecution()">
+                ⏹ Stop
+            </button>
+        </div>
     </div>
 </div>
 
@@ -214,6 +219,7 @@
     let runQueue = [];
     let isQueueRunning = false;
     let queueMode = 'runs';
+    const runningModuleIds = new Set();
 
     // ── Load ──────────────────────────────────────────────────────────────
     async function load() {
@@ -259,6 +265,7 @@
 
     function moduleRow(m) {
         const mid = m.id || m._id;
+        const isRunning = runningModuleIds.has(mid) || (allProjectFlows && allProjectFlows.some(f => (f.moduleId === mid || f.module?.id === mid) && f.executionStatus === 'RUNNING'));
         return `
     <div class="mod-item" onclick="openModuleModal('${esc(mid)}', '${esc(m.name)}')">
       <div class="mod-icon">🗂️</div>
@@ -267,7 +274,8 @@
         <div class="mod-desc">${esc(m.description || 'No description')}</div>
       </div>
       <div class="mod-meta">
-        <button class="btn btn-primary btn-xs" onclick="event.stopPropagation();executeModuleFlows('${mid}')">▶ Run All Flows</button>
+        <button class="btn btn-primary btn-xs" onclick="event.stopPropagation();executeModuleFlows('${mid}')" ${isRunning ? 'style="display:none"' : ''}>▶ Run All Flows</button>
+        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();stopModuleFlows('${mid}')" title="Stop running flows in this module" ${isRunning ? '' : 'style="display:none"'}>⏹ Stop</button>
         <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteModule('${mid}')">✕</button>
         <span class="badge badge-blue">View →</span>
       </div>
@@ -335,10 +343,46 @@
         const envId = getSelectedEnvId();
         closeModal();
         try {
+            runningModuleIds.add(moduleId);
+            renderModules();
             await api.flows.executeModule(moduleId, envId);
             toast('Module flows execution started', 'success');
+            setTimeout(async () => { await loadQueueData(); renderModules(); }, 2000);
         } catch (e) {
+            runningModuleIds.delete(moduleId);
+            renderModules();
             toast('Failed to run module flows: ' + e.message, 'error');
+        }
+    };
+
+    window.stopModuleFlows = function(moduleId) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Module Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop execution for this module?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopModuleFlows('${moduleId}')">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmStopModuleFlows = async function(moduleId) {
+        closeModal();
+        try {
+            await api.flows.stopModule(moduleId);
+            runningModuleIds.delete(moduleId);
+            renderModules();
+            toast('Module execution stopped', 'warning');
+            setTimeout(async () => { await loadQueueData(); renderModules(); }, 1500);
+        } catch (e) {
+            toast('Failed to stop module execution: ' + e.message, 'error');
         }
     };
 
@@ -570,7 +614,12 @@
 
         document.getElementById('queue-count').textContent = runQueue.length;
 
-        btn.disabled = isQueueRunning || runQueue.length === 0;
+        const stopBtn = document.getElementById('btn-stop-queue');
+        if (stopBtn) stopBtn.style.display = isQueueRunning ? 'block' : 'none';
+        if (btn) {
+            btn.style.display = isQueueRunning ? 'none' : 'block';
+            btn.disabled = isQueueRunning || runQueue.length === 0;
+        }
         searchInput.disabled = isQueueRunning;
         searchInput.placeholder = isQueueRunning ? "Queue is running (Locked)..." : `Search ${queueMode === 'runs' ? 'runs' : 'flows'} to add...`;
 
@@ -657,6 +706,39 @@
         } finally {
             isQueueRunning = false;
             renderQueue();
+        }
+    };
+
+    window.stopQueueExecution = function() {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Queue Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop the queue execution?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopQueueExecution()">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmStopQueueExecution = async function() {
+        closeModal();
+        try {
+            if (queueMode === 'flows') {
+                await api.flows.stopQueue();
+            }
+            isQueueRunning = false;
+            runQueue.forEach(item => { if (item.status === 'running') item.status = 'error'; });
+            renderQueue();
+            toast('Queue execution stopped', 'warning');
+        } catch (e) {
+            toast('Failed to stop queue: ' + e.message, 'error');
         }
     };
 
@@ -776,9 +858,27 @@
         } catch (e) { toast('Failed to update: ' + e.message, 'error'); }
     };
 
-    window.deleteEnvironment = async function(id) {
+    window.deleteEnvironment = function(id) {
         const env = environmentsCache.find(e => e.id === id);
-        if (!confirm(`Delete environment "${env?.name}"?`)) return;
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>🗑️ Delete Environment</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to delete environment "${esc(env?.name || '')}"? This cannot be undone.</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteEnvironment('${id}')">Delete</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmDeleteEnvironment = async function(id) {
+        closeModal();
         try {
             await api.environments.delete(projectId, id);
             environmentsCache = environmentsCache.filter(e => e.id !== id);

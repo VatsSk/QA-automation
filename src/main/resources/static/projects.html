@@ -75,6 +75,7 @@
     buildSidebar('projects', api);
 
     let projects = [];
+    const runningProjectIds = new Set();
 
     // ── Load ──────────────────────────────────────────────────────────────
     async function load() {
@@ -108,6 +109,7 @@
 
     function projectCard(p) {
         const pid = p.id || p._id;
+        const isRunning = runningProjectIds.has(pid);
         const pj = JSON.stringify(p)
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
@@ -116,7 +118,9 @@
     <div class="proj-card" onclick="window.location.href='/modules.html?projectId=${pid}'">
       <div class="proj-card-actions">
         <button class="btn btn-primary btn-xs"
-          onclick="event.stopPropagation();executeProjectFlows('${pid}')">▶ Run All Flows</button>
+          onclick="event.stopPropagation();executeProjectFlows('${pid}')" ${isRunning ? 'style="display:none"' : ''}>▶ Run All Flows</button>
+        <button class="btn btn-danger btn-xs"
+          onclick="event.stopPropagation();stopProjectFlows('${pid}')" title="Stop running flows in this project" ${isRunning ? '' : 'style="display:none"'}>⏹ Stop</button>
         <button class="btn btn-ghost btn-xs"
           data-project='${pj}'
           onclick="event.stopPropagation();showEditModal(JSON.parse(this.dataset.project))">⚙</button>
@@ -154,10 +158,45 @@
     window.confirmExecuteProjectFlows = async function(projectId) {
         closeModal();
         try {
+            runningProjectIds.add(projectId);
+            render();
             await api.flows.executeProject(projectId);
             toast('Project flows execution started', 'success');
+            setTimeout(() => { runningProjectIds.delete(projectId); render(); }, 30000);
         } catch (e) {
+            runningProjectIds.delete(projectId);
+            render();
             toast('Failed to run project flows: ' + e.message, 'error');
+        }
+    };
+
+    window.stopProjectFlows = function(projectId) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Project Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop execution for this project?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopProjectFlows('${projectId}')">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmStopProjectFlows = async function(projectId) {
+        closeModal();
+        try {
+            await api.flows.stopProject(projectId);
+            runningProjectIds.delete(projectId);
+            render();
+            toast('Project execution stopped', 'warning');
+        } catch (e) {
+            toast('Failed to stop project execution: ' + e.message, 'error');
         }
     };
 

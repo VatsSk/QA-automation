@@ -528,8 +528,26 @@ const user = requireLogin();
         } catch (e) { toast('Execute failed: ' + e.message, 'error'); }
     };
 
-    window.deleteRun = async function (id) {
-        if (!confirm('Delete this run?')) return;
+    window.deleteRun = function (id) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>🗑️ Delete Run</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to delete this test run? This cannot be undone.</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteRun('${id}')">Delete</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmDeleteRun = async function (id) {
+        closeModal();
         try {
             await api.runs.delete(id);
             toast('Deleted', 'info');

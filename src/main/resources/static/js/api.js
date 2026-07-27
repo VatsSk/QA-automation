@@ -157,6 +157,10 @@ export const flows = {
         const qs = environmentId ? `?environmentId=${encodeURIComponent(environmentId)}` : '';
         return request('POST', `/api/flows/execute-project/${projectId}${qs}`);
     },
+    stop:        (id)        => request('POST', `/api/flows/${id}/stop`),
+    stopQueue:   ()          => request('POST', `/api/flows/stop-queue`),
+    stopModule:  (moduleId)  => request('POST', `/api/flows/stop-module/${moduleId}`),
+    stopProject: (projectId) => request('POST', `/api/flows/stop-project/${projectId}`),
 };
 
 // ── Environments ───────────────────────────────────────────────────────────

@@ -226,7 +226,8 @@ const user = requireLogin();
               <button class="btn btn-ghost btn-xs" onclick="viewFlow('${fid}')"    title="View">👁️</button>
               <button class="btn btn-ghost btn-xs" onclick="editFlow('${fid}')"   title="Edit">✏️</button>
               <button class="btn btn-ghost btn-xs" onclick="cloneFlow('${fid}')"  title="Clone">📋</button>
-              <button class="btn btn-amber btn-xs" onclick="executeFlow('${fid}')" title="Execute">▶</button>
+              <button class="btn btn-amber btn-xs" onclick="executeFlow('${fid}')" title="Execute" ${f.executionStatus === 'RUNNING' ? 'style="display:none"' : ''}>▶</button>
+              <button class="btn btn-danger btn-xs" onclick="stopFlowExecution('${fid}')" title="Stop" ${f.executionStatus === 'RUNNING' ? '' : 'style="display:none"'}>⏹</button>
               <button class="btn btn-danger btn-xs" onclick="deleteFlow('${fid}')" title="Delete">🗑️</button>
             </div>
           </td>
@@ -486,8 +487,53 @@ const user = requireLogin();
         } catch (e) { toast('Execute failed: ' + e.message, 'error'); }
     };
 
-    window.deleteFlow = async function (id) {
-        if (!confirm('Delete this flow?')) return;
+    window.stopFlowExecution = function (id) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop execution of this flow?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopFlowExecution('${id}')">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmStopFlowExecution = async function (id) {
+        closeModal();
+        try {
+            await api.flows.stop(id);
+            toast('Flow execution stopped', 'warning');
+            await refreshCacheAndRender();
+        } catch (e) { toast('Stop failed: ' + e.message, 'error'); }
+    };
+
+    window.deleteFlow = function (id) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>🗑️ Delete Flow</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to delete this flow? This cannot be undone.</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteFlow('${id}')">Delete</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmDeleteFlow = async function (id) {
+        closeModal();
         try {
             await api.flows.remove(id);
             toast('Flow deleted', 'info');

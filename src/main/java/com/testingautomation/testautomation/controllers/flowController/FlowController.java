@@ -112,6 +112,36 @@ public class FlowController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/{id}/stop")
+    public ResponseEntity<?> stopFlow(@PathVariable String id) {
+        logger.info("Stopping flow: {}", id);
+        boolean stopped = flowService.stopFlow(id);
+        if (stopped) {
+            return ResponseEntity.ok("Flow execution stopped for: " + id);
+        }
+        return ResponseEntity.ok("Flow was not actively running or already stopped: " + id);
+    }
+
+    @PostMapping("/stop-queue")
+    public ResponseEntity<?> stopQueue() {
+        logger.info("Stopping queue execution");
+        flowService.stopQueue();
+        return ResponseEntity.ok("Queue execution stopped");
+    }
+
+    @PostMapping("/stop-module/{moduleId}")
+    public ResponseEntity<?> stopModule(@PathVariable String moduleId) {
+        logger.info("Stopping module execution: {}", moduleId);
+        flowService.stopModule(moduleId);
+        return ResponseEntity.ok("Module execution stopped: " + moduleId);
+    }
+
+    @PostMapping("/stop-project/{projectId}")
+    public ResponseEntity<?> stopProject(@PathVariable String projectId) {
+        logger.info("Stopping project execution: {}", projectId);
+        flowService.stopProject(projectId);
+        return ResponseEntity.ok("Project execution stopped: " + projectId);
+    }
 
     @PostMapping("/{id}/clone")
     public ResponseEntity<Flow> cloneFlow(@PathVariable String id) {

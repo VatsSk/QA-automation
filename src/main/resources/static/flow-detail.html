@@ -1079,13 +1079,15 @@
         eventSource.addEventListener('step-updated', updateFlowStepLocal);
         eventSource.addEventListener('step-failed', updateFlowStepLocal);
 
-        // Handle completion/failure
+        // Handle completion/failure/cancellation
         const handleFlowEnd = (event) => {
             try {
                 flow = JSON.parse(event.data);
                 rebuildMaps();
                 updateHeroStats();
-                toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
+                const isCancelled = flow.executionStatus === 'CANCELLED';
+                toast(isCancelled ? 'Flow execution cancelled' : 'Flow execution completed', 
+                      flow.executionStatus === 'PASSED' ? 'success' : (isCancelled ? 'warning' : 'error'));
                 if (flow.executionStatus === 'FAILED') {
                     setTimeout(() => navigateToFirstFailed(), 350);
                 }
@@ -1098,6 +1100,7 @@
 
         eventSource.addEventListener('flow-completed', handleFlowEnd);
         eventSource.addEventListener('flow-failed', handleFlowEnd);
+        eventSource.addEventListener('flow-cancelled', handleFlowEnd);
 
         // Handle connection errors — fall back to a one-time poll
         eventSource.onerror = (err) => {
@@ -1113,7 +1116,9 @@
                         // Retry SSE connection
                         startSseStream();
                     } else {
-                        toast('Flow execution completed', flow.executionStatus === 'PASSED' ? 'success' : 'error');
+                        const isCancelled = flow.executionStatus === 'CANCELLED';
+                        toast(isCancelled ? 'Flow execution cancelled' : 'Flow execution completed', 
+                              flow.executionStatus === 'PASSED' ? 'success' : (isCancelled ? 'warning' : 'error'));
                         if (flow.executionStatus === 'FAILED') {
                             setTimeout(() => navigateToFirstFailed(), 350);
                         }
@@ -1197,10 +1202,14 @@
             <!-- Action bar -->
             <div style="display:flex;gap:8px;align-items:center;margin-bottom:18px;flex-wrap:wrap">
                 <a href="${backUrl}" class="btn btn-ghost btn-sm">← Back to Flows</a>
-                <button class="btn btn-outline btn-sm" onclick="editFlow()">✏️ Edit Flow</button>
+                <button class="btn btn-outline btn-sm" onclick="editFlow()" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;" title="Cannot edit while running"' : ''}>✏️ Edit Flow</button>
                 <button id="rerun-btn" class="btn btn-success btn-sm"
-                    onclick="rerunFlow()" ${isRunning ? 'disabled' : ''}>
-                    ${isRunning ? '⏳ Running…' : '▶ Run'}
+                    onclick="rerunFlow()" ${isRunning ? 'style="display:none"' : ''}>
+                    ▶ Run
+                </button>
+                <button id="stop-btn" class="btn btn-danger btn-sm"
+                    onclick="stopFlowExecution()" ${isRunning ? '' : 'style="display:none"'}>
+                    ⏹ Stop
                 </button>
             </div>
 
@@ -1340,12 +1349,11 @@
         const completedSteps = passed + failed + skipped;
         const progressPct = total > 0 ? Math.round((completedSteps / total) * 100) : 0;
 
-        // ── Update rerun button ──
+        // ── Update rerun and stop buttons ──
         const rerunBtn = document.getElementById('rerun-btn');
-        if (rerunBtn) {
-            rerunBtn.disabled = isRunning;
-            rerunBtn.innerHTML = isRunning ? '⏳ Running…' : '▶ Run';
-        }
+        const stopBtn = document.getElementById('stop-btn');
+        if (rerunBtn) rerunBtn.style.display = isRunning ? 'none' : 'inline-flex';
+        if (stopBtn) stopBtn.style.display = isRunning ? 'inline-flex' : 'none';
 
         // ── Update flow hero status badge ──
         const heroName = document.querySelector('.flow-hero-name');
@@ -1593,6 +1601,7 @@
     }
 
     function renderStepCard(step) {
+        const isRunning = flow.executionStatus === 'RUNNING';
         const cfg = getActionCfg(step.actionType);
         const statusCls = stepStatusClass(step.executionStatus);
         const isSelected = selectedStepOrder === step.stepOrder;
@@ -1679,8 +1688,8 @@
             <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:20px; border-bottom:1px solid var(--bd); padding-bottom:4px; margin-bottom:12px;">
                 <div class="step-detail-label" style="margin:0; border:none; padding:0;">Execution & Settings</div>
                 <div style="display:flex; gap:8px;">
-                    <button class="btn btn-ghost btn-xs" onclick="openStepEditor(${step.stepOrder})">✏️ Edit Step</button>
-                    <button class="btn btn-outline btn-xs" style="color:#d32f2f; border-color:#d32f2f;" onclick="deleteStep(${step.stepOrder})">🗑️ Delete</button>
+                    <button class="btn btn-ghost btn-xs" onclick="openStepEditor(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;" title="Cannot edit while running"' : ''}>✏️ Edit Step</button>
+                    <button class="btn btn-outline btn-xs" style="color:#d32f2f; border-color:#d32f2f; ${isRunning ? 'opacity:0.5;cursor:not-allowed;' : ''}" onclick="deleteStep(${step.stepOrder})" ${isRunning ? 'disabled title="Cannot delete while running"' : ''}>🗑️ Delete</button>
                 </div>
             </div>
             <div class="step-detail-grid">
@@ -2110,7 +2119,9 @@
         const envId = getSelectedEnvId();
         closeModal();
         const btn = document.getElementById('rerun-btn');
-        if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Starting…'; }
+        const stopBtn = document.getElementById('stop-btn');
+        if (btn) btn.style.display = 'none';
+        if (stopBtn) stopBtn.style.display = 'inline-flex';
         try {
             // Close any existing SSE stream before starting a new run
             stopSseStream();
@@ -2126,10 +2137,39 @@
         } catch (e) {
             console.log('Failed ' + e.message);
             toast('Failed to start flow: ' + e.message, 'error');
-            if (btn) { btn.disabled = false; btn.innerHTML = '▶ Run'; }
+            if (btn) { btn.disabled = false; btn.innerHTML = '▶ Run'; btn.style.display = 'inline-flex'; }
+            if (stopBtn) stopBtn.style.display = 'none';
         }
     };
+    window.stopFlowExecution = function () {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop execution of this flow?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopFlowExecution()">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+    window.confirmStopFlowExecution = async function () {
+        closeModal();
+        try {
+            await api.flows.stop(flowId);
+            toast('Flow execution stopped', 'warning');
+        } catch (e) { toast('Failed to stop: ' + e.message, 'error'); }
+    };
     window.editFlow = async function () {
+        if (flow.executionStatus === 'RUNNING') {
+            toast('Cannot edit flow while execution is running!', 'warning');
+            return;
+        }
         try {
             const projectData = await fetch(`/api/projects/url/${flow.projectId || projectId}`).then(r => { if (!r.ok) throw new Error('Failed to fetch project'); return r.json(); });
 
@@ -2182,6 +2222,10 @@
     };
 
     window.openStepEditor = function (stepOrder) {
+        if (flow.executionStatus === 'RUNNING') {
+            toast('Cannot edit step while flow is running!', 'warning');
+            return;
+        }
         const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
         if (!step) return;
 
@@ -2276,9 +2320,30 @@
         }
     };
 
-    window.deleteStep = async function (stepOrder) {
-        if (!confirm(`Are you sure you want to delete step ${stepOrder}? This action cannot be undone.`)) return;
+    window.deleteStep = function (stepOrder) {
+        if (flow.executionStatus === 'RUNNING') {
+            toast('Cannot delete step while flow is running!', 'warning');
+            return;
+        }
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>🗑️ Delete Step ${stepOrder}</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to delete step ${stepOrder}? This action cannot be undone.</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteStep(${stepOrder})">Delete</button>
+                </div>
+            </div>
+        `);
+    };
 
+    window.confirmDeleteStep = async function (stepOrder) {
+        closeModal();
         const stepIndex = (flow.steps || []).findIndex(s => s.stepOrder === stepOrder);
         if (stepIndex === -1) return;
 

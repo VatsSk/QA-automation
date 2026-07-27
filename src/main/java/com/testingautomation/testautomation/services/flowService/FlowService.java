@@ -148,4 +148,20 @@ public class FlowService {
                 .map(Flow::getId)
                 .collect(java.util.stream.Collectors.toList());
     }
+
+    public boolean stopFlow(String flowId) {
+        return flowOrchestratorService.stopFlow(flowId);
+    }
+
+    public void stopModule(String moduleId) {
+        flowOrchestratorService.stopModule(moduleId);
+    }
+
+    public void stopProject(String projectId) {
+        flowOrchestratorService.stopProject(projectId);
+    }
+
+    public void stopQueue() {
+        flowOrchestratorService.stopAll();
+    }
 }
