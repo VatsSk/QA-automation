@@ -344,13 +344,13 @@
         closeModal();
         try {
             runningModuleIds.add(moduleId);
-            renderModules();
+            render()s;
             await api.flows.executeModule(moduleId, envId);
             toast('Module flows execution started', 'success');
-            setTimeout(async () => { await loadQueueData(); renderModules(); }, 2000);
+            setTimeout(async () => { await loadQueueData(); render(); }, 2000);
         } catch (e) {
             runningModuleIds.delete(moduleId);
-            renderModules();
+            render();
             toast('Failed to run module flows: ' + e.message, 'error');
         }
     };
@@ -378,9 +378,9 @@
         try {
             await api.flows.stopModule(moduleId);
             runningModuleIds.delete(moduleId);
-            renderModules();
+            render();
             toast('Module execution stopped', 'warning');
-            setTimeout(async () => { await loadQueueData(); renderModules(); }, 1500);
+            setTimeout(async () => { await loadQueueData(); render(); }, 1500);
         } catch (e) {
             toast('Failed to stop module execution: ' + e.message, 'error');
         }

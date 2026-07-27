@@ -1188,6 +1188,7 @@
         const draft = steps.filter(s => !s.executionStatus || s.executionStatus === 'DRAFT').length;
         const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
         const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
+        const cancelled = steps.filter(s => s.executionStatus === 'CANCELLED').length;
         let flowCalculatedDuration = flow.executionTime;
         if (flow.executionCompletedAt && flow.executionStartedAt) {
             flowCalculatedDuration = new Date(flow.executionCompletedAt) - new Date(flow.executionStartedAt);
@@ -1195,7 +1196,7 @@
 
 
         // Progress for running
-        const completedSteps = passed + failed + skipped;
+        const completedSteps = passed + failed + skipped + cancelled;
         const progressPct = total > 0 ? Math.round((completedSteps / total) * 100) : 0;
 
         document.getElementById('page-content').innerHTML = `
@@ -1258,6 +1259,7 @@
                             ${passed ? `<span class="badge badge-passed">${passed} Passed</span>` : ''}
                             ${failed ? `<span class="badge badge-failed">${failed} Failed</span>` : ''}
                             ${running ? `<span class="badge badge-running">${running} Running</span>` : ''}
+                            ${cancelled ? `<span class="badge badge-cancelled">${cancelled} Cancelled</span>` : ''}
                             ${draft ? `<span class="badge badge-pending">${draft} DRAFT</span>` : ''}
                             ${skipped ? `<span class="badge badge-pending">${skipped} Skipped</span>` : ''}
                         </div>
@@ -1359,7 +1361,8 @@
         console.log("draft count "+draft);
         const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
         const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
-        const completedSteps = passed + failed + skipped;
+        const cancelled = steps.filter(s => s.executionStatus === 'CANCELLED').length;
+        const completedSteps = passed + failed + skipped + cancelled;
         const progressPct = total > 0 ? Math.round((completedSteps / total) * 100) : 0;
 
         // ── Update rerun and stop buttons ──
@@ -1411,6 +1414,7 @@
                 passed ? `<span class="badge badge-passed">${passed} Passed</span>` : '',
                 failed ? `<span class="badge badge-failed">${failed} Failed</span>` : '',
                 running ? `<span class="badge badge-running">${running} Running</span>` : '',
+                cancelled ? `<span class="badge badge-cancelled">${cancelled} Cancelled</span>` : '',
                 draft ? `<span class="badge badge-pending">${draft} Pending</span>` : '',
                 skipped ? `<span class="badge badge-pending">${skipped} Skipped</span>` : '',
             ].join('');
