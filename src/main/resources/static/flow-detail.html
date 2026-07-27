@@ -1643,6 +1643,7 @@
         const panel = document.getElementById(`detail-panel-${step.stepOrder}`);
         if (!panel) return;
 
+        const isRunning = flow.executionStatus === 'RUNNING';
         const cfg = getActionCfg(step.actionType);
         const isFailed = step.executionStatus === 'FAILED';
         const sensitive = isSensitive(step);
