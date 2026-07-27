@@ -846,6 +846,7 @@
     let searchQuery = '';
     let stepPage = 0;
     const stepsPerPage = 25;
+    let environmentsCache = [];
 
     // O(1) Lookup Maps
     let stepById = new Map();
@@ -991,6 +992,11 @@
             }
 
             renderPage();
+
+            // Load environments silently so the Run modal is instant
+            if (pid) {
+                try { environmentsCache = await api.environments.list(pid); } catch { environmentsCache = []; }
+            }
 
             if (flow.executionStatus === 'RUNNING') {
                 startSseStream();
@@ -2040,14 +2046,76 @@
         }
     };
 
-    window.rerunFlow = async function () {
+    // ── Environment picker helpers ──────────────────────────────────────
+    function buildEnvOptions() {
+        if (!environmentsCache.length) {
+            return `<p style="color:var(--tx3);font-size:13px;margin:4px 0">
+                No environments configured for this project.<br>
+                Flows will execute using the recorded URLs as-is.
+            </p>`;
+        }
+        const opts = environmentsCache.map(e => {
+            const checked = e.isDefault ? 'checked' : '';
+            return `
+            <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                         border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;
+                         transition:background 0.15s">
+                <input type="radio" name="env-select" value="${esc(e.id)}" ${checked}
+                       style="accent-color:var(--pri);width:16px;height:16px">
+                <div>
+                    <div style="font-weight:600;font-size:13px">${esc(e.name)}</div>
+                    <div style="font-size:11px;color:var(--tx3);font-family:monospace">${esc(e.baseUrl)}</div>
+                </div>
+                ${e.isDefault ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
+            </label>`;
+        }).join('');
+        return `
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto">${opts}</div>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                      border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;margin-top:4px">
+            <input type="radio" name="env-select" value="" style="accent-color:var(--pri);width:16px;height:16px">
+            <div>
+                <div style="font-weight:600;font-size:13px">🔗 No Environment</div>
+                <div style="font-size:11px;color:var(--tx3)">Use recorded URLs as-is</div>
+            </div>
+        </label>`;
+    }
+
+    function getSelectedEnvId() {
+        const sel = document.querySelector('input[name="env-select"]:checked');
+        return sel ? (sel.value || null) : null;
+    }
+
+    // ── Run button — shows environment picker first ────────────────────────
+    window.rerunFlow = function () {
+        openModal(`
+        <div class="modal">
+            <div class="modal-head">
+                <h2>▶ Run Flow</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:16px 0">
+                <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:12px;
+                            text-transform:uppercase;letter-spacing:.06em">Select Environment</div>
+                ${buildEnvOptions()}
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-success" onclick="confirmRerunFlow()">▶ Run</button>
+            </div>
+        </div>`);
+    };
+
+    window.confirmRerunFlow = async function () {
+        const envId = getSelectedEnvId();
+        closeModal();
         const btn = document.getElementById('rerun-btn');
         if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Starting…'; }
         try {
             // Close any existing SSE stream before starting a new run
             stopSseStream();
-            await api.flows.execute(flowId);
-            console.log("executing");
+            await api.flows.execute(flowId, envId);
+            console.log('executing with envId:', envId);
             toast('Flow execution started!', 'success');
             // Reload flow state and immediately connect SSE for real-time updates
             setTimeout(async () => {
@@ -2056,8 +2124,7 @@
                 startSseStream();
             }, 500);
         } catch (e) {
-            console.log("Failed "+e.message);
-            console.log("exception "+ e);
+            console.log('Failed ' + e.message);
             toast('Failed to start flow: ' + e.message, 'error');
             if (btn) { btn.disabled = false; btn.innerHTML = '▶ Run'; }
         }

@@ -115,13 +115,25 @@ public class FlowService {
     }
 
     public void executeAllFlows(List<String> flowIds) {
+        executeAllFlows(flowIds, null);
+    }
+
+    /**
+     * Executes all flows with an optional environment override.
+     * When environmentId is provided, NAVIGATE steps in every flow will have
+     * their origin replaced with the environment's baseUrl before execution.
+     *
+     * @param flowIds       IDs of flows to execute sequentially
+     * @param environmentId Optional environment ID for URL override; null means use recorded URLs
+     */
+    public void executeAllFlows(List<String> flowIds, String environmentId) {
         List<Flow> flowsToExecute = new ArrayList<>();
         for (String flowId : flowIds) {
             Optional<Flow> flowOpt = flowRepository.findById(flowId);
             flowOpt.ifPresent(flowsToExecute::add);
         }
         if (!flowsToExecute.isEmpty()) {
-            flowOrchestratorService.orchestrateQueue(flowsToExecute);
+            flowOrchestratorService.orchestrateQueue(flowsToExecute, environmentId);
         }
     }
 

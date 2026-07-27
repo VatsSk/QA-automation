@@ -79,6 +79,7 @@ const user = requireLogin();
 
     let filter = { search: '', page: 0, size: 20 };
     let allFlowsCache = null;
+    let environmentsCache = [];
 
     // ── Boot ─────────────────────────────────────────────────────────────────
     async function boot() {
@@ -94,6 +95,9 @@ const user = requireLogin();
             document.getElementById('page-title').textContent = `${mod.name} — Flows`;
             document.title = `${mod.name} Flows — QA Studio`;
         } catch { /* breadcrumbs stay as '…' */ }
+
+        // Pre-load environments so the run modal is instant
+        try { environmentsCache = await api.environments.list(projectId); } catch { environmentsCache = []; }
 
         wireSearch();
         await ensureAllFlowsLoaded();
@@ -410,10 +414,74 @@ const user = requireLogin();
         } catch (e) { toast('Clone failed: ' + e.message, 'error'); }
     };
 
+    // ── Environment selector modal helper ─────────────────────────────────
+    function buildEnvOptions(selectedId) {
+        const hasEnvs = environmentsCache.length > 0;
+        if (!hasEnvs) {
+            return `<p style="color:var(--tx3);font-size:13px;margin:0">
+                No environments configured for this project.<br>
+                You can add them in <strong>Project Settings → Environments</strong>.
+                The flow will execute using the recorded URLs.
+            </p>`;
+        }
+        const opts = environmentsCache.map(e => {
+            const checked = (selectedId && e.id === selectedId) || (!selectedId && e.isDefault) ? 'checked' : '';
+            return `
+            <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                         border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;
+                         transition:background 0.15s" class="env-opt-label">
+                <input type="radio" name="env-select" value="${esc(e.id)}" ${checked}
+                       style="accent-color:var(--pri);width:16px;height:16px">
+                <div>
+                    <div style="font-weight:600;font-size:13px">${esc(e.name)}</div>
+                    <div style="font-size:11px;color:var(--tx3);font-family:monospace">${esc(e.baseUrl)}</div>
+                </div>
+                ${e.isDefault ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
+            </label>`;
+        }).join('');
+        return `
+        <div style="display:flex;flex-direction:column;gap:8px">${opts}</div>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                      border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;margin-top:4px"
+               class="env-opt-label">
+            <input type="radio" name="env-select" value="" style="accent-color:var(--pri);width:16px;height:16px">
+            <div>
+                <div style="font-weight:600;font-size:13px">🔗 No Environment</div>
+                <div style="font-size:11px;color:var(--tx3)">Use recorded URLs as-is</div>
+            </div>
+        </label>`;
+    }
+
+    function getSelectedEnvId() {
+        const sel = document.querySelector('input[name="env-select"]:checked');
+        return sel ? sel.value : null;
+    }
+
+    // ── Execute Flow — show environment picker first ───────────────────────
     window.executeFlow = async function (id) {
+        openModal(`
+        <div class="modal">
+            <div class="modal-head">
+                <h2>▶ Run Flow</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:16px 0">
+                <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:12px;text-transform:uppercase;letter-spacing:.06em">Select Environment</div>
+                ${buildEnvOptions(null)}
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmExecuteFlow('${id}')">▶ Run</button>
+            </div>
+        </div>`);
+    };
+
+    window.confirmExecuteFlow = async function(id) {
+        const envId = getSelectedEnvId() || null;
+        closeModal();
         try {
             toast('Starting flow…', 'info', 2000);
-            await api.flows.execute(id);
+            await api.flows.execute(id, envId);
             toast('Flow execution started', 'success');
         } catch (e) { toast('Execute failed: ' + e.message, 'error'); }
     };

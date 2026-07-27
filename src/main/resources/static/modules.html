@@ -147,7 +147,10 @@
                         <div class="page-title" id="page-title">Modules</div>
                         <div class="page-sub"  id="page-sub">Loading…</div>
                     </div>
-                    <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn btn-ghost" onclick="showEnvironmentsModal()">⚙ Environments</button>
+                        <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+                    </div>
                 </div>
 
                 <div id="mod-list">
@@ -203,6 +206,7 @@
 
     let project = null;
     let modules  = [];
+    let environmentsCache = [];
 
     // ── Queue State Variables ──
     let allProjectRuns = [];
@@ -218,6 +222,8 @@
                 api.projects.get(projectId),
                 api.modules.list(projectId),
             ]);
+            // Load environments alongside project/modules
+            try { environmentsCache = await api.environments.list(projectId); } catch { environmentsCache = []; }
             sessionStorage.setItem('qa_projectId', projectId);
             render();
             loadQueueData();
@@ -268,6 +274,43 @@
     </div>`;
     }
 
+    // ── Environment selector helper (shared across all run modals) ──────────
+    function buildEnvOptions() {
+        if (!environmentsCache.length) {
+            return `<p style="color:var(--tx3);font-size:13px;margin:4px 0">
+                No environments configured.<br>Flows will execute using recorded URLs.
+            </p>`;
+        }
+        const opts = environmentsCache.map(e => {
+            const checked = e.isDefault ? 'checked' : '';
+            return `
+            <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                         border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;transition:background .15s">
+                <input type="radio" name="env-select" value="${esc(e.id)}" ${checked}
+                       style="accent-color:var(--pri);width:16px;height:16px">
+                <div>
+                    <div style="font-weight:600;font-size:13px">${esc(e.name)}</div>
+                    <div style="font-size:11px;color:var(--tx3);font-family:monospace">${esc(e.baseUrl)}</div>
+                </div>
+                ${e.isDefault ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
+            </label>`;
+        }).join('');
+        return `
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto">${opts}</div>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                      border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;margin-top:4px">
+            <input type="radio" name="env-select" value="" style="accent-color:var(--pri);width:16px;height:16px">
+            <div>
+                <div style="font-weight:600;font-size:13px">🔗 No Environment</div>
+                <div style="font-size:11px;color:var(--tx3)">Use recorded URLs as-is</div>
+            </div>
+        </label>`;
+    }
+    function getSelectedEnvId() {
+        const sel = document.querySelector('input[name="env-select"]:checked');
+        return sel ? (sel.value || null) : null;
+    }
+
     window.executeModuleFlows = function(moduleId) {
         openModal(`
             <div class="modal">
@@ -275,21 +318,24 @@
                     <h2>▶ Run All Flows</h2>
                     <button class="modal-close" onclick="closeModal()">✕</button>
                 </div>
-                <div style="padding: 20px 0;">
-                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to run all flows for this module?</p>
+                <div style="padding:16px 0">
+                    <p style="margin:0 0 14px;font-size:14px;color:var(--tx2)">All flows in this module will be executed sequentially.</p>
+                    <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Select Environment</div>
+                    ${buildEnvOptions()}
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
                     <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-                    <button class="btn btn-primary" onclick="confirmExecuteModuleFlows('${moduleId}')">Run</button>
+                    <button class="btn btn-primary" onclick="confirmExecuteModuleFlows('${moduleId}')">▶ Run All</button>
                 </div>
             </div>
         `);
     };
 
     window.confirmExecuteModuleFlows = async function(moduleId) {
+        const envId = getSelectedEnvId();
         closeModal();
         try {
-            await api.flows.executeModule(moduleId);
+            await api.flows.executeModule(moduleId, envId);
             toast('Module flows execution started', 'success');
         } catch (e) {
             toast('Failed to run module flows: ' + e.message, 'error');
@@ -565,9 +611,31 @@
     window.executeQueue = async function() {
         if (runQueue.length === 0 || isQueueRunning) return;
 
+        // Show environment picker before executing
+        openModal(`
+        <div class="modal">
+            <div class="modal-head">
+                <h2>▶ Execute Queue</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:16px 0">
+                <p style="margin:0 0 14px;font-size:14px;color:var(--tx2)">${runQueue.length} item${runQueue.length !== 1 ? 's' : ''} will be executed sequentially.</p>
+                <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Select Environment</div>
+                ${buildEnvOptions()}
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmExecuteQueue()">▶ Execute</button>
+            </div>
+        </div>`);
+    };
+
+    window.confirmExecuteQueue = async function() {
+        const envId = getSelectedEnvId();
+        closeModal();
+
         try {
             isQueueRunning = true;
-
             runQueue.forEach(item => item.status = 'running');
             renderQueue();
 
@@ -576,24 +644,148 @@
             if (queueMode === 'runs') {
                 await api.runs.executeQueue(itemIds);
             } else {
-                await api.flows.executeQueue(itemIds);
+                await api.flows.executeQueue(itemIds, envId);
             }
 
             runQueue.forEach(item => item.status = 'success');
-
             toast('Queue execution started successfully!', 'success');
 
         } catch (err) {
             console.error(err);
-
             runQueue.forEach(item => item.status = 'error');
-
             toast(err.message || 'Queue execution failed', 'error');
         } finally {
             isQueueRunning = false;
             renderQueue();
         }
+    };
+
+    // ── Environments Management Modal ──────────────────────────────────────
+    window.showEnvironmentsModal = function() {
+        renderEnvironmentsModal();
+    };
+
+    function renderEnvironmentsModal() {
+        const rows = environmentsCache.length === 0
+            ? `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:13px">No environments yet. Add one below.</div>`
+            : environmentsCache.map(e => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                        border:1px solid var(--bd);border-radius:var(--r);margin-bottom:6px">
+                <div style="flex:1">
+                    <div style="font-weight:600;font-size:13px">${esc(e.name)}
+                        ${e.isDefault ? '<span class="badge badge-blue" style="margin-left:6px">Default</span>' : ''}
+                    </div>
+                    <div style="font-size:11px;color:var(--tx3);font-family:monospace;margin-top:2px">${esc(e.baseUrl)}</div>
+                </div>
+                <button class="btn btn-ghost btn-xs" onclick="editEnvironment('${e.id}')" title="Edit">✏️</button>
+                <button class="btn btn-danger btn-xs" onclick="deleteEnvironment('${e.id}')" title="Delete">🗑️</button>
+            </div>`).join('');
+
+        openModal(`
+        <div class="modal" style="width:520px;max-width:95vw">
+            <div class="modal-head">
+                <h2>⚙️ Project Environments</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:16px 0">
+                <p style="margin:0 0 14px;font-size:13px;color:var(--tx2)">
+                    Environments define which server (QA, DEV, UAT, PROD) flows execute against.
+                    When running a flow, select an environment to override the base URL of NAVIGATE steps.
+                </p>
+                <div id="env-list-inner">${rows}</div>
+                <hr style="border:none;border-top:1px solid var(--bd);margin:16px 0">
+                <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:10px">Add New Environment</div>
+                <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-bottom:8px">
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Name *</label>
+                        <input id="env-new-name" class="inp" placeholder="QA / DEV / UAT">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Base URL *</label>
+                        <input id="env-new-url" class="inp inp-mono" placeholder="https://dev.example.com">
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <input type="checkbox" id="env-new-default" style="width:15px;height:15px;accent-color:var(--pri)">
+                    <label for="env-new-default" style="font-size:13px;cursor:pointer">Set as default environment</label>
+                </div>
+                <button class="btn btn-primary" style="width:100%" onclick="createEnvironment()">+ Add Environment</button>
+            </div>
+        </div>`);
     }
+
+    window.createEnvironment = async function() {
+        const name = document.getElementById('env-new-name').value.trim();
+        const baseUrl = document.getElementById('env-new-url').value.trim();
+        const isDefault = document.getElementById('env-new-default').checked;
+        if (!name) { toast('Environment name is required', 'warning'); return; }
+        if (!baseUrl || !baseUrl.startsWith('http')) { toast('Enter a valid base URL (https://...)', 'warning'); return; }
+        try {
+            const created = await api.environments.create(projectId, { name, baseUrl, isDefault, variables: {} });
+            environmentsCache.push(created);
+            if (isDefault) environmentsCache.forEach(e => { if (e.id !== created.id) e.isDefault = false; });
+            toast(`Environment "${name}" created`, 'success');
+            renderEnvironmentsModal();
+        } catch (e) { toast('Failed to create: ' + e.message, 'error'); }
+    };
+
+    window.editEnvironment = function(id) {
+        const env = environmentsCache.find(e => e.id === id);
+        if (!env) return;
+        openModal(`
+        <div class="modal" style="width:440px;max-width:95vw">
+            <div class="modal-head">
+                <h2>✏️ Edit Environment</h2>
+                <button class="modal-close" onclick="showEnvironmentsModal()">✕</button>
+            </div>
+            <div style="padding:16px 0;display:flex;flex-direction:column;gap:12px">
+                <div class="field" style="margin:0">
+                    <label class="lbl">Name *</label>
+                    <input id="env-edit-name" class="inp" value="${esc(env.name)}">
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Base URL *</label>
+                    <input id="env-edit-url" class="inp inp-mono" value="${esc(env.baseUrl)}">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <input type="checkbox" id="env-edit-default" ${env.isDefault ? 'checked' : ''}
+                           style="width:15px;height:15px;accent-color:var(--pri)">
+                    <label for="env-edit-default" style="font-size:13px;cursor:pointer">Set as default environment</label>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-ghost" onclick="showEnvironmentsModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveEnvironment('${id}')">Save</button>
+            </div>
+        </div>`);
+    };
+
+    window.saveEnvironment = async function(id) {
+        const name = document.getElementById('env-edit-name').value.trim();
+        const baseUrl = document.getElementById('env-edit-url').value.trim();
+        const isDefault = document.getElementById('env-edit-default').checked;
+        if (!name) { toast('Name is required', 'warning'); return; }
+        if (!baseUrl || !baseUrl.startsWith('http')) { toast('Enter a valid base URL', 'warning'); return; }
+        try {
+            const updated = await api.environments.update(projectId, id, { name, baseUrl, isDefault, variables: {} });
+            const idx = environmentsCache.findIndex(e => e.id === id);
+            if (idx !== -1) environmentsCache[idx] = updated;
+            if (isDefault) environmentsCache.forEach(e => { if (e.id !== id) e.isDefault = false; });
+            toast(`Environment "${name}" updated`, 'success');
+            renderEnvironmentsModal();
+        } catch (e) { toast('Failed to update: ' + e.message, 'error'); }
+    };
+
+    window.deleteEnvironment = async function(id) {
+        const env = environmentsCache.find(e => e.id === id);
+        if (!confirm(`Delete environment "${env?.name}"?`)) return;
+        try {
+            await api.environments.delete(projectId, id);
+            environmentsCache = environmentsCache.filter(e => e.id !== id);
+            toast('Environment deleted', 'info');
+            renderEnvironmentsModal();
+        } catch (e) { toast('Failed to delete: ' + e.message, 'error'); }
+    };
 
     load();
 </script>

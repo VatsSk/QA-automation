@@ -141,10 +141,30 @@ export const flows = {
     update:  (id, d)   => request('PUT',    `/api/flows/${id}`, d),
     remove:  (id)      => request('DELETE', `/api/flows/${id}`),
     clone:   (id)      => request('POST',   `/api/flows/${id}/clone`),
-    execute: (id)      => request('POST',   `/api/flows/${id}/run`),
-    executeQueue: (flowIds) => request('POST', `/api/flows/execute-queue`, flowIds),
-    executeModule: (moduleId) => request('POST', `/api/flows/execute-module/${moduleId}`),
-    executeProject: (projectId) => request('POST', `/api/flows/execute-project/${projectId}`),
+    execute: (id, environmentId) => {
+        const qs = environmentId ? `?environmentId=${encodeURIComponent(environmentId)}` : '';
+        return request('POST', `/api/flows/${id}/run${qs}`);
+    },
+    executeQueue: (flowIds, environmentId) => {
+        const qs = environmentId ? `?environmentId=${encodeURIComponent(environmentId)}` : '';
+        return request('POST', `/api/flows/execute-queue${qs}`, flowIds);
+    },
+    executeModule: (moduleId, environmentId) => {
+        const qs = environmentId ? `?environmentId=${encodeURIComponent(environmentId)}` : '';
+        return request('POST', `/api/flows/execute-module/${moduleId}${qs}`);
+    },
+    executeProject: (projectId, environmentId) => {
+        const qs = environmentId ? `?environmentId=${encodeURIComponent(environmentId)}` : '';
+        return request('POST', `/api/flows/execute-project/${projectId}${qs}`);
+    },
+};
+
+// ── Environments ───────────────────────────────────────────────────────────
+export const environments = {
+    list:   (projectId)      => request('GET',    `/api/projects/${projectId}/environments`),
+    create: (projectId, d)   => request('POST',   `/api/projects/${projectId}/environments`, d),
+    update: (projectId, id, d) => request('PUT',  `/api/projects/${projectId}/environments/${id}`, d),
+    delete: (projectId, id)  => request('DELETE', `/api/projects/${projectId}/environments/${id}`),
 };
 
 // ── Files / S3 access ──────────────────────────────────────────────────────

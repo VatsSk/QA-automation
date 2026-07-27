@@ -66,44 +66,49 @@ public class FlowController {
     }
 
     @PostMapping("/{id}/run")
-    public ResponseEntity<String> runFlow(@PathVariable String id) {
+    public ResponseEntity<String> runFlow(
+            @PathVariable String id,
+            @RequestParam(required = false) String environmentId) {
         Optional<Flow> flowOptional = flowService.getFlowById(id);
         if (flowOptional.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        
+
         Flow flow = flowOptional.get();
-        logger.info("Triggering execution for Flow: {}", flow.getName());
-        
-        // Pass to orchestrator which will handle it in a background thread
-        flowOrchestratorService.executeFlow(flow);
-        
+        logger.info("Triggering execution for Flow: {} with environmentId: {}", flow.getName(), environmentId);
+
+        // If an environmentId is provided, NAVIGATE steps will have their origin replaced.
+        // If null, executes using the recorded URLs — backward compatible.
+        flowOrchestratorService.executeFlow(flow, environmentId);
+
         return ResponseEntity.ok("Flow execution started for: " + flow.getName());
     }
     @PostMapping("/execute-queue")
-    public ResponseEntity<?> executeQueue(@RequestBody List<String> flowIds) {
-
-        logger.info("Executing queue: {}", flowIds);
-        flowService.executeAllFlows(flowIds);
-
+    public ResponseEntity<?> executeQueue(
+            @RequestBody List<String> flowIds,
+            @RequestParam(required = false) String environmentId) {
+        logger.info("Executing queue: {} with environmentId: {}", flowIds, environmentId);
+        flowService.executeAllFlows(flowIds, environmentId);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/execute-module/{moduleId}")
-    public ResponseEntity<?> executeModule(@PathVariable String moduleId) {
-        logger.info("Executing module: {}", moduleId);
-        List<String> flowIds=flowService.getFlowIdsByModuleId(moduleId);
+    public ResponseEntity<?> executeModule(
+            @PathVariable String moduleId,
+            @RequestParam(required = false) String environmentId) {
+        logger.info("Executing module: {} with environmentId: {}", moduleId, environmentId);
+        List<String> flowIds = flowService.getFlowIdsByModuleId(moduleId);
         logger.info("Executing flows: {}", flowIds);
-        flowService.executeAllFlows(flowIds);
-
+        flowService.executeAllFlows(flowIds, environmentId);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/execute-project/{projectId}")
-    public ResponseEntity<?> executeProject(@PathVariable String projectId) {
-        List<String> flowIds=flowService.getFlowIdsByProjectId(projectId);
-        flowService.executeAllFlows(flowIds);
-
+    public ResponseEntity<?> executeProject(
+            @PathVariable String projectId,
+            @RequestParam(required = false) String environmentId) {
+        List<String> flowIds = flowService.getFlowIdsByProjectId(projectId);
+        flowService.executeAllFlows(flowIds, environmentId);
         return ResponseEntity.ok().build();
     }
 
