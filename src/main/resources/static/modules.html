@@ -344,7 +344,7 @@
         closeModal();
         try {
             runningModuleIds.add(moduleId);
-            render()s;
+            render();
             await api.flows.executeModule(moduleId, envId);
             toast('Module flows execution started', 'success');
             setTimeout(async () => { await loadQueueData(); render(); }, 2000);
