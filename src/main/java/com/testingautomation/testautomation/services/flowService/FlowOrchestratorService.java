@@ -197,9 +197,9 @@ public class FlowOrchestratorService {
                                 "Environment not found: " + environmentId));
                 logger.info("Executing flow [{}] with environment [{}] (baseUrl: {})",
                         flow.getName(), environment.getName(), environment.getBaseUrl());
+                flow.setEnvironment(environment.getName());
+                flow.setBaseUrl(environment.getBaseUrl());
             }
-            flow.setEnvironment(environment.getName());
-            flow.setBaseUrl(environment.getBaseUrl());
             executeFlowInternal(flow, environment);
         }, executor);
     }

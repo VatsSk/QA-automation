@@ -79,8 +79,8 @@ public class FlowController {
 
         // If an environmentId is provided, NAVIGATE steps will have their origin replaced.
         // If null, executes using the recorded URLs — backward compatible.
-        flowOrchestratorService.executeFlow(flow, environmentId);
 
+        flowOrchestratorService.executeFlow(flow, environmentId);
         return ResponseEntity.ok("Flow execution started for: " + flow.getName());
     }
     @PostMapping("/execute-queue")
