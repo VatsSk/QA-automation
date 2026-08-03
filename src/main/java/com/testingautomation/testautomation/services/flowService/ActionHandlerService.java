@@ -371,6 +371,9 @@ public class ActionHandlerService {
                     rawActual = (String) ((JavascriptExecutor) driver)
                             .executeScript("return arguments[0].textContent;", element);
                 }
+                if (rawActual == null || rawActual.isEmpty()) {
+                    rawActual = element.getAttribute("value");
+                }
 
 //                 Normalize: collapse all whitespace sequences (spaces, newlines, tabs) → single space, then trim.
                 rawActual   = rawActual   != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
