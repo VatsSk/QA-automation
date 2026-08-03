@@ -121,7 +121,7 @@ public class FlowExecutionService {
                     element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
                 }
 
-                boolean takePreScreenshot = (actionType == ActionType.CLICK || actionType == ActionType.VERIFY || actionType == ActionType.HOVER || actionType == ActionType.SELECT);
+                boolean takePreScreenshot = (actionType == ActionType.CLICK || actionType == ActionType.VERIFY || actionType == ActionType.SELECT);
                 if (takePreScreenshot) {
                     takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
                 }
