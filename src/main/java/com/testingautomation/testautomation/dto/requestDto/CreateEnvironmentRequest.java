@@ -21,7 +21,7 @@ public class CreateEnvironmentRequest {
     private String baseUrl;
 
     /** If true, this will become the default environment for the project */
-    private boolean isDefault;
+    private boolean defaultEnv;
 
     /** Reserved for future: tokens, credentials, headers, tenant IDs */
     private Map<String, String> variables = new HashMap<>();

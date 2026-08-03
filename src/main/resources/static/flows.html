@@ -426,7 +426,7 @@ const user = requireLogin();
             </p>`;
         }
         const opts = environmentsCache.map(e => {
-            const checked = (selectedId && e.id === selectedId) || (!selectedId && e.isDefault) ? 'checked' : '';
+            const checked = (selectedId && e.id === selectedId) || (!selectedId && e.defaultEnv) ? 'checked' : '';
             return `
             <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
                          border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;
@@ -437,7 +437,7 @@ const user = requireLogin();
                     <div style="font-weight:600;font-size:13px">${esc(e.name)}</div>
                     <div style="font-size:11px;color:var(--tx3);font-family:monospace">${esc(e.baseUrl)}</div>
                 </div>
-                ${e.isDefault ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
+                ${e.defaultEnv ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
             </label>`;
         }).join('');
         return `

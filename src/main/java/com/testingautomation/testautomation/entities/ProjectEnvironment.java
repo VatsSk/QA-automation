@@ -36,7 +36,7 @@ public class ProjectEnvironment {
     private String baseUrl;
 
     /** If true, this environment is pre-selected in the Run dialog */
-    private boolean isDefault;
+    private boolean defaultEnv;
 
     /**
      * Reserved for future extensibility.

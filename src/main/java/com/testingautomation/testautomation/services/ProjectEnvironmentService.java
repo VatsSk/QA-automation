@@ -23,7 +23,7 @@ public class ProjectEnvironmentService {
      * so there is always at most one default per project.
      */
     public ProjectEnvironment create(String projectId, CreateEnvironmentRequest request) {
-        if (request.isDefault()) {
+        if (request.isDefaultEnv()) {
             repository.clearDefaultForProject(projectId);
         }
 
@@ -31,7 +31,7 @@ public class ProjectEnvironmentService {
                 .projectId(projectId)
                 .name(request.getName())
                 .baseUrl(request.getBaseUrl())
-                .isDefault(request.isDefault())
+                .defaultEnv(request.isDefaultEnv())
                 .variables(request.getVariables())
                 .createdAt(Instant.now())
                 .updatedAt(Instant.now())
@@ -54,13 +54,13 @@ public class ProjectEnvironmentService {
                 .orElseThrow(() -> new GlobalExceptionHandler.ResourceNotFoundException(
                         "Environment not found: " + id));
 
-        if (request.isDefault()) {
+        if (request.isDefaultEnv()) {
             repository.clearDefaultForProject(env.getProjectId());
         }
 
         env.setName(request.getName());
         env.setBaseUrl(request.getBaseUrl());
-        env.setDefault(request.isDefault());
+        env.setDefaultEnv(request.isDefaultEnv());
         env.setVariables(request.getVariables());
         env.setUpdatedAt(Instant.now());
 

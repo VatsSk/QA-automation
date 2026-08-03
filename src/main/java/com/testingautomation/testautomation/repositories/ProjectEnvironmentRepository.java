@@ -16,13 +16,13 @@ public interface ProjectEnvironmentRepository extends MongoRepository<ProjectEnv
     List<ProjectEnvironment> findByProjectId(String projectId);
 
     /** Find the default environment for a project, used to pre-select in Run dialog */
-    Optional<ProjectEnvironment> findByProjectIdAndIsDefaultTrue(String projectId);
+    Optional<ProjectEnvironment> findByProjectIdAndDefaultEnvTrue(String projectId);
 
     /**
      * Unset the current default for a project before setting a new one.
      * This ensures only one default environment exists per project at all times.
      */
-    @Query("{ 'projectId': ?0, 'isDefault': true }")
-    @Update("{ '$set': { 'isDefault': false } }")
+    @Query("{ 'projectId': ?0, 'defaultEnv': true }")
+    @Update("{ '$set': { 'defaultEnv': false } }")
     void clearDefaultForProject(String projectId);
 }

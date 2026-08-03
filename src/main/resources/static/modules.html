@@ -290,7 +290,7 @@
             </p>`;
         }
         const opts = environmentsCache.map(e => {
-            const checked = e.isDefault ? 'checked' : '';
+            const checked = e.defaultEnv ? 'checked' : '';
             return `
             <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
                          border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;transition:background .15s">
@@ -300,7 +300,7 @@
                     <div style="font-weight:600;font-size:13px">${esc(e.name)}</div>
                     <div style="font-size:11px;color:var(--tx3);font-family:monospace">${esc(e.baseUrl)}</div>
                 </div>
-                ${e.isDefault ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
+                ${e.defaultEnv ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
             </label>`;
         }).join('');
         return `
@@ -755,7 +755,7 @@
                         border:1px solid var(--bd);border-radius:var(--r);margin-bottom:6px">
                 <div style="flex:1">
                     <div style="font-weight:600;font-size:13px">${esc(e.name)}
-                        ${e.isDefault ? '<span class="badge badge-blue" style="margin-left:6px">Default</span>' : ''}
+                        ${e.defaultEnv ? '<span class="badge badge-blue" style="margin-left:6px">Default</span>' : ''}
                     </div>
                     <div style="font-size:11px;color:var(--tx3);font-family:monospace;margin-top:2px">${esc(e.baseUrl)}</div>
                 </div>
@@ -799,13 +799,13 @@
     window.createEnvironment = async function() {
         const name = document.getElementById('env-new-name').value.trim();
         const baseUrl = document.getElementById('env-new-url').value.trim();
-        const isDefault = document.getElementById('env-new-default').checked;
+        const defaultEnv = document.getElementById('env-new-default').checked;
         if (!name) { toast('Environment name is required', 'warning'); return; }
         if (!baseUrl || !baseUrl.startsWith('http')) { toast('Enter a valid base URL (https://...)', 'warning'); return; }
         try {
-            const created = await api.environments.create(projectId, { name, baseUrl, isDefault, variables: {} });
+            const created = await api.environments.create(projectId, { name, baseUrl, defaultEnv, variables: {} });
             environmentsCache.push(created);
-            if (isDefault) environmentsCache.forEach(e => { if (e.id !== created.id) e.isDefault = false; });
+            if (defaultEnv) environmentsCache.forEach(e => { if (e.id !== created.id) e.defaultEnv = false; });
             toast(`Environment "${name}" created`, 'success');
             renderEnvironmentsModal();
         } catch (e) { toast('Failed to create: ' + e.message, 'error'); }
@@ -830,7 +830,7 @@
                     <input id="env-edit-url" class="inp inp-mono" value="${esc(env.baseUrl)}">
                 </div>
                 <div style="display:flex;align-items:center;gap:8px">
-                    <input type="checkbox" id="env-edit-default" ${env.isDefault ? 'checked' : ''}
+                    <input type="checkbox" id="env-edit-default" ${env.defaultEnv ? 'checked' : ''}
                            style="width:15px;height:15px;accent-color:var(--pri)">
                     <label for="env-edit-default" style="font-size:13px;cursor:pointer">Set as default environment</label>
                 </div>
@@ -845,14 +845,14 @@
     window.saveEnvironment = async function(id) {
         const name = document.getElementById('env-edit-name').value.trim();
         const baseUrl = document.getElementById('env-edit-url').value.trim();
-        const isDefault = document.getElementById('env-edit-default').checked;
+        const defaultEnv = document.getElementById('env-edit-default').checked;
         if (!name) { toast('Name is required', 'warning'); return; }
         if (!baseUrl || !baseUrl.startsWith('http')) { toast('Enter a valid base URL', 'warning'); return; }
         try {
-            const updated = await api.environments.update(projectId, id, { name, baseUrl, isDefault, variables: {} });
+            const updated = await api.environments.update(projectId, id, { name, baseUrl, defaultEnv, variables: {} });
             const idx = environmentsCache.findIndex(e => e.id === id);
             if (idx !== -1) environmentsCache[idx] = updated;
-            if (isDefault) environmentsCache.forEach(e => { if (e.id !== id) e.isDefault = false; });
+            if (defaultEnv) environmentsCache.forEach(e => { if (e.id !== id) e.defaultEnv = false; });
             toast(`Environment "${name}" updated`, 'success');
             renderEnvironmentsModal();
         } catch (e) { toast('Failed to update: ' + e.message, 'error'); }
