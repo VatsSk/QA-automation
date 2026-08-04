@@ -39,6 +39,11 @@ public class FlowStep extends ExecutionEntity {
     private String attribute;
 
     /**
+     * Used for TEXT verification. Can be "value", "text", or "placeholder".
+     */
+    private String textSource;
+
+    /**
      * If false, Flow.defaultWait will be used.
      */
     private Boolean overrideWait = false;

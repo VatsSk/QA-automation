@@ -366,13 +366,36 @@ public class ActionHandlerService {
                 if (element == null) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TEXT verification failed","TEXT verification failed: element is null. Selector: " + step.getSelector(),null);
                 }
-                String rawActual = element.getText();
-                if (rawActual == null || rawActual.isEmpty()) {
-                    rawActual = (String) ((JavascriptExecutor) driver)
-                            .executeScript("return arguments[0].textContent;", element);
-                }
-                if (rawActual == null || rawActual.isEmpty()) {
-                    rawActual = element.getAttribute("value");
+                String rawActual = null;
+                String textSource = step.getTextSource() != null ? step.getTextSource().toLowerCase() : "";
+
+                switch (textSource) {
+                    case "value":
+                        rawActual = element.getAttribute("value");
+                        break;
+                    case "placeholder":
+                        rawActual = element.getAttribute("placeholder");
+                        break;
+                    case "text":
+                        rawActual = element.getText();
+                        if (rawActual == null || rawActual.isEmpty()) {
+                            rawActual = (String) ((JavascriptExecutor) driver)
+                                    .executeScript("return arguments[0].textContent;", element);
+                        }
+                        break;
+                    default:
+                        rawActual = element.getText();
+                        if (rawActual == null || rawActual.isEmpty()) {
+                            rawActual = (String) ((JavascriptExecutor) driver)
+                                    .executeScript("return arguments[0].textContent;", element);
+                        }
+                        if (rawActual == null || rawActual.isEmpty()) {
+                            rawActual = element.getAttribute("value");
+                        }
+                        if(rawActual == null || rawActual.isEmpty()){
+                            rawActual = element.getAttribute("placeholder");
+                        }
+                        break;
                 }
 
 //                 Normalize: collapse all whitespace sequences (spaces, newlines, tabs) → single space, then trim.
