@@ -40,3 +40,8 @@ test-results/
 .logs
 results.csv
 finalResult.csv
+.env
+qa_automation/
+logs/
+
+src/main/resources/application.yaml

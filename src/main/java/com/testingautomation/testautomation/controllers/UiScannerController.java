@@ -1,34 +1,37 @@
 package com.testingautomation.testautomation.controllers;
 
-import com.testingautomation.testautomation.model.FieldDescriptor;
-import com.testingautomation.testautomation.model.UiElement;
-import com.testingautomation.testautomation.scan.UiScannerService;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
 
 @Controller
 //@RequestMapping("/scanner")
 public class UiScannerController {
 
-//    private final UiScannerService scannerService;
-//
-//    public UiScannerController(UiScannerService scannerService) {
-//        this.scannerService = scannerService;
-//    }
-//
-//    @GetMapping("/scan")
-//    public List<FieldDescriptor> scan(@RequestParam String url) {
-//        return scannerService.scanPage(url);
-//    }
     @GetMapping("/")
     public String getHome(){
-        return "index.html";
+        return "runs.html";
     }
 
-    @GetMapping("/auth")
-    public String getAuth(){
-        return "Testforge.html";
+    @GetMapping("/previous-ui")
+    public String getAuth(){return "index.html";}
+
+    @GetMapping("/run-detail")
+    public String getRunDetail(){
+        return "run-detail.html";
+    }
+
+    @GetMapping("/run-editor")
+    public String getRunEditor(){
+        return "run-editor.html";
+    }
+
+    @GetMapping("/projects")
+    public String getProjects(){
+        return "projects.html";
+    }
+
+    @GetMapping("/modules")
+    public String getModules(){
+        return "modules.html";
     }
 }

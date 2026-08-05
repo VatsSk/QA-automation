@@ -1,0 +1,2499 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Run Editor</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+
+<!-- Full-height editor layout (no sidebar — full focus) -->
+<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden">
+
+    <!-- Topbar -->
+    <div class="topbar">
+        <button class="btn btn-ghost btn-sm" id="back-btn">← Back</button>
+        <div class="crumb">
+            <a class="crumb-link" href="/projects.html">Projects</a>
+            <span class="crumb-sep">›</span>
+            <span class="crumb-link" id="crumb-proj">…</span>
+            <span class="crumb-sep">›</span>
+            <span class="crumb-link" id="crumb-mod">…</span>
+            <span class="crumb-sep">›</span>
+            <span class="crumb-cur" id="crumb-cur">New Run</span>
+        </div>
+        <div class="mla" style="display:flex;gap:8px;align-items:center">
+            <button id="save-draft-btn" class="btn btn-ghost btn-sm">💾 Save Draft</button>
+            <button id="save-run-btn"   class="btn btn-success">▶ Save &amp; Run</button>
+            <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+        </div>
+    </div>
+
+    <!-- Editor body -->
+    <div class="editor-layout">
+
+        <!-- Left: scenario list sidebar -->
+        <div class="editor-sidebar">
+            <div class="editor-sb-head">
+                <h3>Scenarios</h3>
+                <span class="badge badge-blue" id="sc-count">0</span>
+            </div>
+            <div class="scenario-items" id="sc-items">
+                <!-- populated by JS -->
+            </div>
+            <div class="editor-sb-foot">
+                <button class="add-sc-btn" onclick="showAddMenu()">+ Add Scenario</button>
+            </div>
+        </div>
+
+        <!-- Right: run meta + scenario form -->
+        <div class="editor-main" id="editor-main">
+
+            <!-- Run meta (always visible at top) -->
+            <div class="card" style="margin-bottom:18px">
+                <div class="card-header">
+                    <span class="card-title">Run Details</span>
+                </div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                        <div class="field" style="margin:0">
+                            <label class="lbl">Run Name *</label>
+                            <input id="f-runName" class="inp" placeholder="e.g. Login smoke test">
+                        </div>
+                        <div class="field" style="margin:0">
+                            <label class="lbl">Run Type</label>
+                            <input id="f-runType" class="inp" placeholder="smoke / regression / e2e">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+                        <div class="field" style="margin:0">
+                            <label class="lbl">Tags <small style="font-weight:400;text-transform:none">(comma-separated)</small></label>
+                            <input id="f-tags" class="inp" placeholder="smoke, auth, critical">
+                        </div>
+<!--                        <div class="field" style="margin:0">-->
+<!--                            <label class="lbl">Assert Statement</label>-->
+<!--                            <input id="f-resultStatement" class="inp" placeholder="e.g. Login successful">-->
+<!--                        </div>-->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scenario config panel -->
+            <div id="sc-panel">
+                <div class="empty">
+                    <div class="ei">🔬</div>
+                    <h3>No scenarios yet</h3>
+                    <p>Click "+ Add Scenario" in the left panel to get started.</p>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as api      from './js/api.js';
+    import * as assrtFunc      from './js/assertions_functions.js';
+    import { TYPES, REQUIRED, ASSERT_TYPES, SORT_ORDER_OPTIONS, FILTER_OPERATIONS,FILTER_TYPES,DATE_SELECTION_TYPES,DATE_PRESET_TYPES,MANAGE_COLUMN_ACTIONS, SCENARIO_DEFAULTS} from './js/config.js';
+    import { esc, toast, openModal, closeModal,
+        requireLogin, initTheme, toggleTheme } from './js/utils.js';
+    import {buildPayload} from './js/payload.js';
+    import { generateDLScript } from './js/jsonToDLParser.js';
+
+    window.toggleTheme = toggleTheme;
+    window.closeModal  = closeModal;
+
+    const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+
+    initTheme();
+
+    // ── URL params ─────────────────────────────────────────────────────────
+    const params    = new URLSearchParams(location.search);
+    const runId     = params.get('runId');
+    const projectId = params.get('projectId')  || sessionStorage.getItem('qa_projectId');
+    const moduleId  = params.get('moduleId')   || sessionStorage.getItem('qa_moduleId');
+    const mode = params.get('mode') ;
+    const editMode = params.get('editMode');
+
+
+    // ── State ──────────────────────────────────────────────────────────────
+    let scenarios = [];   // array of scenario objects
+    let scIdx     = 0;    // index of the currently selected scenario
+    let scKey     = 0;    // incrementing key for unique DOM IDs
+    let projectData = null;
+
+    // scTab[key] = 'manual' | 'csv' — tracks active test-data tab per scenario
+    const scTab   = {};
+
+    // Helper function to initialize assertions for a scenario
+    function ensureAssertions(scenario) {
+        if (!scenario.assertions) {
+            scenario.assertions = [];
+        }
+        return scenario.assertions;
+    }
+
+
+
+    // DL Editor
+    async  function initDLEditorMode() {
+        document.getElementById('crumb-cur').textContent =editMode==="dl"?'Edit DL Run' : 'New DL Run';
+
+        document.querySelector('.editor-sidebar').style.display = 'none';
+        document.querySelector('.editor-main').style.width = '100%';
+
+        // Create default scenario for DL mode if no scenarios exist
+        // if (!runId && scenarios.length === 0 && projectData) {
+        //     console.log("Inside first tym creating run");
+        //     createDefaultDLScenario(projectData);
+        // }
+
+        document.getElementById('sc-panel').innerHTML = `
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">📝 DL Script Editor</span>
+            </div>
+            <div class="card-body">
+                <div id="dl-editor" style="height:400px;"></div>
+            </div>
+        </div>
+    `;
+
+        // 🔥 WAIT for editor properly
+        const editor = await initMonacoEditor();
+
+        console.log("Editor ready, now setting data");
+
+        // // ✅ THIS IS THE KEY FIX
+        // setTimeout(() => {
+        //     initMonacoEditor();
+        // }, 0);
+
+        // 🔥 NOW safe to load run
+        if (editMode === 'dl' && runId) {
+
+            console.log("edit mode on for dl")
+            const r = await api.runs.get(runId);
+            document.getElementById('f-runName').value         = r.runName        || '';
+            document.getElementById('f-runType').value         = r.runType        || '';
+            document.getElementById('f-tags').value            = (r.tags || []).join(', ');
+            // document.getElementById('f-resultStatement').value = r.resultStatement || '';
+
+            const dlScript = generateDLScript(r.scenariosList);
+
+            editor.setValue(dlScript); // ✅ no polling needed
+        }
+    }
+
+    function initMonacoEditor() {
+
+        return new Promise((resolve) => {
+
+            require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+
+            require(['vs/editor/editor.main'], function () {
+
+                monaco.languages.register({ id: 'dl' });
+
+                // =========================
+                // 🔹 TOKENIZER
+                // =========================
+                monaco.languages.setMonarchTokensProvider('dl', {
+                    tokenizer: {
+                        root: [
+                            [/^\s*@\w+/, 'keyword'],
+                            [/^\s*\^\w+/, 'attribute.name'],
+                            [/:/, 'delimiter'],
+                            [/https?:\/\/[^\s]+/, 'string']
+                        ]
+                    }
+                });
+
+                // =========================
+                // 🔹 AUTOCOMPLETE
+                // =========================
+                monaco.languages.registerCompletionItemProvider('dl', {
+                    triggerCharacters: ['@', '^', '!', ':'],
+
+                    provideCompletionItems: function (model, position) {
+
+                        const textUntilPosition = model.getValueInRange({
+                            startLineNumber: 1,
+                            startColumn: 1,
+                            endLineNumber: position.lineNumber,
+                            endColumn: position.column
+                        });
+
+                        const lines = textUntilPosition.split('\n');
+                        const currentLine = lines[lines.length - 1].trim();
+
+                        // =========================
+                        // 🔥 CONTEXT DETECTION
+                        // =========================
+                        let currentType = null;
+                        let insideFilterBlock = false;
+                        let lastFilterType = null;
+                        let lastSelectionType = null;
+                        let insideColumnBlock = false;
+
+                        for (let i = lines.length - 1; i >= 0; i--) {
+                            const line = lines[i].trim();
+                            const upperLine = line.toUpperCase();
+
+
+                            if (line.startsWith('@')) {
+                                if (!currentType) {
+                                    currentType = line.substring(1).trim();
+                                }
+                                break;
+                            }
+
+                            if (upperLine.startsWith('!COLUMN')) {
+                                if (!insideColumnBlock && !insideFilterBlock) {
+                                    insideColumnBlock = true;
+                                }
+                                continue;
+                            }
+                            if (upperLine.startsWith('!FILTER')) {
+                                if (!insideColumnBlock && !insideFilterBlock) {
+                                    insideFilterBlock = true;
+                                }
+                                continue;
+                            }
+
+                            if (line.startsWith('@') && insideFilterBlock) {
+                                break;
+                            }
+
+                            if (line.startsWith('^filterType:')) {
+                                const val = line.split(':')[1];
+                                if (val) lastFilterType = val.trim();
+                            }
+                            if (line.startsWith('^selectionType:')) {
+                                const val = line.split(':')[1];
+                                if (val) lastSelectionType = val.trim();
+                            }
+                        }
+
+                        // =========================
+                        // 🔹 @ STEP
+                        // =========================
+                        if (currentLine.startsWith('@')) {
+                            return {
+                                suggestions: Object.keys(TYPES).map(type => ({
+                                    label: type,
+                                    kind: monaco.languages.CompletionItemKind.Keyword,
+                                    insertText: type,
+                                    detail: TYPES[type].hint || '',
+                                }))
+                            };
+                        }
+
+                        // 🔹 ! BLOCK
+                        // if (currentLine.startsWith('!')) {
+                        //
+                        //     // FILTER NAV
+                        //     if (currentType === 'FILTER_NAV') {
+                        //         return {
+                        //             suggestions: [{
+                        //                 label: 'FILTER',
+                        //                 kind: monaco.languages.CompletionItemKind.Struct,
+                        //                 insertText: 'FILTER',
+                        //                 detail: 'Start filter block'
+                        //             }]
+                        //         };
+                        //     }
+                        //
+                        //     // ===== MANAGE COLUMN NAV =====
+                        //     if (currentType === 'MANAGE_COL_NAV') {
+                        //
+                        //         return {
+                        //             suggestions: [
+                        //                 'saveBtnCss'
+                        //             ].map(f => ({
+                        //                 label: f,
+                        //                 kind: monaco.languages.CompletionItemKind.Field,
+                        //                 insertText: `${f}:`,
+                        //             }))
+                        //         };
+                        //     }
+                        // }
+                        // 🔹 ! BLOCK
+                        if (currentLine.startsWith('!')) {
+
+                            // FILTER NAV
+                            if (currentType === 'FILTER_NAV') {
+                                return {
+                                    suggestions: [{
+                                        label: 'FILTER',
+                                        kind: monaco.languages.CompletionItemKind.Struct,
+                                        insertText: 'FILTER',
+                                        detail: 'Start filter block'
+                                    }]
+                                };
+                            }
+
+                            // MANAGE COLUMN NAV
+                            if (currentType === 'MANAGE_COL_NAV') {
+                                return {
+                                    suggestions: [{
+                                        label: 'COLUMN',
+                                        kind: monaco.languages.CompletionItemKind.Struct,
+                                        insertText: 'COLUMN',
+                                        detail: 'Start column block'
+                                    }]
+                                };
+                            }
+                        }
+
+                        // =========================
+                        // 🔹 VALUE SUGGESTIONS FIRST (🔥 KEY FIX)
+                        // =========================
+                        if (currentLine.startsWith('^')) {
+
+                            const parts = currentLine.split(':');
+                            const key = (parts[0] || '').replace('^', '').trim();
+
+                            // 🔥 filterType values
+                            if (key === 'filterType') {
+                                console.log("🔥 filterType suggestion triggered");
+                                return {
+                                    suggestions: Object.keys(FILTER_OPERATIONS).map(type => ({
+                                        label: type,
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: type
+                                    }))
+                                };
+                            }
+
+                            // 🔥 operation values
+                            if (key === 'operation') {
+                                console.log("🔥 operation suggestion triggered", lastFilterType);
+
+                                if (lastFilterType && FILTER_OPERATIONS[lastFilterType]) {
+                                    return {
+                                        suggestions: FILTER_OPERATIONS[lastFilterType].map(op => ({
+                                            label: op.value,
+                                            kind: monaco.languages.CompletionItemKind.Enum,
+                                            insertText: op.value,
+                                            detail: op.label
+                                        }))
+                                    };
+                                }
+                            }
+
+                            // 🔥 selectionType values
+                            if (key === 'selectionType') {
+                                return {
+                                    suggestions: DATE_SELECTION_TYPES.map(type => ({
+                                        label: type.value,
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: type.value,
+                                        detail: type.label
+                                    }))
+                                };
+                            }
+
+                            // 🔥 preset suggestions
+                            if (key === 'preset') {
+
+                                return {
+                                    suggestions: DATE_PRESET_TYPES.map(preset => ({
+                                        label: preset.value,
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: preset.value,
+                                        detail: preset.label
+                                    }))
+                                };
+                            }
+
+                            // 🔥 manage column actions
+                            if (currentType === 'MANAGE_COL_NAV' && insideColumnBlock && key === 'action' && currentLine.includes(':')) {
+                                return {
+                                    suggestions: MANAGE_COLUMN_ACTIONS.map(action => ({
+                                        label: action.value || 'DEFAULT',
+                                        kind: monaco.languages.CompletionItemKind.Enum,
+                                        insertText: action.value,
+                                        detail: action.label
+                                    }))
+                                };
+                            }
+                        }
+
+                        // =========================
+                        // 🔹 FIELD SUGGESTIONS
+                        // =========================
+                        if (currentLine.startsWith('^')) {
+
+                            const isValueContext = currentLine.includes(':');
+                            // ===== ASSERT VALUE SUGGESTIONS =====
+                            if (currentType === 'ASSERT') {
+
+                                const typedKey = currentLine.split(':')[0]
+                                    .replace('^', '')
+                                    .trim();
+
+                                // 🔥 type enum suggestions
+                                if (typedKey === 'type') {
+                                    return {
+                                        suggestions: Object.keys(ASSERT_TYPES).map(type => ({
+                                            label: type,
+                                            kind: monaco.languages.CompletionItemKind.Enum,
+                                            insertText: type,
+                                            detail: ASSERT_TYPES[type].label
+                                        }))
+                                    };
+                                };
+                            }
+
+                            if (!isValueContext) {
+                                // ===== COLUMN BLOCK =====
+                                if (currentType === 'MANAGE_COL_NAV' && insideColumnBlock) {
+
+                                    return {
+                                        suggestions: [
+                                            'column',
+                                            'action',
+                                            'position'
+                                        ].map(f => ({
+                                            label: f,
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: `${f}:`
+                                        }))
+                                    };
+                                }
+
+                                // =========================
+                                // ===== ASSERT FIELD SUGGESTIONS =====
+                                // =========================
+                                if (currentType === 'ASSERT') {
+
+                                    let lastAssertType = null;
+
+                                    for (let i = lines.length - 1; i >= 0; i--) {
+
+                                        const line = lines[i].trim();
+
+                                        if (line.startsWith('^type:')) {
+                                            lastAssertType = line.split(':')[1]?.trim();
+                                            break;
+                                        }
+                                    }
+
+                                    console.log("ASSERT TYPE =", lastAssertType);
+
+                                    // 🔥 Dynamic fields based on assert type
+                                    if (lastAssertType && ASSERT_TYPES[lastAssertType]) {
+
+                                        return {
+                                            suggestions: ASSERT_TYPES[lastAssertType].fields.map(f => ({
+                                                label: f,
+                                                kind: monaco.languages.CompletionItemKind.Field,
+                                                insertText: `${f}:`
+                                            }))
+                                        };
+                                    }
+
+                                    // fallback
+                                    return {
+                                        suggestions: TYPES['ASSERT'].fields.map(f => ({
+                                            label: f,
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: `${f}:`
+                                        }))
+                                    };
+                                }
+
+
+                                // ===== FILTER_NAV =====
+                                if (currentType === 'FILTER_NAV' && !insideFilterBlock) {
+                                    return {
+                                        suggestions: [{
+                                            label: 'applyBtnCss',
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: 'applyBtnCss:',
+                                        }]
+                                    };
+                                }
+                                if (currentType === 'MANAGE_COL_NAV' && !insideColumnBlock) {
+                                    return {
+                                        suggestions: [{
+                                            label: 'saveBtnCss',
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: 'saveBtnCss:',
+                                        }]
+                                    };
+                                }
+
+                                // ===== FILTER BLOCK =====
+                                if (insideFilterBlock) {
+                                    return {
+                                        suggestions: [
+                                            'querySelector',
+                                            'filterType',
+                                            'operation',
+                                            'value',
+                                            'valueSelector',
+                                            'logicalOperator'
+                                        ].map(f => ({
+                                            label: f,
+                                            kind: monaco.languages.CompletionItemKind.Field,
+                                            insertText: `${f}:`
+                                        }))
+                                    };
+                                }
+
+                                // ===== NORMAL =====
+                                if (currentType && TYPES[currentType]) {
+                                    // ===== DATE RANGE NAV =====
+                                    if (currentType === 'DATE_RANGE_NAV') {
+
+                                        let fields = [
+                                            'inputSelector',
+                                            'selectionType',
+                                            'applyButtonSelector',
+                                            'calendarContainerSelector',
+                                            'dateFormat'
+                                        ];
+
+                                        if (lastSelectionType === 'PRESET') {
+                                            fields.push('preset');
+                                        }
+
+                                        if (lastSelectionType === 'CUSTOM') {
+                                            fields.push('startDate');
+                                            fields.push('endDate');
+                                        }
+
+                                        return {
+                                            suggestions: fields.map(f => ({
+                                                label: f,
+                                                kind: monaco.languages.CompletionItemKind.Field,
+                                                insertText: `${f}:`,
+                                            }))
+                                        };
+                                    }
+
+
+
+                                    // ===== NORMAL =====
+                                    if (currentType && TYPES[currentType]) {
+                                        return {
+                                            suggestions: TYPES[currentType].fields.map(f => ({
+                                                label: f,
+                                                kind: monaco.languages.CompletionItemKind.Field,
+                                                insertText: `${f}:`,
+                                            }))
+                                        };
+                                    }
+                                }
+                            }
+                        }
+
+                        return { suggestions: [] };
+                    }
+                });
+
+                // =========================
+                // 🔹 HOVER
+                // =========================
+                monaco.languages.registerHoverProvider('dl', {
+                    provideHover: function (model, position) {
+
+                        const line = model.getLineContent(position.lineNumber);
+
+                        const wordInfo = model.getWordAtPosition(position);
+                        if (!wordInfo) return;
+
+                        const word = wordInfo.word;
+
+                        // Detect prefix
+                        const start = wordInfo.startColumn - 1;
+                        const charBefore = line[start - 1];
+
+                        let fullWord = word;
+
+                        if (charBefore === '@') {
+                            fullWord = '@' + word;
+                        }
+
+                        // =========================
+                        // 🔥 AUTO-GENERATE DOCS
+                        // =========================
+                        const docs = {};
+
+                        // =========================
+                        // 🔹 SCENARIOS (TYPES)
+                        // =========================
+                        Object.entries(TYPES).forEach(([key, val]) => {
+                            docs['@' + key] = {
+                                title: `${val.icon || ''} ${val.label}`,
+                                desc: val.hint,
+                                fields: val.fields?.map(f => `^${f}`) || []
+                            };
+                        });
+
+                        // =========================
+                        // 🔹 ASSERT TYPES
+                        // =========================
+                        Object.entries(ASSERT_TYPES).forEach(([key, val]) => {
+                            docs[key] = {
+                                title: val.label,
+                                desc: `Required: ${val.required.join(', ')}`,
+                                fields: val.fields.map(f => `^${f}`)
+                            };
+                        });
+
+                        // =========================
+                        // 🔹 FILTER TYPES
+                        // =========================
+                        FILTER_TYPES.forEach(f => {
+                            docs[f.value] = {
+                                title: f.label,
+                                desc: `Filter type: ${f.value}`
+                            };
+                        });
+                        // 🔹 DATE SELECTION TYPES
+                        DATE_SELECTION_TYPES.forEach(t => {
+                            docs[t.value] = {
+                                title: t.label,
+                                desc: `Selection type: ${t.value}`
+                            };
+                        });
+
+                        // 🔹 DATE PRESET TYPES
+                        DATE_PRESET_TYPES.forEach(p => {
+                            docs[p.value] = {
+                                title: p.label,
+                                desc: `Date preset: ${p.value}`
+                            };
+                        });
+
+                        // 🔹 MANAGE COLUMN ACTIONS
+                        MANAGE_COLUMN_ACTIONS.forEach(a => {
+                            docs[a.value] = {
+                                title: a.label,
+                                desc: `Column action: ${a.value || 'DEFAULT'}`
+                            };
+                        });
+
+                        // =========================
+                        // 🔹 FILTER OPERATIONS
+                        // =========================
+                        Object.entries(FILTER_OPERATIONS).forEach(([type, ops]) => {
+                            ops.forEach(op => {
+                                docs[op.value] = {
+                                    title: op.label,
+                                    desc: `Operation for ${type}`
+                                };
+                            });
+                        });
+
+                        // =========================
+                        // 🔹 FIELD DESCRIPTIONS
+                        // =========================
+                        const FIELD_DOCS = {
+                            url: 'URL to navigate',
+                            csv: 'CSV file for test data',
+                            cssSelector: 'CSS selector of element',
+                            value: 'Value to input or match',
+                            clickCss: 'Selector to click after action',
+                            applyBtnCss: 'Apply filter button selector',
+
+                            querySelector: 'Selector for filter field',
+                            filterType: 'TEXT | DATE | DATE_TIME | NUMBER',
+                            operation: 'Depends on filterType',
+                            valueSelector: 'Selector for dropdown/input',
+                            logicalOperator: 'AND / OR condition Selector',
+
+                            type: 'Assertion type',
+                            tableId: 'Table selector',
+                            locator: 'Element selector',
+                            expected: 'Expected value',
+                            columnName: 'Column name',
+                            rangeId: 'Range selector',
+                            rowsBtn: 'Pagination control',
+                            promptAi: 'AI validation prompt',
+                            inputSelector: 'Date picker input selector',
+                            selectionType: 'PRESET or CUSTOM',
+                            preset: 'Preset date range value',
+                            startDate: 'Custom start date',
+                            endDate: 'Custom end date',
+                            applyButtonSelector: 'Apply button selector',
+                            calendarContainerSelector: 'Calendar wrapper selector',
+                            dateFormat: 'Date parsing format',
+
+                            columns: 'Columns configuration',
+                            column: 'Manage column selector',
+                            saveBtnCss: 'Save/manage column button selector',
+                            action: 'SHOW / HIDE / DEFAULT'
+                        };
+
+                        Object.entries(FIELD_DOCS).forEach(([key, desc]) => {
+                            docs[key] = {
+                                title: key,
+                                desc: desc
+                            };
+                        });
+
+                        // =========================
+                        // 🔍 RESOLVE DOC
+                        // =========================
+                        const doc = docs[fullWord] || docs[word];
+
+                        if (!doc) return;
+
+                        return {
+                            contents: [
+                                { value: `### ${doc.title}` },
+                                { value: doc.desc || '' },
+                                ...(doc.fields
+                                    ? [{ value: `\n**Fields:**\n- ${doc.fields.join('\n- ')}` }]
+                                    : [])
+                            ]
+                        };
+                    }
+                });
+
+                // =========================
+                // 🔹 THEME
+                // =========================
+                monaco.editor.defineTheme('dlTheme', {
+                    base: 'vs-dark',
+                    inherit: true,
+                    rules: [
+                        { token: 'keyword', foreground: '00ffcc', fontStyle: 'bold' },
+                        { token: 'attribute.name', foreground: '66ccff' }
+                    ],
+                    colors: {
+                        "editor.background": "#0f172a",
+                        "editor.foreground": "#e5e7eb"
+                    }
+                });
+
+                const el = document.getElementById('dl-editor');
+
+                window.editor = monaco.editor.create(el, {
+                    value: `@URL_NAV
+    ^url:https://example.com`,
+                    language: 'dl',
+                    theme: 'dlTheme',
+                    fontSize: 13,
+                    automaticLayout: true
+                });
+
+                // 🔥 Force suggestions
+                window.editor.onDidChangeModelContent(() => {
+                    window.editor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+                });
+
+                console.log("✅ Editor initialized");
+                resolve(window.editor);
+            });
+        });
+    }
+    // ── Breadcrumbs & back button ──────────────────────────────────────────
+    const backUrl = projectId && moduleId
+        ? `/runs.html?projectId=${projectId}&moduleId=${moduleId}`
+        : '/projects.html';
+    document.getElementById('back-btn').onclick = () => {
+        if (confirm('Leave editor? Unsaved changes will be lost.'))
+            window.location.href = backUrl;
+    };
+    document.getElementById('crumb-cur').textContent = runId ? 'Edit Run' : 'New Run';
+
+    ;(async () => {
+        if (projectId) {
+            try {
+                const proj = await api.projects.get(projectId);
+                projectData = proj;
+                document.getElementById('crumb-proj').textContent = proj.name;
+                document.getElementById('crumb-proj').onclick = () =>
+                    window.location.href = `/modules.html?projectId=${projectId}`;
+                // NEW RUN only
+                if (mode !== 'dl' && !runId && scenarios.length === 0) {
+                    createDefaultLoginScenario(proj);
+                }
+            } catch {}
+        }
+        if (moduleId) {
+            try {
+                const mod = await api.modules.get(moduleId);
+                document.getElementById('crumb-mod').textContent = mod.name;
+                document.getElementById('crumb-mod').onclick = () =>
+                    window.location.href = `/runs.html?projectId=${projectId}&moduleId=${moduleId}`;
+                sessionStorage.setItem('qa_moduleId', moduleId);
+            } catch {}
+        }
+        if (mode === 'dl'  || editMode === 'dl') {
+            console.log("Inside mode ")
+            await initDLEditorMode();
+        } else {
+            // Ensure sidebar is visible for manual mode
+            const sidebar = document.querySelector('.editor-sidebar');
+            const main = document.querySelector('.editor-main');
+            if (sidebar) sidebar.style.display = '';
+            if (main) main.style.width = '';
+        }
+    })();
+
+    function createDefaultLoginScenario(proj) {
+
+        // Try multiple URL fields with fallback
+        let targetUrl = proj.loginUrl;
+
+        scenarios.push({
+            _key: ++scKey,
+            id: undefined,
+
+            type: 'URL',
+
+            url: targetUrl,
+            cssSelector: '',
+            value: '',
+
+            clickEnabled: false,
+            clickCss: '',
+
+            csv: proj.loginCredS3Path || '',
+
+            manualTestCases: [],
+
+            assertions: [],
+            filters: [],
+
+            // NEW
+            columns: [],
+
+            // manage column fields
+            saveBtnCss: ''
+        });
+
+        scIdx = 0;
+
+        renderSidebar();
+        renderPanel();
+    }
+
+    function createDefaultDLScenario(proj) {
+        let targetUrl = proj.loginUrl;
+
+        scenarios.push({
+            _key: ++scKey,
+            id: undefined,
+            type: 'URL',
+            url: targetUrl,
+            cssSelector: '',
+            value: '',
+            clickEnabled: false,
+            clickCss: '',
+            csv: proj.loginCredS3Path || '',
+            manualTestCases: [],
+            assertions: [],
+            filters: []
+        });
+        // Create a default DL scenario with URL_NAV type
+        // scenarios.push({
+        //     _key: ++scKey,
+        //     id: undefined,
+        //     type: 'DL',
+        //     dlScript: `@URL_NAV
+        //         ^url:${proj.loginUrl}`,
+        //     csv: proj.loginCredS3Path || '',
+        //     assertions: [],
+        //     filters: []
+        // });
+        //
+        // scIdx = 0;
+        console.log("Default DL scenario created");
+    }
+
+    // ── Load existing run (edit mode) ──────────────────────────────────────
+    if (editMode !=='dl' && runId ) {
+
+        console.log("inside manual editor");
+
+        (async () => {
+            try {
+                const r = await api.runs.get(runId);
+                document.getElementById('f-runName').value         = r.runName        || '';
+                document.getElementById('f-runType').value         = r.runType        || '';
+                document.getElementById('f-tags').value            = (r.tags || []).join(', ');
+                // document.getElementById('f-resultStatement').value = r.resultStatement || '';
+
+                scenarios = (r.scenariosList || []).map(s => ({
+                    _key:            ++scKey,
+                    id:              s.id,
+                    type:            s.type || 'URL',
+                    url:             s.url         || '',
+                    cssSelector:     s.cssOpener   || '',   // backend field = cssOpener
+                    value:           s.value       || '',
+                    clickEnabled:   !!s.clickCss,
+                    clickCss:        s.clickCss    || '',   // Add clickCss field
+                    csv:             s.csv         || '',
+                    manualTestCases: s.manualTestCases || [],
+                    // 🔥 IMPORTANT
+                    assertions:      (s.assertions || []).map(a => ({
+                        type: a.type || '',
+                        locator: a.locator || '',
+                        expected: a.expected || '',
+                        tableId: a.tableId || '',
+                        columnName: a.columnName || '',
+                        order: a.order || '',
+                        rowsBtn: a.rowsBtn || ''
+                    })),
+                    filters: (s.filters || []).map(f => ({
+                        querySelectorOfColName: f.querySelector || '',
+                        filterType: f.filterType || '',
+                        operation: f.operation || '',
+                        value: f.value || '',
+                        searchCssSelector: f.valueSelector || '',
+                        logicalOperatorSelector: f.logicalOperator || ''
+                    })),
+                    // MANAGE COLUMN
+                    columns: (s.columns || []).map(c => ({
+                        columnName: c.columnName || '',
+                        extractedName: c.extractedName || '',
+                        action: c.action || '',
+                        position: c.position ?? null
+                    })),
+
+                    saveBtnCss: s.saveBtnCss || '',
+
+                    applyBtnCss: s.applyFilterBtn || '',
+                    inputSelector: s.dateRangeNavDto?.inputSelector || '',
+                    selectionType: s.dateRangeNavDto?.selectionType || 'PRESET',
+                    preset: s.dateRangeNavDto?.preset || 'LAST_MONTH',
+                    startDate: s.dateRangeNavDto?.startDate || '',
+                    endDate: s.dateRangeNavDto?.endDate || '',
+                    applyButtonSelector: s.dateRangeNavDto?.applyButtonSelector || '',
+                    calendarContainerSelector: s.dateRangeNavDto?.calendarContainerSelector || '',
+                    dateFormat: s.dateRangeNavDto?.dateFormat || '',
+
+                    // INITIAL & FINAL VERIFICATIONS
+                    // Backend: initialVerify[].cssSelector + .expectedResult
+                    // UI:      initialVerifications[].locator + .value
+                    initialVerifications: (s.initialVerify || []).map(v => ({
+                        locator: v.cssSelector    || '',
+                        value:   v.expectedResult || ''
+                    })),
+                    finalVerifications: (s.finalVerify || []).map(v => ({
+                        locator: v.cssSelector    || '',
+                        value:   v.expectedResult || ''
+                    }))
+                }));
+                renderSidebar();
+                renderPanel();
+            } catch (e) { toast('Failed to load run: ' + e.message, 'error'); }
+        })();
+    }
+
+    // ── Scenario sidebar ───────────────────────────────────────────────────
+    function renderSidebar() {
+        document.getElementById('sc-count').textContent = scenarios.length;
+        document.getElementById('sc-items').innerHTML = scenarios.map((s, i) => {
+            const cfg = TYPES[s.type] || { label: s.type, icon: '?', color: 'var(--tx2)', bg: 'var(--sur3)' };
+            const lbl = s.url || s.cssSelector || s.value || 'New scenario';
+            return `
+      <div class="si ${i === scIdx ? 'active' : ''}" onclick="selectScenario(${i})">
+        <div class="si-num">${i + 1}</div>
+        <div class="si-bar" style="background:${cfg.color}"></div>
+        <div class="si-info">
+          <div class="si-type" style="color:${cfg.color}">${cfg.icon} ${cfg.label}</div>
+          <div class="si-label">${esc(lbl)}</div>
+        </div>
+        <button class="si-del" onclick="event.stopPropagation();removeScenario(${i})">✕</button>
+      </div>`;
+        }).join('');
+    }
+    // ── Assertion actions ───────────────────────────────────────────────────
+    window.addAssertion = function (scIdx) {
+        const scenario = scenarios[scIdx];
+        const assertions = ensureAssertions(scenario);
+
+        assertions.push({
+            type: '',
+            locator: '',
+            expected: '',
+            tableId: '',
+            columnName: '',
+            order: '',
+            rowsBtn: '',
+            promptAi:''
+        });
+
+        renderPanel();
+    };
+    // function ensureAssertions(scenario) {
+    //     if (!scenario.assertions) {
+    //         scenario.assertions = [];
+    //     }
+    //     return scenario.assertions;
+    // }
+
+    window.removeAssertion = function (scIdx, assertionIdx) {
+        const scenario = scenarios[scIdx];
+        if (scenario.assertions && scenario.assertions[assertionIdx]) {
+            scenario.assertions.splice(assertionIdx, 1);
+            renderPanel();
+        }
+    };
+
+    window.updateAssertionType = function (scIdx, assertionIdx, type) {
+        const scenario = scenarios[scIdx];
+
+        if (scenario.assertions && scenario.assertions[assertionIdx]) {
+            scenario.assertions[assertionIdx].type = type;
+
+            // 🔥 smart cleanup (important)
+            const newConfig = ASSERT_TYPES[type] || { fields: [] };
+
+            const allFields = ['locator', 'expected', 'tableId', 'columnName', 'order', 'rowsBtn','promptAi'];
+
+            allFields.forEach(field => {
+                // console.log("field : "+field+", newConfig.fields.includes(field):  "+newConfig.fields.includes(field))
+                if (!newConfig.fields.includes(field)) {
+                    scenario.assertions[assertionIdx][field] = '';
+                }
+            });
+
+            console.log("newConfig "+newConfig);
+
+            renderPanel();
+        }
+    };
+
+    window.updateAssertionField = function (scIdx, assertionIdx, field, value) {
+        console.log("Updating:", scIdx, assertionIdx, field, value);
+        const scenario = scenarios[scIdx];
+        if (scenario.assertions && scenario.assertions[assertionIdx]) {
+            scenario.assertions[assertionIdx][field] = value;
+        }
+    };
+
+    // ── Scenario config panel ──────────────────────────────────────────────
+    function renderPanel() {
+        const panel = document.getElementById('sc-panel');
+        if (!scenarios.length) {
+            panel.innerHTML = `
+        <div class="empty">
+          <div class="ei">🔬</div>
+          <h3>No scenarios yet</h3>
+          <p>Click "+ Add Scenario" in the left panel to get started.</p>
+        </div>`;
+            return;
+        }
+
+        const s   = scenarios[scIdx];
+        const cfg = TYPES[s.type] || { label: s.type, icon: '?', color: 'var(--tx2)', bg: 'var(--sur3)', fields: [], hasData: false };
+        const tab = scTab[s._key] || 'manual';
+
+        // Type picker buttons
+        const typePicker = Object.entries(TYPES).map(([k, v]) => `
+      <button class="tp-btn ${s.type === k ? 'active' : ''}"
+        onclick="setType(${scIdx}, '${k}')"
+        style="--tc:${v.color};--tb:${v.bg}">
+        <span class="tp-icon">${v.icon}</span>
+        <span class="tp-lbl">${v.label}</span>
+      </button>`).join('');
+
+        panel.innerHTML = `
+    <div class="card">
+      <div class="card-header"
+        style="background:${cfg.bg};border-color:${cfg.color.replace(')', ',0.25)')}">
+        <span class="card-title" style="color:${cfg.color}">
+          ${cfg.icon} Scenario #${scIdx + 1} — ${cfg.label}
+        </span>
+        <div style="display:flex;gap:6px">
+          <button class="btn btn-ghost btn-xs"
+            onclick="moveScenario(${scIdx}, -1)"
+            ${scIdx === 0 ? 'disabled' : ''} title="Move up">↑</button>
+          <button class="btn btn-ghost btn-xs"
+            onclick="moveScenario(${scIdx}, 1)"
+            ${scIdx === scenarios.length - 1 ? 'disabled' : ''} title="Move down">↓</button>
+        </div>
+      </div>
+      <div class="card-body">
+
+        <!-- Type picker -->
+        <div class="sc-section">Scenario Type</div>
+        <div class="type-picker">${typePicker}</div>
+
+        <div style="padding:8px 12px;background:var(--sur2);border:1px solid var(--bd);
+          border-radius:var(--rs);font-size:12px;color:var(--tx2);margin-bottom:16px">
+          ℹ ${esc(cfg.hint || '')}
+        </div>
+
+        <!-- ── URL field (shown for URL, URL_NAV, VERIFY_PAGE) ── -->
+        ${cfg.fields.includes('url') ? `
+        <div class="field">
+          <label class="lbl">URL *</label>
+          <input class="inp inp-mono" id="sc-url"
+            value="${esc(s.url)}"
+            placeholder="https://example.com/page"
+            oninput="updateField(${scIdx}, 'url', this.value)">
+        </div>` : ''}
+
+        <!-- ── Initial Verification (URL scenario only — after URL input) ── -->
+        ${s.type === 'URL' ? renderInitialVerificationSection(scIdx, s) : ''}
+
+        <!-- ── Value (for SEARCH_NAV and FORM_MODAL) ── -->
+       ${cfg.fields.includes('value') ? `
+        <div class="field">
+          <label class="lbl">
+            ${
+                    s.type === 'FORM_MODAL'
+                        ? 'Form Value *'
+                        : s.type === 'ROW_COUNT_NAV'
+                            ? 'Row Count *'
+                            : 'Search Value *'
+                }
+          </label>
+
+          <input class="inp" id="sc-value"
+            value="${esc(s.value)}"
+            placeholder="${
+                    s.type === 'FORM_MODAL'
+                        ? 'Value to type in form field'
+                        : s.type === 'ROW_COUNT_NAV'
+                            ? 'Enter row count (10, 25, 50, 100)'
+                            : 'Search term or input text'
+                }"
+            oninput="updateField(${scIdx}, 'value', this.value)">
+        </div>` : ''
+        }
+
+        <!-- ── Click Option (only for FORM_MODAL) ── -->
+        ${s.type === 'FORM_MODAL' ? `
+        <div class="field">
+          <label class="lbl">Click After Filling?</label>
+
+          <div style="display:flex;gap:16px;margin-top:8px">
+
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input
+                type="radio"
+                name="click-option-${scIdx}"
+                value="yes"
+                ${(s.clickEnabled || s.clickCss) ? 'checked' : ''}
+                onchange="handleClickOption(${scIdx}, 'yes')">
+
+              <span>Yes</span>
+            </label>
+
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+              <input
+                type="radio"
+                name="click-option-${scIdx}"
+                value="no"
+                ${!(s.clickEnabled || s.clickCss) ? 'checked' : ''}
+                onchange="handleClickOption(${scIdx}, 'no')">
+
+              <span>No</span>
+            </label>
+
+          </div>
+        </div>` : ''}
+
+
+        <!-- ─ Click CSS (only for FORM_MODAL when click option is yes OR clickCss already exists) ─ -->
+        ${s.type === 'FORM_MODAL' && (s.clickEnabled || s.clickCss) ? `
+        <div class="field">
+          <label class="lbl">Click CSS Selector *</label>
+
+          <input
+            class="inp inp-mono"
+            id="sc-clickCss"
+            value="${esc(s.clickCss || '')}"
+            placeholder=".submit-btn, #confirm-button"
+            oninput="updateField(${scIdx}, 'clickCss', this.value)">
+        </div>` : ''}
+
+        <!-- ── Initial Verification (FORM_MODAL only — before test data) ── -->
+        ${s.type === 'FORM_MODAL' ? renderInitialVerificationSection(scIdx, s) : ''}
+
+        <!-- ── Test data (only URL, MODAL, and FORM_MODAL have test data) ── -->
+        ${cfg.hasData ? renderDataSection(scIdx, s, tab) : ''}
+
+        <!-- ── Assertions (only for ASSERT type) ── -->
+        ${s.type === 'ASSERT' ? assrtFunc.renderAssertionsSection(scIdx, s) : ''}
+
+        ${s.type === 'FILTER_NAV' ? renderFiltersSection(scIdx, s) : ''}
+        ${s.type === 'DATE_RANGE_NAV'?renderDateSection(scIdx,s):''}
+        ${s.type === 'MANAGE_COL_NAV'?renderManageColSection(scIdx,s):''}
+
+        <!-- ── Final Verification (all scenarios except ASSERT) ── -->
+        ${s.type !== 'ASSERT' ? renderFinalVerificationSection(scIdx, s) : ''}
+
+      </div>
+    </div>`;
+    }
+
+    function renderDateSection(idx, s) {
+
+        return `
+    <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r)">
+
+        <!-- Input Selector -->
+        <div class="field">
+            <label class="lbl">Input Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.inputSelector || '')}"
+                placeholder="#date-range-input"
+                oninput="updateField(${idx}, 'inputSelector', this.value)">
+        </div>
+
+        <!-- Calendar Container Selector -->
+        <div class="field">
+            <label class="lbl">Calendar Container Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.calendarContainerSelector || '')}"
+                placeholder=".calendar-container"
+                oninput="updateField(${idx}, 'calendarContainerSelector', this.value)">
+        </div>
+
+        <!-- Apply Button Selector -->
+        <div class="field">
+            <label class="lbl">Apply Button Selector *</label>
+            <input
+                class="inp inp-mono"
+                value="${esc(s.applyButtonSelector || '')}"
+                placeholder=".apply-btn"
+                oninput="updateField(${idx}, 'applyButtonSelector', this.value)">
+        </div>
+
+        <!-- Selection Type -->
+        <div class="field">
+            <label class="lbl">Selection Type *</label>
+
+            <select
+                class="inp"
+                onchange="updateScenarioAndRender(${idx}, 'selectionType', this.value)">
+
+                ${DATE_SELECTION_TYPES.map(t => `
+                    <option
+                        value="${t.value}"
+                        ${s.selectionType === t.value ? 'selected' : ''}>
+                        ${t.label}
+                    </option>
+                `).join('')}
+
+            </select>
+        </div>
+
+        ${
+            s.selectionType === 'PRESET'
+                ? `
+                    <!-- PRESET DROPDOWN -->
+                    <div class="field">
+                        <label class="lbl">Preset *</label>
+
+                        <select
+                            class="inp"
+                            onchange="updateField(${idx}, 'preset', this.value)">
+
+                            ${DATE_PRESET_TYPES.map(p => `
+                                <option
+                                    value="${p.value}"
+                                    ${s.preset === p.value ? 'selected' : ''}>
+                                    ${p.label}
+                                </option>
+                            `).join('')}
+
+                        </select>
+                    </div>
+                `
+                : ''
+        }
+
+        ${
+            s.selectionType === 'CUSTOM'
+                ? `
+                    <!-- START DATE -->
+                    <div class="field">
+                        <label class="lbl">Start Date *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.startDate || '')}"
+                            placeholder="01/01/2026 00:00"
+                            oninput="updateField(${idx}, 'startDate', this.value)">
+                    </div>
+
+                    <!-- END DATE -->
+                    <div class="field">
+                        <label class="lbl">End Date *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.endDate || '')}"
+                            placeholder="31/01/2026 23:59"
+                            oninput="updateField(${idx}, 'endDate', this.value)">
+                    </div>
+
+                    <!-- DATE FORMAT -->
+                    <div class="field">
+                        <label class="lbl">Date Format *</label>
+
+                        <input
+                            class="inp"
+                            value="${esc(s.dateFormat || '')}"
+                            placeholder="dd/MM/yyyy HH:mm"
+                            oninput="updateField(${idx}, 'dateFormat', this.value)">
+                    </div>
+                `
+                : ''
+        }
+
+    </div>
+    `;
+    }
+
+    window.updateScenarioAndRender = function(idx, key, value) {
+        if (!scenarios[idx]) return;
+        scenarios[idx][key] = value;
+
+        if (key === 'selectionType') {
+            if (value === 'PRESET') {
+                scenarios[idx].preset = scenarios[idx].preset || 'LAST_MONTH';
+                scenarios[idx].startDate = '';
+                scenarios[idx].endDate = '';
+                scenarios[idx].dateFormat = '';
+            } else if (value === 'CUSTOM') {
+                scenarios[idx].preset = '';
+            }
+        }
+
+        renderPanel();
+    }
+
+    function renderFiltersSection(idx, s) {
+        console.log("renderFiltersSection")
+        const filters = s.filters || [];
+
+        return `
+    <div class="sc-section">Filters</div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+        ${filters.map((f, fi) => renderFilterRow(idx, fi, f)).join('')}
+    </div>
+
+    <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="addFilter(${idx})">
+            + Add Filter
+        </button>
+    </div>
+
+    <div class="field" style="margin-top:16px">
+        <label class="lbl">Apply Filter Button CSS *</label>
+        <input class="inp inp-mono"
+            value="${esc(s.applyBtnCss || '')}"
+            placeholder="#applyFilters"
+            oninput="updateField(${idx}, 'applyBtnCss', this.value)">
+    </div>
+    `;
+    }
+    function renderFilterRow(scIdx, fi, f) {
+        const ops = FILTER_OPERATIONS[f.filterType] || [];
+
+        return `
+    <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r)">
+
+        <div class="field">
+            <label class="lbl">Column Selector *</label>
+            <input class="inp inp-mono"
+                value="${esc(f.querySelectorOfColName || '')}"
+                placeholder="#name-col"
+                oninput="updateFilter(${scIdx}, ${fi}, 'querySelectorOfColName', this.value)">
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+
+            <div class="field">
+                <label class="lbl">Filter Type *</label>
+                <select class="inp"
+                    onchange="updateFilterType(${scIdx}, ${fi}, this.value)">
+                    <option value="">Select</option>
+                    ${FILTER_TYPES.map(t => `
+                        <option value="${t.value}" ${f.filterType === t.value ? 'selected' : ''}>
+                            ${t.label}
+                        </option>`).join('')}
+                </select>
+            </div>
+
+            <div class="field">
+                <label class="lbl">Operation *</label>
+                <select class="inp"
+                    onchange="updateFilter(${scIdx}, ${fi}, 'operation', this.value)">
+                    <option value="">Select</option>
+                    ${ops.map(o => `
+                        <option value="${o.value}" ${f.operation === o.value ? 'selected' : ''}>
+                            ${o.label}
+                        </option>`).join('')}
+                </select>
+            </div>
+
+        </div>
+
+        ${renderFilterValue(scIdx, fi, f)}
+        <div class="field">
+            <label class="lbl">Value CSS Selector</label>
+             <input class="inp inp-mono" value="${esc(f.searchCssSelector || '')}" placeholder="value Css Selector" oninput="updateFilter(${scIdx}, ${fi}, 'searchCssSelector', this.value)">
+         </div>
+         <div class="field">
+            <label class="lbl"> Logical Operator Selector</label>
+             <input class="inp inp-mono" value="${esc(f.logicalOperatorSelector || '')}" placeholder="if OR logical operator write Selector otherwise leave blank" oninput="updateFilter(${scIdx}, ${fi}, 'logicalOperatorSelector', this.value)">
+         </div>
+
+        <div style="text-align:right;margin-top:6px">
+            <button class="btn btn-danger btn-xs"
+                onclick="removeFilter(${scIdx}, ${fi})">Remove</button>
+        </div>
+    </div>
+    `;
+    }
+
+    function renderManageColSection(scIdx, s) {
+
+        const columns = s.columns || [];
+
+        return `
+        <div class="sc-section">Manage Columns</div>
+
+        <!-- Save Button Selector -->
+        <div class="field">
+            <label class="lbl">Save Button CSS *</label>
+
+            <input
+                class="inp inp-mono"
+                value="${esc(s.saveBtnCss || '')}"
+                placeholder="#save-manage-column-btn"
+                oninput="updateField(${scIdx}, 'saveBtnCss', this.value)"
+            >
+        </div>
+
+        <!-- Add Column Button -->
+        <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
+            <button
+                class="btn btn-primary btn-sm"
+                onclick="addManageColumn(${scIdx})"
+            >
+                + Add Column
+            </button>
+        </div>
+
+        ${
+            columns.length === 0
+                ? `
+                <div style="
+                    padding:16px;
+                    border:1px dashed var(--bd);
+                    border-radius:var(--rs);
+                    color:var(--tx2);
+                    font-size:13px;
+                    text-align:center;
+                ">
+                    No columns added
+                </div>
+                `
+                : ''
+        }
+
+        ${columns.map((col, idx) => `
+
+            <div style="
+                border:1px solid var(--bd);
+                border-radius:var(--rs);
+                padding:14px;
+                margin-bottom:12px;
+                background:var(--sur2);
+            ">
+
+                <!-- Header -->
+                <div style="
+                    display:flex;
+                    justify-content:space-between;
+                    align-items:center;
+                    margin-bottom:12px;
+                ">
+                    <div style="font-weight:600">
+                        Column #${idx + 1}
+                    </div>
+
+                    <button
+                        class="btn btn-danger btn-xs"
+                        onclick="removeManageColumn(${scIdx}, ${idx})"
+                    >
+                        Remove
+                    </button>
+                </div>
+
+                <!-- Column Selector -->
+                <div class="field">
+                    <label class="lbl">Column Selector *</label>
+
+                    <input
+                        class="inp inp-mono"
+                        value="${esc(col.columnName || '')}"
+                        placeholder='[for="column-item-Employee Email"]'
+                        oninput="updateManageColumnField(${scIdx}, ${idx}, 'columnName', this.value)"
+                    >
+                </div>
+
+                <!-- Action Dropdown -->
+                <div class="field">
+                    <label class="lbl">Action</label>
+
+                    <select
+                        class="inp"
+                        onchange="updateManageColumnField(${scIdx}, ${idx}, 'action', this.value)"
+                    >
+                        <option value=""
+                            ${(col.action || '') === '' ? 'selected' : ''}
+                        >
+                            Default
+                        </option>
+
+                        <option value="SHOW"
+                            ${col.action === 'SHOW' ? 'selected' : ''}
+                        >
+                            Show
+                        </option>
+
+                        <option value="HIDE"
+                            ${col.action === 'HIDE' ? 'selected' : ''}
+                        >
+                            Hide
+                        </option>
+                    </select>
+                </div>
+
+                <!-- Position -->
+                <div class="field">
+                    <label class="lbl">Position</label>
+
+                    <input
+                        type="number"
+                        class="inp"
+                        min="1"
+                        value="${col.position ?? ''}"
+                        placeholder="1"
+                        ${col.action === 'HIDE' ? 'disabled' : ''}
+                        oninput="updateManageColumnField(${scIdx}, ${idx}, 'position', this.value)"
+                    >
+                </div>
+
+            </div>
+
+        `).join('')}
+    `;
+    }
+
+    window.addManageColumn=function(scIdx) {
+
+        scenarios[scIdx].columns ||= [];
+
+        scenarios[scIdx].columns.push({
+            columnName: '',
+            action: '',
+            position: null
+        });
+
+        renderPanel();
+    }
+
+   window.removeManageColumn= function(scIdx, colIdx) {
+
+        scenarios[scIdx].columns.splice(colIdx, 1);
+
+        renderPanel();
+    }
+     window.updateManageColumnField=function(scIdx, colIdx, field, value) {
+
+        const column = scenarios[scIdx].columns[colIdx];
+
+        if (field === 'position') {
+            column[field] = value === '' ? null : Number(value);
+        } else {
+            column[field] = value;
+        }
+
+        renderPanel();
+    }
+
+    function formatDateTime(val) {
+        if (!val) return '';
+
+        const [date, time] = val.split('T');
+        if (!date || !time) return val;
+
+        const [y, m, d] = date.split('-');
+
+        return `${d}-${m}-${y} ${time}`;
+    }
+
+    function formatDate(val) {
+        if (!val) return '';
+        const [y, m, d] = val.split('-');
+        console.log("y : "+y+" ,m : "+m+" ,d : "+d);
+        return `${d}-${m}-${y}`;
+    }
+    function renderFilterValue(scIdx, fi, f) {
+
+        if (f.operation === 'RANGE' && f.filterType === 'DATE_TIME') {
+            console.log("inside renderFilterValue and dateRange and Date_Time selected");
+            return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                    <input class="inp" type="datetime-local" lang="en-GB" value="${f.value?.start || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'start', this.value)">
+
+            <input class="inp" type="datetime-local" lang="en-GB"
+                value="${f.value?.end || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'end', this.value)">
+        </div>`;
+        }
+
+        // ✅ DATE RANGE (two calendars)
+        if (f.operation === 'RANGE') {
+            console.log("inside renderFilterValue and dateRange and Date selected");
+
+            return `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+            <input class="inp" type="date"
+                value="${f.value?.start || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'start', this.value)">
+
+            <input class="inp" type="date"
+                value="${f.value?.end || ''}"
+                onchange="updateFilterRange(${scIdx}, ${fi}, 'end', this.value)">
+        </div>`;
+        }
+
+        // ✅ SINGLE DATE (calendar)
+        if (f.filterType === 'DATE') {
+            return `
+                <div class="field">
+                    <label class="lbl">Date *</label>
+                    <input class="inp" type="date"
+                        value="${f.value || ''}"
+                        onchange="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+                    <small style="color:var(--tx2)">
+                        ${formatDate(f.value)}
+                    </small>
+                </div>`;
+        }
+        if (f.filterType === 'DATE_TIME') {
+            return `
+    <div class="field">
+        <label class="lbl">Date & Time *</label>
+        <input class="inp" type="datetime-local"
+            value="${f.value || ''}"
+            onchange="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+        <small style="color:var(--tx2)">
+            ${formatDateTime(f.value)}
+        </small>
+    </div>`;
+        }
+
+        // ✅ NUMBER
+        if (f.filterType === 'NUMBER') {
+            return `
+        <div class="field">
+            <label class="lbl">Value *</label>
+            <input class="inp" type="number"
+                value="${f.value || ''}"
+                oninput="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+        </div>`;
+        }
+
+        // ✅ TEXT (default)
+        return `
+    <div class="field">
+        <label class="lbl">Value *</label>
+        <input class="inp"
+            value="${f.value || ''}"
+            oninput="updateFilter(${scIdx}, ${fi}, 'value', this.value)">
+    </div>`;
+    }
+
+    window.addFilter = function (scIdx) {
+        console.log("Inside add filter");
+
+        if (!scenarios[scIdx]) {
+            console.error("Invalid scenario index:", scIdx);
+            return;
+        }
+
+        if (!Array.isArray(scenarios[scIdx].filters)) {
+            scenarios[scIdx].filters = [];
+        }
+        scenarios[scIdx].filters.push({
+            querySelectorOfColName: '',
+            filterType: '',
+            operation: '',
+            value: '',
+            searchCssSelector: '',
+            logicalOperatorSelector:'',
+        });
+        renderPanel();
+    };
+
+    window.removeFilter = function (scIdx, fi) {
+        scenarios[scIdx].filters.splice(fi, 1);
+        renderPanel();
+    };
+
+    // window.updateFilter = function (scIdx, fi, field, value) {
+    //     scenarios[scIdx].filters[fi][field] = value;
+    //
+    //     renderPanel();
+    // };
+    window.updateFilter = function (scIdx, fi, field, value) {
+        if (field === 'operation' && typeof value === 'string') {
+            value = value.toUpperCase();
+        }
+        scenarios[scIdx].filters[fi][field] = value;
+    };
+
+    window.updateFilterType = function (scIdx, fi, type) {
+        const f = scenarios[scIdx].filters[fi];
+        f.filterType = type;
+        f.operation = '';
+        f.value = '';
+        f.searchCssSelector='';
+        f.logicalOperatorSelector='';
+        renderPanel(); // important
+    };
+
+    window.updateFilterRange = function (scIdx, fi, key, val) {
+        const f = scenarios[scIdx].filters[fi];
+        if (!f.value) f.value = {};
+        f.value[key] = val;
+    };
+
+    // ── Initial Verification ───────────────────────────────────────────────
+
+    /**
+     * Renders the Initial Verification section inside the scenario panel.
+     * Each entry has a Locator field and a Value field.
+     */
+    function renderInitialVerificationSection(idx, s) {
+        const items = s.initialVerifications || [];
+        return `
+    <div class="sc-section">Initial Verification</div>
+    <div style="display:flex;flex-direction:column;gap:12px" id="initial-verif-list-${idx}">
+        ${items.map((v, vi) => `
+        <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r);background:var(--sur2)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div class="field">
+                    <label class="lbl">Locator *</label>
+                    <input class="inp inp-mono"
+                        value="${esc(v.locator || '')}"
+                        placeholder="#element-selector"
+                        oninput="updateInitialVerification(${idx}, ${vi}, 'locator', this.value)">
+                </div>
+                <div class="field">
+                    <label class="lbl">Value *</label>
+                    <input class="inp"
+                        value="${esc(v.value || '')}"
+                        placeholder="Expected text or value"
+                        oninput="updateInitialVerification(${idx}, ${vi}, 'value', this.value)">
+                </div>
+            </div>
+            <div style="text-align:right;margin-top:6px">
+                <button class="btn btn-danger btn-xs"
+                    onclick="removeInitialVerification(${idx}, ${vi})">Remove</button>
+            </div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="addInitialVerification(${idx})">
+            + Add Initial Verification
+        </button>
+    </div>`;
+    }
+
+    /** Adds a new empty initial-verification entry to the scenario. */
+    window.addInitialVerification = function (scIdx) {
+        if (!scenarios[scIdx]) return;
+        if (!Array.isArray(scenarios[scIdx].initialVerifications)) {
+            scenarios[scIdx].initialVerifications = [];
+        }
+        scenarios[scIdx].initialVerifications.push({ locator: '', value: '' });
+        renderPanel();
+    };
+
+    /** Removes an initial-verification entry by index. */
+    window.removeInitialVerification = function (scIdx, vi) {
+        scenarios[scIdx].initialVerifications.splice(vi, 1);
+        renderPanel();
+    };
+
+    /** Updates a single field of an initial-verification entry (no re-render). */
+    window.updateInitialVerification = function (scIdx, vi, field, val) {
+        if (scenarios[scIdx]?.initialVerifications?.[vi] !== undefined) {
+            scenarios[scIdx].initialVerifications[vi][field] = val;
+        }
+    };
+
+    // ── Final Verification ─────────────────────────────────────────────────
+
+    /**
+     * Renders the Final Verification section inside the scenario panel.
+     * Each entry has a Locator field and a Value field.
+     */
+    function renderFinalVerificationSection(idx, s) {
+        const items = s.finalVerifications || [];
+        return `
+    <div class="sc-section">Final Verification</div>
+    <div style="display:flex;flex-direction:column;gap:12px" id="final-verif-list-${idx}">
+        ${items.map((v, vi) => `
+        <div style="border:1px solid var(--bd);padding:12px;border-radius:var(--r);background:var(--sur2)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div class="field">
+                    <label class="lbl">Locator *</label>
+                    <input class="inp inp-mono"
+                        value="${esc(v.locator || '')}"
+                        placeholder="#element-selector"
+                        oninput="updateFinalVerification(${idx}, ${vi}, 'locator', this.value)">
+                </div>
+                <div class="field">
+                    <label class="lbl">Value *</label>
+                    <input class="inp"
+                        value="${esc(v.value || '')}"
+                        placeholder="Expected text or value"
+                        oninput="updateFinalVerification(${idx}, ${vi}, 'value', this.value)">
+                </div>
+            </div>
+            <div style="text-align:right;margin-top:6px">
+                <button class="btn btn-danger btn-xs"
+                    onclick="removeFinalVerification(${idx}, ${vi})">Remove</button>
+            </div>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:10px">
+        <button class="btn btn-ghost btn-sm" onclick="addFinalVerification(${idx})">
+            + Add Final Verification
+        </button>
+    </div>`;
+    }
+
+    /** Adds a new empty final-verification entry to the scenario. */
+    window.addFinalVerification = function (scIdx) {
+        if (!scenarios[scIdx]) return;
+        if (!Array.isArray(scenarios[scIdx].finalVerifications)) {
+            scenarios[scIdx].finalVerifications = [];
+        }
+        scenarios[scIdx].finalVerifications.push({ locator: '', value: '' });
+        renderPanel();
+    };
+
+    /** Removes a final-verification entry by index. */
+    window.removeFinalVerification = function (scIdx, vi) {
+        scenarios[scIdx].finalVerifications.splice(vi, 1);
+        renderPanel();
+    };
+
+    /** Updates a single field of a final-verification entry (no re-render). */
+    window.updateFinalVerification = function (scIdx, vi, field, val) {
+        if (scenarios[scIdx]?.finalVerifications?.[vi] !== undefined) {
+            scenarios[scIdx].finalVerifications[vi][field] = val;
+        }
+    };
+
+    // ── Test data section (CSV upload or manual entry) ─────────────────────
+    function renderDataSection(idx, s, tab) {
+        const tcs = s.manualTestCases || [];
+        return `
+    <div class="sc-section">Test Data</div>
+    <div class="dtabs">
+      <div class="dtab ${tab !== 'csv' ? 'active' : ''}" onclick="setTab(${idx}, 'manual')">
+        📝 Manual Entry
+      </div>
+      <div class="dtab ${tab === 'csv' ? 'active' : ''}" onclick="setTab(${idx}, 'csv')">
+        📁 Upload CSV
+      </div>
+    </div>
+    <div class="dtab-body">
+      ${tab === 'csv' ? renderCsvTab(idx, s) : renderManualTab(idx, tcs)}
+    </div>`;
+    }
+
+    function renderCsvTab(idx, s) {
+        return `
+    <div class="drop-zone"
+      ondragover="event.preventDefault();this.classList.add('drag')"
+      ondragleave="this.classList.remove('drag')"
+      ondrop="onDrop(event, ${idx})">
+      <input type="file" accept=".csv,.xlsx,.xls"
+        onchange="onFileSelect(${idx}, this.files[0])">
+      <div style="font-size:26px;margin-bottom:8px">📂</div>
+      <p>Drop a CSV or XLSX file here, or click to browse</p>
+      <small>First row = column headers · each row below = one test case</small>
+    </div>
+    ${s.csv ? `
+    <div style="padding:10px 14px;background:var(--gr-d);
+      border-top:1px solid var(--bd);display:flex;align-items:center;gap:8px">
+      <span style="font-size:12px;font-family:var(--mono);color:var(--gr);
+        flex:1;overflow:hidden;text-overflow:ellipsis">✓ ${esc(s.csv)}</span>
+      <button class="btn btn-danger btn-xs" onclick="clearCsv(${idx})">Remove</button>
+    </div>` : ''}`;
+    }
+
+    function renderManualTab(idx, tcs) {
+        return `
+    <div class="tc-manual">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:36px">#</th>
+            <th>Name / ID</th>
+            <th>Expected Result</th>
+            <th style="width:36px"></th>
+          </tr>
+        </thead>
+        <tbody id="tc-body-${idx}">
+          ${tcs.map((tc, ti) => tcRow(idx, ti, tc)).join('')}
+        </tbody>
+      </table>
+      <div class="tc-bar">
+        <span style="font-size:11px;color:var(--tx2)">
+          ${tcs.length} test case${tcs.length !== 1 ? 's' : ''}
+        </span>
+        <button class="btn btn-ghost btn-xs" onclick="addRow(${idx})">+ Add Row</button>
+      </div>
+    </div>`;
+    }
+
+    function tcRow(idx, ti, tc) {
+        return `
+    <tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--tx2)">${ti + 1}</td>
+      <td>
+        <input value="${esc(tc.name || tc.testcaseId || '')}"
+          placeholder="tc_${ti + 1}"
+          oninput="updateRow(${idx}, ${ti}, 'name', this.value)">
+      </td>
+      <td>
+        <input value="${esc(tc.expectedResult || '')}"
+          placeholder="Expected outcome"
+          oninput="updateRow(${idx}, ${ti}, 'expectedResult', this.value)">
+      </td>
+      <td>
+        <button style="background:none;border:none;cursor:pointer;color:var(--tx3);
+          font-size:13px;padding:3px 6px"
+          onclick="removeRow(${idx}, ${ti})"
+          onmouseover="this.style.color='var(--rd)'"
+          onmouseout="this.style.color='var(--tx3)'">✕</button>
+      </td>
+    </tr>`;
+    }
+
+    // Initialize FORM_MODAL support after renderPanel is defined
+    // updateFormModalPayload();
+
+    // Handle click option radio button changes for FORM_MODAL
+    window.handleClickOption = function (scIdx, option) {
+        const scenario = scenarios[scIdx];
+
+        scenario.clickEnabled = (option === 'yes');
+
+        if (!scenario.clickEnabled) {
+            scenario.clickCss = '';
+        }
+
+        renderPanel();
+    };
+
+    // ── Scenario actions ───────────────────────────────────────────────────
+    window.selectScenario = function (i) {
+        scIdx = i;
+        renderSidebar();
+        renderPanel();
+    };
+
+    window.setType = function (i, type) {
+        scenarios[i].type = type;
+        renderSidebar();
+        renderPanel();
+    };
+
+    window.removeScenario = function (i) {
+        if (scenarios.length === 1 && !confirm('Remove the only scenario?')) return;
+        scenarios.splice(i, 1);
+        if (scIdx >= scenarios.length) scIdx = Math.max(0, scenarios.length - 1);
+        renderSidebar();
+        renderPanel();
+    };
+
+    window.moveScenario = function (i, dir) {
+        const j = i + dir;
+        if (j < 0 || j >= scenarios.length) return;
+        [scenarios[i], scenarios[j]] = [scenarios[j], scenarios[i]];
+        scIdx = j;
+        renderSidebar();
+        renderPanel();
+    };
+
+    window.updateField = function (i, field, val) {
+        if (scenarios[i]) {
+            scenarios[i][field] = val;
+            // Refresh sidebar label without re-rendering the panel (avoids losing focus)
+            const si = document.querySelector(`#sc-items .si:nth-child(${i + 1}) .si-label`);
+            if (si) {
+                const s = scenarios[i];
+                si.textContent = s.url || s.cssSelector || s.value || 'New scenario';
+            }
+        }
+    };
+
+    // ── Test data tab ──────────────────────────────────────────────────────
+    window.setTab = function (idx, tab) {
+        scTab[scenarios[idx]._key] = tab;
+        renderPanel();
+    };
+
+    // ── CSV upload ─────────────────────────────────────────────────────────
+    window.onDrop = function (e, idx) {
+        e.preventDefault();
+        e.currentTarget.classList.remove('drag');
+        const file = e.dataTransfer.files[0];
+        if (file) onFileSelect(idx, file);
+    };
+
+    window.onFileSelect = async function (idx, file) {
+        if (!file) return;
+        try {
+            toast('Uploading…', 'info', 1500);
+            const pid = projectId || '';
+            const mid = moduleId  || '';
+            const rid = runId     || '';
+            const res = await api.uploads.csv(file, pid, mid, idx + 1, rid);
+            scenarios[idx].csv = res.path || res.key || file.name;
+            renderPanel();
+            toast('CSV uploaded', 'success');
+        } catch (e) {
+            toast('Upload failed: ' + e.message, 'error');
+        }
+    };
+
+    window.clearCsv = function (idx) {
+        scenarios[idx].csv = '';
+        renderPanel();
+    };
+
+    // ── Manual rows ────────────────────────────────────────────────────────
+    window.addRow = function (idx) {
+        scenarios[idx].manualTestCases.push({ testcaseId: `tc_${Date.now()}`, name: '', expectedResult: '' });
+        renderPanel();
+    };
+
+    window.removeRow = function (idx, ti) {
+        scenarios[idx].manualTestCases.splice(ti, 1);
+        renderPanel();
+    };
+
+    window.updateRow = function (idx, ti, field, val) {
+        if (scenarios[idx]?.manualTestCases[ti]) {
+            scenarios[idx].manualTestCases[ti][field] = val;
+        }
+    };
+
+    // ── Add scenario menu ──────────────────────────────────────────────────
+    window.showAddMenu = function () {
+        const btns = Object.entries(TYPES).map(([k, v]) => `
+      <button onclick="addScenario('${k}')"
+        style="display:flex;align-items:center;gap:10px;padding:13px;
+          background:var(--inp);border:1.5px solid var(--bd);
+          border-radius:var(--r);cursor:pointer;text-align:left;
+          font-family:var(--sans);transition:all .13s;width:100%"
+        onmouseover="this.style.borderColor='${v.color}';this.style.background='${v.bg}'"
+        onmouseout="this.style.borderColor='var(--bd)';this.style.background='var(--inp)'">
+        <span style="font-size:20px">${v.icon}</span>
+        <div>
+          <div style="font-size:12.5px;font-weight:700;color:var(--tx)">${v.label}</div>
+          <div style="font-size:11px;color:var(--tx2);margin-top:1px">${esc(v.hint)}</div>
+        </div>
+      </button>`).join('');
+
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>Add Scenario</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">${btns}</div>
+      </div>`);
+    };
+
+    window.addScenario = function (type) {
+        const newScenario = {
+            ...SCENARIO_DEFAULTS,   // initialVerifications: [], finalVerifications: []
+            _key:            ++scKey,
+            id:              undefined,
+            type,
+            url:             '',
+            cssSelector:     '',
+            value:           '',
+            clickEnabled:    false,
+            clickCss:        '', // Add clickCss field
+            csv:             '',
+            manualTestCases: [],
+        };
+
+        // 🔥 ONLY ADD THIS (no breaking change)
+        if (type === 'ASSERT') {
+            newScenario.assertions = [];
+        }
+        else if (type === 'FILTER_NAV') {
+            newScenario.filters = [];
+            newScenario.applyBtnCss = '';
+        }
+        else if (type === 'DATE_RANGE_NAV') {
+
+            newScenario.inputSelector = '';
+            newScenario.selectionType = 'PRESET';
+            // preset mode
+            newScenario.preset = 'LAST_MONTH';
+            // custom mode
+            newScenario.startDate = '';
+            newScenario.endDate = '';
+            newScenario.applyButtonSelector = '';
+            newScenario.calendarContainerSelector = '';
+            newScenario.dateFormat = '';
+        }
+        else if (type === 'MANAGE_COL_NAV') {
+
+            newScenario.columns = [];
+
+            newScenario.saveBtnCss = '';
+        }
+
+        console.log(type+"chosen!")
+
+        scenarios.push(newScenario);
+        scIdx = scenarios.length - 1;
+        closeModal();
+        renderSidebar();
+        renderPanel();
+    };
+
+    // ── Validation ─────────────────────────────────────────────────────────
+    function validate() {
+        const name = document.getElementById('f-runName').value.trim();
+        if (!name) { toast('Run name is required', 'warning'); return false; }
+
+        if (mode === 'dl' || editMode === 'dl') {
+            const script = window.editor?.getValue();
+
+            if (!script || !script.trim()) {
+                toast('DL script cannot be empty', 'warning');
+                return false;
+            }
+
+            return true;
+        }
+
+        if (!scenarios.length) {
+            toast('Add at least one scenario', 'warning');
+            return false;
+        }
+
+        for (let i = 0; i < scenarios.length; i++) {
+            const s = scenarios[i];
+
+            const req = REQUIRED[s.type] || [];
+
+            // ✅ existing validation
+            for (const f of req) {
+                const val = f === 'cssSelector' ? s.cssSelector : s[f];
+
+                if (!val || (typeof val === 'string' && !val.trim())) {
+                    toast(`Scenario #${i + 1} (${s.type}): "${f}" is required`, 'warning');
+                    selectScenario(i);
+                    return false;
+                }
+            }
+
+            // ✅ 🔥 FILTER_NAV validation
+            if (s.type === 'FILTER_NAV') {
+
+                if (!s.filters || s.filters.length === 0) {
+                    toast(`Scenario #${i + 1}: Add at least one filter`, 'warning');
+                    selectScenario(i);
+                    return false;
+                }
+
+                for (let j = 0; j < s.filters.length; j++) {
+                    const f = s.filters[j];
+
+                    if (!f.querySelectorOfColName?.trim()) {
+                        toast(`Scenario #${i + 1} → Filter #${j + 1}: Column selector required`, 'warning');
+                        selectScenario(i);
+                        return false;
+                    }
+
+                    if (!f.filterType) {
+                        toast(`Scenario #${i + 1} → Filter #${j + 1}: Select filter type`, 'warning');
+                        selectScenario(i);
+                        return false;
+                    }
+
+                    if (!f.operation) {
+                        toast(`Scenario #${i + 1} → Filter #${j + 1}: Select operation`, 'warning');
+                        selectScenario(i);
+                        return false;
+                    }
+
+                    // ✅ handle date range specially
+                    if (f.operation === 'RANGE') {
+                        if (!f.value?.start || !f.value?.end) {
+                            toast(`Scenario #${i + 1} → Filter #${j + 1}: Date range required`, 'warning');
+                            selectScenario(i);
+                            return false;
+                        }
+                    } else {
+                        if (!f.value || (typeof f.value === 'string' && !f.value.trim())) {
+                            toast(`Scenario #${i + 1} → Filter #${j + 1}: Value required`, 'warning');
+                            selectScenario(i);
+                            return false;
+                        }
+                    }
+                }
+
+                // apply button validation (extra safety)
+                if (!s.applyBtnCss?.trim()) {
+                    toast(`Scenario #${i + 1}: Apply button selector required`, 'warning');
+                    selectScenario(i);
+                    return false;
+                }
+            }
+            else if (s.type === 'DATE_RANGE_NAV'){
+                if (!validateDateRangeNavScenario(s, i)) return false;
+            }
+            else if (s.type === 'MANAGE_COL_NAV') {
+                if (!validateManageColumnScenario(s, i)) return false;
+            }
+
+
+        }
+
+        return true;
+    }
+    function validateManageColumnScenario(s, i) {
+
+        // at least one column
+        if (!s.columns || s.columns.length === 0) {
+
+            toast(`Scenario #${i + 1}: Add at least one column`, 'warning');
+
+            selectScenario(i);
+
+            return false;
+        }
+
+        // save button selector
+        if (!s.saveBtnCss?.trim()) {
+
+            toast(`Scenario #${i + 1}: Save button selector required`, 'warning');
+
+            selectScenario(i);
+
+            return false;
+        }
+
+        // validate columns
+        for (let j = 0; j < s.columns.length; j++) {
+
+            const c = s.columns[j];
+
+            // column selector required
+            if (!c.columnName?.trim()) {
+
+                toast(
+                    `Scenario #${i + 1} → Column #${j + 1}: Column selector required`,
+                    'warning'
+                );
+
+                selectScenario(i);
+
+                return false;
+            }
+
+            // validate position only if not hidden
+            if (c.action !== 'HIDE') {
+
+                if (
+                    c.position !== null &&
+                    c.position !== undefined &&
+                    (
+                        isNaN(c.position) ||
+                        Number(c.position) <= 0
+                    )
+                ) {
+
+                    toast(
+                        `Scenario #${i + 1} → Column #${j + 1}: Position must be greater than 0`,
+                        'warning'
+                    );
+
+                    selectScenario(i);
+
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    function validateDateRangeNavScenario(s, index) {
+
+        // always required
+        const requiredFields = [
+            'inputSelector',
+            'calendarContainerSelector',
+            'applyButtonSelector',
+            'selectionType'
+        ];
+
+        for (const field of requiredFields) {
+
+            const val = s[field];
+
+            if (!val || (typeof val === 'string' && !val.trim())) {
+
+                toast(
+                    `Scenario #${index + 1}: "${field}" is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+        }
+
+        // PRESET validation
+        if (s.selectionType === 'PRESET') {
+
+            if (!s.preset || !s.preset.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Preset is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+        }
+
+        // CUSTOM validation
+        if (s.selectionType === 'CUSTOM') {
+
+            if (!s.startDate?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Start Date is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+
+            if (!s.endDate?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: End Date is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+
+            if (!s.dateFormat?.trim()) {
+
+                toast(
+                    `Scenario #${index + 1}: Date Format is required`,
+                    'warning'
+                );
+
+                selectScenario(index);
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    function formatRange(start, end, type) {
+        if (type === 'DATE') return `${formatDate(start)} to ${formatDate(end)}`;
+        if (type === 'DATE_TIME') return `${formatDateTime(start)} to ${formatDateTime(end)}`;
+        return `${start} to ${end}`;
+    }
+
+
+    // ── Save to DB ─────────────────────────────────────────────────────────
+    async function saveRun() {
+        // 🔥 ADD HERE
+        console.log("SCENARIOS BEFORE SAVE:", JSON.stringify(scenarios, null, 2));
+        const data = buildPayload(mode, toast, user, scenarios,projectData);
+        // optional (very useful)
+        console.log("PAYLOAD:", JSON.stringify(data, null, 2));
+        if (runId) {
+            return api.runs.update(runId, data);
+        }
+        return api.runs.create(projectId, moduleId, data);
+    }
+
+    // ── Save Draft button ──────────────────────────────────────────────────
+    document.getElementById('save-draft-btn').onclick = async function () {
+        if (!validate()) return;
+        this.disabled = true;
+        this.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></div> Saving…';
+        try {
+            await saveRun();
+            toast('Saved as draft', 'success');
+        } catch (e) { toast('Save failed: ' + e.message, 'error'); }
+        finally { this.disabled = false; this.innerHTML = '💾 Save Draft'; }
+    };
+
+    // ── Save & Run button ──────────────────────────────────────────────────
+    document.getElementById('save-run-btn').onclick = async function () {
+        if (!validate()) return;
+        this.disabled = true;
+        this.innerHTML = '<div class="spinner" style="width:14px;height:14px;border-width:2px;display:inline-block"></div> Saving…';
+        try {
+            const saved   = await saveRun();
+            const savedId = saved.id || saved._id;
+            toast('Saved — starting run…', 'info', 2000);
+            this.innerHTML = '⏳ Running…';
+            await api.runs.execute(savedId);
+            toast('Run Executed!', 'success');
+            window.location.href = `/run-detail.html?runId=${savedId}`;
+        } catch (e) {
+            // Extract user-friendly message from error response
+            let errorMessage = 'Error occurred while starting run';
+            if (e.response && e.response.data && e.response.data.message) {
+                errorMessage = e.response.data.message;
+            } else if (e.message) {
+                errorMessage = e.message;
+            }
+            toast(errorMessage, 'error', 5000); // Show for 5 seconds
+            this.disabled = false;
+            this.innerHTML = '▶ Save & Run';
+        }
+    };
+</script>
+</body>
+</html>

@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Modules</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        /* ── Floating Queue Widget Styles (Using main.css tokens) ── */
+        .queue-widget {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 340px;
+            background: var(--sur); /* Replaced --bg-card */
+            border: 1px solid var(--bd); /* Replaced --border */
+            border-radius: var(--rl);
+            box-shadow: var(--sh);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 480px;
+        }
+
+        .queue-widget.collapsed {
+            height: 52px;
+        }
+
+        .queue-header {
+            padding: 14px 16px;
+            background: var(--sur2); /* Replaced --bg-header */
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--bd);
+            user-select: none;
+            height: 52px;
+            box-sizing: border-box;
+        }
+
+        .queue-header:hover {
+            background: var(--sur3); /* Replaced --bg-hover */
+        }
+
+        .queue-body {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 16px;
+            height: calc(100% - 52px);
+            box-sizing: border-box;
+        }
+
+        /* Search Autocomplete */
+        .search-wrapper { position: relative; }
+        .search-results {
+            position: absolute;
+            bottom: 100%;
+            left: 0; right: 0;
+            background: var(--sur);
+            border: 1px solid var(--bd2);
+            border-radius: var(--r);
+            margin-bottom: 4px;
+            max-height: 180px;
+            overflow-y: auto;
+            z-index: 101;
+            box-shadow: var(--sh);
+            display: none;
+        }
+        .search-results.active { display: block; }
+        .search-item {
+            padding: 8px 12px; cursor: pointer;
+            border-bottom: 1px solid var(--bd);
+            font-size: 12.5px; /* Matched your typography */
+        }
+        .search-item:last-child { border-bottom: none; }
+        .search-item:hover { background: var(--sur2); }
+
+        /* Queue List */
+        .queue-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            border: 1px solid var(--bd);
+            border-radius: var(--r);
+            background: var(--inp); /* Using your input background for contrast */
+            display: flex;
+            flex-direction: column;
+        }
+        .queue-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 12px; border-bottom: 1px solid var(--bd);
+            font-size: 12.5px;
+        }
+        .queue-item:last-child { border-bottom: none; }
+        .queue-item .run-name { flex-grow: 1; margin: 0 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .empty-queue { text-align: center; padding: 32px 16px; color: var(--tx3); font-size: 12.5px; }
+
+        /* Ordering Controls */
+        .queue-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-right: 4px;
+        }
+        .btn-sort {
+            background: transparent;
+            border: none;
+            color: var(--tx3);
+            cursor: pointer;
+            font-size: 9px;
+            padding: 2px;
+            line-height: 1;
+        }
+        .btn-sort:hover:not(:disabled) { color: var(--tx); }
+        .btn-sort:disabled { opacity: 0.3; cursor: default; }
+    </style>
+</head>
+<body>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <div class="main-col">
+        <div class="topbar">
+            <div class="crumb">
+                <a class="crumb-link" href="/projects.html">Projects</a>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-cur" id="crumb-proj">…</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+            </div>
+        </div>
+
+        <div class="main-scroll">
+            <div class="page">
+                <div class="page-header row-between">
+                    <div>
+                        <div class="page-title" id="page-title">Modules</div>
+                        <div class="page-sub"  id="page-sub">Loading…</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn btn-ghost" onclick="showEnvironmentsModal()">⚙ Environments</button>
+                        <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+                    </div>
+                </div>
+
+                <div id="mod-list">
+                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="queue-widget" class="queue-widget collapsed">
+    <div class="queue-header" onclick="toggleQueue()">
+        <span id="queue-header-title">⚡ Run Queue (<span id="queue-count">0</span>)</span>
+        <span id="queue-toggle-icon">▲</span>
+    </div>
+    <div class="queue-body">
+        <div class="queue-mode-toggle" style="display:flex; justify-content:center; gap:8px; margin-bottom: 8px; font-size:12.5px;">
+            <label><input type="radio" name="qmode" value="runs" checked onclick="setQueueMode('runs')"> Runs</label>
+            <label><input type="radio" name="qmode" value="flows" onclick="setQueueMode('flows')"> Flows</label>
+        </div>
+
+        <div class="queue-list" id="queue-list">
+            <div class="empty-queue">Queue is empty.<br>Search below to add runs.</div>
+        </div>
+
+        <div class="search-wrapper">
+            <input type="text" id="run-search" class="inp" placeholder="Search runs to add..." autocomplete="off">
+            <div id="search-results" class="search-results"></div>
+        </div>
+
+        <div style="display:flex;gap:8px;width:100%">
+            <button id="btn-run-queue" class="btn btn-primary" style="flex:1;" disabled onclick="executeQueue()">
+                ▶ Execute Queue
+            </button>
+            <button id="btn-stop-queue" class="btn btn-danger" style="display:none;" onclick="stopQueueExecution()">
+                ⏹ Stop
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as api from './js/api.js';
+    import { esc, toast, openModal, closeModal, requireLogin, initTheme, toggleTheme, buildSidebar } from './js/utils.js';
+
+    window.toggleTheme = toggleTheme;
+    window.closeModal  = closeModal;
+
+    const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+
+    initTheme();
+    buildSidebar('modules', api);
+
+    const params    = new URLSearchParams(location.search);
+    const projectId = params.get('projectId');
+    if (!projectId) { window.location.href = '/projects.html'; }
+
+    let project = null;
+    let modules  = [];
+    let environmentsCache = [];
+
+    // ── Queue State Variables ──
+    let allProjectRuns = [];
+    let allProjectFlows = [];
+    let runQueue = [];
+    let isQueueRunning = false;
+    let queueMode = 'runs';
+    const runningModuleIds = new Set();
+
+    // ── Load ──────────────────────────────────────────────────────────────
+    async function load() {
+        try {
+            [project, modules] = await Promise.all([
+                api.projects.get(projectId),
+                api.modules.list(projectId),
+            ]);
+            // Load environments alongside project/modules
+            try { environmentsCache = await api.environments.list(projectId); } catch { environmentsCache = []; }
+            sessionStorage.setItem('qa_projectId', projectId);
+            render();
+            loadQueueData();
+        } catch (e) {
+            document.getElementById('mod-list').innerHTML =
+                `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
+        }
+    }
+
+    function render() {
+        document.getElementById('crumb-proj').textContent = project?.name || '—';
+        document.getElementById('page-title').textContent = project?.name || 'Modules';
+        document.getElementById('page-sub').textContent =
+            `${modules.length} module${modules.length !== 1 ? 's' : ''}${project?.description ? ' · ' + project.description : ''}`;
+
+        const container = document.getElementById('mod-list');
+        if (!modules.length) {
+            container.innerHTML = `
+        <div class="empty">
+          <div class="ei">🗂️</div>
+          <h3>No modules yet</h3>
+          <p>Create a module to group your test runs.</p>
+          <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+        </div>`;
+            return;
+        }
+
+        container.innerHTML = `
+      <div class="mod-list">
+        ${modules.map(moduleRow).join('')}
+      </div>`;
+    }
+
+    function moduleRow(m) {
+        const mid = m.id || m._id;
+        const isRunning = runningModuleIds.has(mid) || (allProjectFlows && allProjectFlows.some(f => (f.moduleId === mid || f.module?.id === mid) && f.executionStatus === 'RUNNING'));
+        return `
+    <div class="mod-item" onclick="openModuleModal('${esc(mid)}', '${esc(m.name)}')">
+      <div class="mod-icon">🗂️</div>
+      <div class="mod-info">
+        <div class="mod-name">${esc(m.name)}</div>
+        <div class="mod-desc">${esc(m.description || 'No description')}</div>
+      </div>
+      <div class="mod-meta">
+        <button class="btn btn-primary btn-xs" onclick="event.stopPropagation();executeModuleFlows('${mid}')" ${isRunning ? 'style="display:none"' : ''}>▶ Run All Flows</button>
+        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();stopModuleFlows('${mid}')" title="Stop running flows in this module" ${isRunning ? '' : 'style="display:none"'}>⏹ Stop</button>
+        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteModule('${mid}')">✕</button>
+        <span class="badge badge-blue">View →</span>
+      </div>
+    </div>`;
+    }
+
+    // ── Environment selector helper (shared across all run modals) ──────────
+    function buildEnvOptions() {
+        if (!environmentsCache.length) {
+            return `<p style="color:var(--tx3);font-size:13px;margin:4px 0">
+                No environments configured.<br>Flows will execute using recorded URLs.
+            </p>`;
+        }
+        const opts = environmentsCache.map(e => {
+            const checked = e.defaultEnv ? 'checked' : '';
+            return `
+            <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                         border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;transition:background .15s">
+                <input type="radio" name="env-select" value="${esc(e.id)}" ${checked}
+                       style="accent-color:var(--pri);width:16px;height:16px">
+                <div>
+                    <div style="font-weight:600;font-size:13px">${esc(e.name)}</div>
+                    <div style="font-size:11px;color:var(--tx3);font-family:monospace">${esc(e.baseUrl)}</div>
+                </div>
+                ${e.defaultEnv ? '<span style="margin-left:auto" class="badge badge-blue">Default</span>' : ''}
+            </label>`;
+        }).join('');
+        return `
+        <div style="display:flex;flex-direction:column;gap:8px;max-height:260px;overflow-y:auto">${opts}</div>
+        <label style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                      border:1px solid var(--bd);border-radius:var(--r);cursor:pointer;margin-top:4px">
+            <input type="radio" name="env-select" value="" style="accent-color:var(--pri);width:16px;height:16px">
+            <div>
+                <div style="font-weight:600;font-size:13px">🔗 No Environment</div>
+                <div style="font-size:11px;color:var(--tx3)">Use recorded URLs as-is</div>
+            </div>
+        </label>`;
+    }
+    function getSelectedEnvId() {
+        const sel = document.querySelector('input[name="env-select"]:checked');
+        return sel ? (sel.value || null) : null;
+    }
+
+    window.executeModuleFlows = function(moduleId) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>▶ Run All Flows</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding:16px 0">
+                    <p style="margin:0 0 14px;font-size:14px;color:var(--tx2)">All flows in this module will be executed sequentially.</p>
+                    <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Select Environment</div>
+                    ${buildEnvOptions()}
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmExecuteModuleFlows('${moduleId}')">▶ Run All</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmExecuteModuleFlows = async function(moduleId) {
+        const envId = getSelectedEnvId();
+        closeModal();
+        try {
+            runningModuleIds.add(moduleId);
+            render();
+            await api.flows.executeModule(moduleId, envId);
+            toast('Module flows execution started', 'success');
+            setTimeout(async () => { await loadQueueData(); render(); }, 2000);
+        } catch (e) {
+            runningModuleIds.delete(moduleId);
+            render();
+            toast('Failed to run module flows: ' + e.message, 'error');
+        }
+    };
+
+    window.stopModuleFlows = function(moduleId) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Module Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop execution for this module?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopModuleFlows('${moduleId}')">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmStopModuleFlows = async function(moduleId) {
+        closeModal();
+        try {
+            await api.flows.stopModule(moduleId);
+            runningModuleIds.delete(moduleId);
+            render();
+            toast('Module execution stopped', 'warning');
+            setTimeout(async () => { await loadQueueData(); render(); }, 1500);
+        } catch (e) {
+            toast('Failed to stop module execution: ' + e.message, 'error');
+        }
+    };
+
+    window.openModuleModal = function (mid, name) {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🗂️ ${esc(name)}</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+          <button class="btn btn-primary btn-lg"
+                  onclick="closeModal();window.location.href='/runs.html?projectId=${esc(projectId)}&moduleId=${mid}'"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">▶</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Runs</div>
+              <div style="font-size:12px;opacity:0.7">View and manage test runs</div>
+            </div>
+          </button>
+          <button class="btn btn-secondary btn-lg"
+                  onclick="closeModal();window.location.href='/flows.html?projectId=${esc(projectId)}&moduleId=${mid}'"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">🔁</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Flows</div>
+              <div style="font-size:12px;opacity:0.7">View and manage automation flows</div>
+            </div>
+          </button>
+        </div>
+      </div>`);
+    };
+
+    // ── New/Delete Module ──────────────────────────────────────────────────
+    window.showNewModuleModal = function () {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🗂️ New Module</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="field">
+          <label class="lbl">Module Name *</label>
+          <input id="nm-name" class="inp" placeholder="Auth Tests" autofocus>
+        </div>
+        <div class="field">
+          <label class="lbl">Description</label>
+          <textarea id="nm-desc" class="inp" placeholder="What does this module test?"></textarea>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="createModule()">Create</button>
+        </div>
+      </div>`);
+    };
+
+    window.createModule = async function () {
+        const name = document.getElementById('nm-name').value.trim();
+        const desc = document.getElementById('nm-desc').value.trim();
+        if (!name) { toast('Module name is required', 'warning'); return; }
+        try {
+            const m = await api.modules.create(projectId, { name, description: desc,createdBy: user.username });
+            modules.unshift(m);
+            closeModal();
+            render();
+            toast(`"${name}" created`, 'success');
+        } catch (e) { toast('Create failed: ' + e.message, 'error'); }
+    };
+
+    window.deleteModule = function (id) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>✕ Delete Module</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Delete this module and all its runs?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteModule('${id}')">Delete</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmDeleteModule = async function (id) {
+        closeModal();
+        try {
+            await api.modules.delete(id);
+            modules = modules.filter(m => (m.id || m._id) !== id);
+            render();
+            toast('Deleted', 'info');
+        } catch (e) { toast('Delete faile                                                                                               d: ' + e.message, 'error'); }
+    };
+
+    // ── Floating Queue Logic ───────────────────────────────────────────────
+    window.toggleQueue = function() {
+        const widget = document.getElementById('queue-widget');
+        const icon = document.getElementById('queue-toggle-icon');
+
+        if (widget.classList.contains('collapsed')) {
+            widget.classList.remove('collapsed');
+            icon.textContent = '▼';
+        } else {
+            widget.classList.add('collapsed');
+            icon.textContent = '▲';
+            document.getElementById('search-results').classList.remove('active');
+        }
+    }
+
+    window.setQueueMode = function(mode) {
+        if (isQueueRunning) return;
+        queueMode = mode;
+        runQueue = [];
+        document.getElementById('queue-header-title').innerHTML = queueMode === 'runs' 
+            ? '⚡ Run Queue (<span id="queue-count">0</span>)' 
+            : '🔁 Flow Queue (<span id="queue-count">0</span>)';
+        renderQueue();
+    };
+
+    async function loadQueueData() {
+        try {
+            if (api.runs && api.runs.bucketRunList) {
+                allProjectRuns = await api.runs.bucketRunList(user.username);
+            }
+            if (api.flows && api.flows.list) {
+                allProjectFlows = [];
+                for (const m of modules) {
+                    try {
+                        const flows = await api.flows.list(projectId, m.id || m._id);
+                        if (flows) allProjectFlows.push(...flows);
+                    } catch (e) {
+                        console.error('Failed to load flows for module', m.name);
+                    }
+                }
+            }
+            initSearch();
+            renderQueue();
+        } catch (e) { console.error("Queue load error:", e); }
+    }
+
+    function initSearch() {
+        const input = document.getElementById('run-search');
+        const resultsBox = document.getElementById('search-results');
+
+        input.addEventListener('input', (e) => {
+            if (isQueueRunning) return;
+
+            const query = e.target.value.toLowerCase().trim();
+            if (!query) {
+                resultsBox.classList.remove('active');
+                return;
+            }
+
+            const sourceList = queueMode === 'runs' ? allProjectRuns : allProjectFlows;
+            const matches = sourceList.filter(r => {
+                const name = queueMode === 'runs' ? r.runName : r.name;
+                return name && name.toLowerCase().includes(query);
+            }).slice(0, 8);
+
+            if (matches.length === 0) {
+                resultsBox.innerHTML = `<div class="search-item" style="color:var(--text-muted)">No items found</div>`;
+            } else {
+                resultsBox.innerHTML = matches.map(r => {
+                    const itemName = queueMode === 'runs' ? r.runName : r.name;
+                    return `
+                    <div class="search-item" onclick="addToQueue('${r.id || r._id}')">
+                        ➕ ${esc(itemName)}
+                    </div>
+                `}).join('');
+            }
+            resultsBox.classList.add('active');
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-wrapper')) {
+                resultsBox.classList.remove('active');
+            }
+        });
+    }
+
+    window.addToQueue = function(itemId) {
+        if (isQueueRunning) return;
+
+        const sourceList = queueMode === 'runs' ? allProjectRuns : allProjectFlows;
+        const item = sourceList.find(r => (r.id || r._id) === itemId);
+        if (!item) return;
+
+        runQueue.push({
+            id: 'q_' + Date.now() + Math.random().toString(36).substr(2, 5),
+            itemId: item.id || item._id,
+            name: queueMode === 'runs' ? item.runName : item.name,
+            status: 'pending'
+        });
+
+        document.getElementById('run-search').value = '';
+        document.getElementById('search-results').classList.remove('active');
+
+        toast(`Added "${queueMode === 'runs' ? item.runName : item.name}" to queue`, 'info');
+        renderQueue();
+    }
+
+    window.removeFromQueue = function(qId) {
+        if (isQueueRunning) return;
+        runQueue = runQueue.filter(item => item.id !== qId);
+        renderQueue();
+    }
+
+    // ── Reordering Logic ──
+    window.moveQueueItem = function(index, direction) {
+        if (isQueueRunning) return;
+
+        const newIndex = index + direction;
+        if (newIndex < 0 || newIndex >= runQueue.length) return;
+
+        const temp = runQueue[index];
+        runQueue[index] = runQueue[newIndex];
+        runQueue[newIndex] = temp;
+
+        renderQueue();
+    }
+
+    function renderQueue() {
+        const list = document.getElementById('queue-list');
+        const btn = document.getElementById('btn-run-queue');
+        const searchInput = document.getElementById('run-search');
+
+        document.getElementById('queue-count').textContent = runQueue.length;
+
+        const stopBtn = document.getElementById('btn-stop-queue');
+        if (stopBtn) stopBtn.style.display = isQueueRunning ? 'block' : 'none';
+        if (btn) {
+            btn.style.display = isQueueRunning ? 'none' : 'block';
+            btn.disabled = isQueueRunning || runQueue.length === 0;
+        }
+        searchInput.disabled = isQueueRunning;
+        searchInput.placeholder = isQueueRunning ? "Queue is running (Locked)..." : `Search ${queueMode === 'runs' ? 'runs' : 'flows'} to add...`;
+
+        if (runQueue.length === 0) {
+            list.innerHTML = `<div class="empty-queue">Queue is empty.<br>Search below to add ${queueMode === 'runs' ? 'runs' : 'flows'}.</div>`;
+            return;
+        }
+
+        list.innerHTML = runQueue.map((item, index) => {
+            let statusHtml = '';
+            let sortControls = '';
+
+            // Render controls based on running status
+            if (!isQueueRunning) {
+                statusHtml = `<button class="btn btn-danger btn-xs" onclick="removeFromQueue('${item.id}')">✕</button>`;
+                sortControls = `
+                <div class="queue-controls">
+                    <button class="btn-sort" onclick="moveQueueItem(${index}, -1)" ${index === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="btn-sort" onclick="moveQueueItem(${index}, 1)" ${index === runQueue.length - 1 ? 'disabled' : ''}>▼</button>
+                </div>`;
+            } else {
+                if (item.status === 'pending') statusHtml = `<span style="color:var(--text-muted)">⏳</span>`;
+            }
+
+            if (item.status === 'running') statusHtml = `<div class="spinner" style="width:14px;height:14px;border-width:2px"></div>`;
+            if (item.status === 'success') statusHtml = `<span style="color:#10b981">✅</span>`;
+            if (item.status === 'error')   statusHtml = `<span style="color:#ef4444">❌</span>`;
+
+            return `
+            <div class="queue-item" id="qitem-${item.id}">
+                ${sortControls}
+                <div class="run-name" title="${esc(item.name)}">${esc(item.name)}</div>
+                <div class="queue-status">${statusHtml}</div>
+            </div>`;
+        }).join('');
+    }
+
+    window.executeQueue = async function() {
+        if (runQueue.length === 0 || isQueueRunning) return;
+
+        // Show environment picker before executing
+        openModal(`
+        <div class="modal">
+            <div class="modal-head">
+                <h2>▶ Execute Queue</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:16px 0">
+                <p style="margin:0 0 14px;font-size:14px;color:var(--tx2)">${runQueue.length} item${runQueue.length !== 1 ? 's' : ''} will be executed sequentially.</p>
+                <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em">Select Environment</div>
+                ${buildEnvOptions()}
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmExecuteQueue()">▶ Execute</button>
+            </div>
+        </div>`);
+    };
+
+    window.confirmExecuteQueue = async function() {
+        const envId = getSelectedEnvId();
+        closeModal();
+
+        try {
+            isQueueRunning = true;
+            runQueue.forEach(item => item.status = 'running');
+            renderQueue();
+
+            const itemIds = runQueue.map(item => item.itemId);
+
+            if (queueMode === 'runs') {
+                await api.runs.executeQueue(itemIds);
+            } else {
+                await api.flows.executeQueue(itemIds, envId);
+            }
+
+            runQueue.forEach(item => item.status = 'success');
+            toast('Queue execution started successfully!', 'success');
+
+        } catch (err) {
+            console.error(err);
+            runQueue.forEach(item => item.status = 'error');
+            toast(err.message || 'Queue execution failed', 'error');
+        } finally {
+            isQueueRunning = false;
+            renderQueue();
+        }
+    };
+
+    window.stopQueueExecution = function() {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Queue Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop the queue execution?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopQueueExecution()">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmStopQueueExecution = async function() {
+        closeModal();
+        try {
+            if (queueMode === 'flows') {
+                await api.flows.stopQueue();
+            }
+            isQueueRunning = false;
+            runQueue.forEach(item => { if (item.status === 'running') item.status = 'error'; });
+            renderQueue();
+            toast('Queue execution stopped', 'warning');
+        } catch (e) {
+            toast('Failed to stop queue: ' + e.message, 'error');
+        }
+    };
+
+    // ── Environments Management Modal ──────────────────────────────────────
+    window.showEnvironmentsModal = function() {
+        renderEnvironmentsModal();
+    };
+
+    function renderEnvironmentsModal() {
+        const rows = environmentsCache.length === 0
+            ? `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:13px">No environments yet. Add one below.</div>`
+            : environmentsCache.map(e => `
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;
+                        border:1px solid var(--bd);border-radius:var(--r);margin-bottom:6px">
+                <div style="flex:1">
+                    <div style="font-weight:600;font-size:13px">${esc(e.name)}
+                        ${e.defaultEnv ? '<span class="badge badge-blue" style="margin-left:6px">Default</span>' : ''}
+                    </div>
+                    <div style="font-size:11px;color:var(--tx3);font-family:monospace;margin-top:2px">${esc(e.baseUrl)}</div>
+                </div>
+                <button class="btn btn-ghost btn-xs" onclick="editEnvironment('${e.id}')" title="Edit">✏️</button>
+                <button class="btn btn-danger btn-xs" onclick="deleteEnvironment('${e.id}')" title="Delete">🗑️</button>
+            </div>`).join('');
+
+        openModal(`
+        <div class="modal" style="width:520px;max-width:95vw">
+            <div class="modal-head">
+                <h2>⚙️ Project Environments</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:16px 0">
+                <p style="margin:0 0 14px;font-size:13px;color:var(--tx2)">
+                    Environments define which server (QA, DEV, UAT, PROD) flows execute against.
+                    When running a flow, select an environment to override the base URL of NAVIGATE steps.
+                </p>
+                <div id="env-list-inner">${rows}</div>
+                <hr style="border:none;border-top:1px solid var(--bd);margin:16px 0">
+                <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:10px">Add New Environment</div>
+                <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-bottom:8px">
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Name *</label>
+                        <input id="env-new-name" class="inp" placeholder="QA / DEV / UAT">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Base URL *</label>
+                        <input id="env-new-url" class="inp inp-mono" placeholder="https://dev.example.com">
+                    </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+                    <input type="checkbox" id="env-new-default" style="width:15px;height:15px;accent-color:var(--pri)">
+                    <label for="env-new-default" style="font-size:13px;cursor:pointer">Set as default environment</label>
+                </div>
+                <button class="btn btn-primary" style="width:100%" onclick="createEnvironment()">+ Add Environment</button>
+            </div>
+        </div>`);
+    }
+
+    window.createEnvironment = async function() {
+        const name = document.getElementById('env-new-name').value.trim();
+        const baseUrl = document.getElementById('env-new-url').value.trim();
+        const defaultEnv = document.getElementById('env-new-default').checked;
+        if (!name) { toast('Environment name is required', 'warning'); return; }
+        if (!baseUrl || !baseUrl.startsWith('http')) { toast('Enter a valid base URL (https://...)', 'warning'); return; }
+        try {
+            const created = await api.environments.create(projectId, { name, baseUrl, defaultEnv, variables: {} });
+            environmentsCache.push(created);
+            if (defaultEnv) environmentsCache.forEach(e => { if (e.id !== created.id) e.defaultEnv = false; });
+            toast(`Environment "${name}" created`, 'success');
+            renderEnvironmentsModal();
+        } catch (e) { toast('Failed to create: ' + e.message, 'error'); }
+    };
+
+    window.editEnvironment = function(id) {
+        const env = environmentsCache.find(e => e.id === id);
+        if (!env) return;
+        openModal(`
+        <div class="modal" style="width:440px;max-width:95vw">
+            <div class="modal-head">
+                <h2>✏️ Edit Environment</h2>
+                <button class="modal-close" onclick="showEnvironmentsModal()">✕</button>
+            </div>
+            <div style="padding:16px 0;display:flex;flex-direction:column;gap:12px">
+                <div class="field" style="margin:0">
+                    <label class="lbl">Name *</label>
+                    <input id="env-edit-name" class="inp" value="${esc(env.name)}">
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Base URL *</label>
+                    <input id="env-edit-url" class="inp inp-mono" value="${esc(env.baseUrl)}">
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                    <input type="checkbox" id="env-edit-default" ${env.defaultEnv ? 'checked' : ''}
+                           style="width:15px;height:15px;accent-color:var(--pri)">
+                    <label for="env-edit-default" style="font-size:13px;cursor:pointer">Set as default environment</label>
+                </div>
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                <button class="btn btn-ghost" onclick="showEnvironmentsModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="saveEnvironment('${id}')">Save</button>
+            </div>
+        </div>`);
+    };
+
+    window.saveEnvironment = async function(id) {
+        const name = document.getElementById('env-edit-name').value.trim();
+        const baseUrl = document.getElementById('env-edit-url').value.trim();
+        const defaultEnv = document.getElementById('env-edit-default').checked;
+        if (!name) { toast('Name is required', 'warning'); return; }
+        if (!baseUrl || !baseUrl.startsWith('http')) { toast('Enter a valid base URL', 'warning'); return; }
+        try {
+            const updated = await api.environments.update(projectId, id, { name, baseUrl, defaultEnv, variables: {} });
+            const idx = environmentsCache.findIndex(e => e.id === id);
+            if (idx !== -1) environmentsCache[idx] = updated;
+            if (defaultEnv) environmentsCache.forEach(e => { if (e.id !== id) e.defaultEnv = false; });
+            toast(`Environment "${name}" updated`, 'success');
+            renderEnvironmentsModal();
+        } catch (e) { toast('Failed to update: ' + e.message, 'error'); }
+    };
+
+    window.deleteEnvironment = function(id) {
+        const env = environmentsCache.find(e => e.id === id);
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>🗑️ Delete Environment</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to delete environment "${esc(env?.name || '')}"? This cannot be undone.</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteEnvironment('${id}')">Delete</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmDeleteEnvironment = async function(id) {
+        closeModal();
+        try {
+            await api.environments.delete(projectId, id);
+            environmentsCache = environmentsCache.filter(e => e.id !== id);
+            toast('Environment deleted', 'info');
+            renderEnvironmentsModal();
+        } catch (e) { toast('Failed to delete: ' + e.message, 'error'); }
+    };
+
+    load();
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+package com.testingautomation.testautomation.dto.requestDto;
+
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.Data;
+
+import java.util.List;
+
+@Data
+public class ProjectRequest {
+
+    @NotBlank(message = "Project name is required")
+    private String name;
+    private String loginUrl;
+    private String loginCredS3Path;
+
+    private String description;
+    private String createdBy;
+    private String baseUrl;
+    private List<String> tags;
+}

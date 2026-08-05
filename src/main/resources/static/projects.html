@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Projects</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+
+<div class="app-layout">
+
+    <!-- Sidebar (built by JS) -->
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <!-- Main -->
+    <div class="main-col">
+
+        <!-- Topbar -->
+        <div class="topbar">
+            <div class="crumb">
+                <span class="crumb-cur">All Projects</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="main-scroll">
+            <div class="page">
+
+                <div class="page-header row-between">
+                    <div>
+                        <div class="page-title">All Projects</div>
+                        <div class="page-sub" id="proj-sub">Loading…</div>
+                    </div>
+                    <button class="btn btn-primary" onclick="showNewProjectModal()">+ New Project</button>
+                </div>
+
+                <div class="settings-panel" style="background:var(--bg2); padding:20px; border-radius:8px; margin-bottom:24px; border: 1px solid var(--bd);">
+                    <h3 style="margin-top:0; margin-bottom:12px; font-size: 16px;">Chrome Extension ID</h3>
+                    <div style="display:flex; gap:12px;">
+                        <input id="ext-id-inp" class="inp inp-mono" style="flex:1; max-width:400px;" placeholder="Enter Extension ID...">
+                        <button class="btn btn-primary" onclick="saveExtensionId()">Save</button>
+                    </div>
+                </div>
+
+                <div id="proj-grid">
+                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as api from './js/api.js';
+    import { esc, initials, toast, openModal, closeModal,
+        requireLogin, logout, initTheme, toggleTheme, buildSidebar } from './js/utils.js';
+
+    window.toggleTheme = toggleTheme;
+    window.closeModal  = closeModal;
+    window.logoutUser  = logout;
+
+    const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+    console.log("USER:", user);
+
+    initTheme();
+    buildSidebar('projects', api);
+
+    let projects = [];
+    const runningProjectIds = new Set();
+
+    // ── Load ──────────────────────────────────────────────────────────────
+    async function load() {
+        try {
+            projects = await api.projects.list(user.username);
+            render();
+        } catch (e) {
+            document.getElementById('proj-grid').innerHTML =
+                `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
+        }
+    }
+
+    function render() {
+        const sub  = document.getElementById('proj-sub');
+        const grid = document.getElementById('proj-grid');
+        sub.textContent = `${projects.length} project${projects.length !== 1 ? 's' : ''}`;
+
+        if (!projects.length) {
+            grid.innerHTML = `
+        <div class="empty">
+          <div class="ei">📁</div>
+          <h3>No projects yet</h3>
+          <p>Create your first project to start organizing test modules and runs.</p>
+          <button class="btn btn-primary" onclick="showNewProjectModal()">+ New Project</button>
+        </div>`;
+            return;
+        }
+
+        grid.innerHTML = `<div class="proj-grid">${projects.map(projectCard).join('')}</div>`;
+    }
+
+    function projectCard(p) {
+        const pid = p.id || p._id;
+        const isRunning = runningProjectIds.has(pid);
+        const pj = JSON.stringify(p)
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/'/g, '&#39;');
+        return `
+    <div class="proj-card" onclick="window.location.href='/modules.html?projectId=${pid}'">
+      <div class="proj-card-actions">
+        <button class="btn btn-primary btn-xs"
+          onclick="event.stopPropagation();executeProjectFlows('${pid}')" ${isRunning ? 'style="display:none"' : ''}>▶ Run All Flows</button>
+        <button class="btn btn-danger btn-xs"
+          onclick="event.stopPropagation();stopProjectFlows('${pid}')" title="Stop running flows in this project" ${isRunning ? '' : 'style="display:none"'}>⏹ Stop</button>
+        <button class="btn btn-ghost btn-xs"
+          data-project='${pj}'
+          onclick="event.stopPropagation();showEditModal(JSON.parse(this.dataset.project))">⚙</button>
+        <button class="btn btn-danger btn-xs"
+          onclick="event.stopPropagation();deleteProject('${pid}')">✕</button>
+      </div>
+      <div class="proj-card-icon">📁</div>
+      <h3>${esc(p.name)}</h3>
+      <p>${esc(p.description || 'No description')}</p>
+      <div class="proj-card-foot">
+        <code style="font-size:11px">${esc(p.loginUrl || '—')}</code>
+        <span class="badge badge-blue">Open →</span>
+      </div>
+    </div>`;
+    }
+
+    window.executeProjectFlows = function(projectId) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>▶ Run All Flows</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to run all flows for this project?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="confirmExecuteProjectFlows('${projectId}')">Run</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmExecuteProjectFlows = async function(projectId) {
+        closeModal();
+        try {
+            runningProjectIds.add(projectId);
+            render();
+            await api.flows.executeProject(projectId);
+            toast('Project flows execution started', 'success');
+            setTimeout(() => { runningProjectIds.delete(projectId); render(); }, 30000);
+        } catch (e) {
+            runningProjectIds.delete(projectId);
+            render();
+            toast('Failed to run project flows: ' + e.message, 'error');
+        }
+    };
+
+    window.stopProjectFlows = function(projectId) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>⏹ Stop Project Execution</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Are you sure you want to stop execution for this project?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmStopProjectFlows('${projectId}')">Stop</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmStopProjectFlows = async function(projectId) {
+        closeModal();
+        try {
+            await api.flows.stopProject(projectId);
+            runningProjectIds.delete(projectId);
+            render();
+            toast('Project execution stopped', 'warning');
+        } catch (e) {
+            toast('Failed to stop project execution: ' + e.message, 'error');
+        }
+    };
+
+    // ── New project ────────────────────────────────────────────────────────
+    window.showNewProjectModal = function () {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>📁 New Project</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="field">
+          <label class="lbl">Project Name *</label>
+          <input id="np-name" class="inp" placeholder="Login Automation" autofocus>
+        </div>
+        <div class="field">
+          <label class="lbl">Description</label>
+          <textarea id="np-desc" class="inp" placeholder="What does this project cover?"></textarea>
+        </div>
+        <div class="field">
+          <label class="lbl">Login URL</label>
+          <input id="np-url" class="inp inp-mono" placeholder="http://localhost:8080/login">
+        </div>
+        <div class="field">
+          <label class="lbl">CSV File</label>
+          <input id="np-csv" class="inp" type="file" accept=".csv">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="createProject()">Create</button>
+        </div>
+      </div>`);
+    };
+
+    window.createProject = async function () {
+        const name    = document.getElementById('np-name').value.trim();
+        const desc    = document.getElementById('np-desc').value.trim();
+        const loginUrl = document.getElementById('np-url').value.trim();
+        const csvFile = document.getElementById('np-csv').files[0];
+        if (!name) {
+            toast('Project name is required', 'warning');
+            return;
+        }
+
+        if (!loginUrl) {
+            toast('Login URL is required', 'warning');
+            return;
+        }
+
+        if (!csvFile) {
+            toast('Login credentials CSV is required', 'warning');
+            return;
+        }
+        const upload = await api.uploads.projectLoginCsv(csvFile, name);
+        try {
+            const p = await api.projects.create({ name, description: desc, loginUrl, loginCredS3Path: upload.path,createdBy: user.username});
+            projects.unshift(p);
+            closeModal();
+            render();
+            toast(`"${name}" created`, 'success');
+        } catch (e) { toast('Create failed: ' + e.message, 'error'); }
+    };
+
+    // ── Edit project ───────────────────────────────────────────────────────
+    window.showEditModal = function (p) {
+        console.log("edit project");
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>⚙ Edit Project</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="field">
+          <label class="lbl">Project Name *</label>
+          <input id="ep-name" class="inp" value="${esc(p.name)}">
+        </div>
+        <div class="field">
+          <label class="lbl">Description</label>
+          <textarea id="ep-desc" class="inp">${esc(p.description || '')}</textarea>
+        </div>
+        <div class="field">
+          <label class="lbl">Login URL</label>
+          <input id="ep-url" class="inp inp-mono" value="${esc(p.loginUrl || '')}">
+        </div>
+        <div class="field">
+          <label class="lbl">CSV File</label>
+          <input id="ep-csv" class="inp" type="file" accept=".csv">
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveEditProject('${esc(p.id || p._id)}')">Save</button>
+        </div>
+      </div>`);
+    };
+
+    window.saveEditProject = async function (id) {
+        const name    = document.getElementById('ep-name').value.trim();
+        const desc    = document.getElementById('ep-desc').value.trim();
+        const loginUrl = document.getElementById('ep-url').value.trim();
+        const csvFile = document.getElementById('ep-csv').files[0];
+        if (!name) { toast('Name required', 'warning'); return; }
+        try {
+            const updated = await api.projects.update(id, { name, description: desc, loginUrl });
+            const idx = projects.findIndex(p => (p.id || p._id) === id);
+            if (idx >= 0) projects[idx] = updated;
+            closeModal();
+            render();
+            toast('Project updated', 'success');
+        } catch (e) { toast('Update failed: ' + e.message, 'error'); }
+    };
+
+    // ── Delete project ─────────────────────────────────────────────────────
+    window.deleteProject = function (id) {
+        openModal(`
+            <div class="modal">
+                <div class="modal-head">
+                    <h2>✕ Delete Project</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0;">
+                    <p style="margin: 0; font-size: 14px; color: var(--tx2);">Delete this project and all its modules/runs?</p>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-danger" onclick="confirmDeleteProject('${id}')">Delete</button>
+                </div>
+            </div>
+        `);
+    };
+
+    window.confirmDeleteProject = async function (id) {
+        closeModal();
+        try {
+            await api.projects.delete(id);
+            projects = projects.filter(p => (p.id || p._id) !== id);
+            render();
+            toast('Deleted', 'info');
+        } catch (e) { toast('Delete failed: ' + e.message, 'error'); }
+    };
+
+    // ── Chrome Extension ID ────────────────────────────────────────────────
+    async function loadExtensionId() {
+        try {
+            const res = await api.users.getExtensionId(user.username);
+            if (res && res.extensionId) {
+                document.getElementById('ext-id-inp').value = res.extensionId;
+            }
+        } catch (e) {
+            console.error('Failed to load extension ID', e);
+        }
+    }
+
+    window.saveExtensionId = async function() {
+        const extId = document.getElementById('ext-id-inp').value.trim();
+        if (!extId) {
+            toast('Extension ID cannot be empty', 'warning');
+            return;
+        }
+        try {
+            await api.users.updateExtensionId(user.username, extId);
+            toast('Extension ID saved', 'success');
+        } catch (e) {
+            toast('Failed to save Extension ID: ' + e.message, 'error');
+        }
+    };
+
+    load();
+    loadExtensionId();
+</script>
+</body>
+</html>

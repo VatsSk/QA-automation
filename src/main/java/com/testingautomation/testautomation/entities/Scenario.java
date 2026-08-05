@@ -1,0 +1,83 @@
+package com.testingautomation.testautomation.entities;
+
+
+import com.testingautomation.testautomation.dto.AssertionDto;
+import com.testingautomation.testautomation.dto.DateRangeNavDto;
+import com.testingautomation.testautomation.dto.FilterScenarioDto;
+import com.testingautomation.testautomation.dto.ManageColumnItemDto;
+import com.testingautomation.testautomation.enums.RunStatus;
+import com.testingautomation.testautomation.enums.ScenarioType;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.Instant;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Embedded document inside Run.scenariosList.
+ *
+ * IMPORTANT: resultStatement is NOT here.
+ * It lives as a top-level field on the Run document and is
+ * sent as a query param to POST /runner/run-auth.
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class Scenario {
+
+    private String id;
+
+    private RunStatus scenarioStatus;
+    private ScenarioType type;
+
+    private Integer sequenceNo;
+
+    private String projectId;
+
+    private String moduleId;
+
+    private String url;
+
+    /** CSS selector used to open modal for MODAL / MODAL_NAV types */
+    private String cssOpener;
+
+    /** Value to type or select */
+    private String value;
+
+    /** Human-readable statement (indexed for text search) */
+    private String statement;
+
+    /** S3/MinIO path to uploaded input CSV */
+    private String csv;
+
+    /** Inline manual test cases */
+    private List<TestCase> manualTestCases;
+    private List<AssertionDto> assertions;
+    private List<FilterScenarioDto> filters;
+    private String applyFilterBtn;
+    /** S3/MinIO path to result CSV written by runner */
+    private String resultCsv;
+
+    /** S3/MinIO paths to screenshots captured by runner */
+    private List<String> screenshots;
+
+    private Instant actionPerformedAt;
+    private Instant createdAt;
+    private Instant updatedAt;
+    private String clickCss;
+    private String scenarioBasePath;
+    private DateRangeNavDto dateRangeNavDto;
+    private String saveBtnCss;
+    private List<ManageColumnItemDto> columns;
+
+    private RunStatus verificationStatus;
+    private List<Verify> initialVerify;
+    private List<Verify> finalVerify;
+    private Map<Integer ,List<Verify>> initialVerifyResultMap=new HashMap<>();
+    private Map<Integer ,List<Verify>> finalVerifyResultMap=new HashMap<>();
+}
