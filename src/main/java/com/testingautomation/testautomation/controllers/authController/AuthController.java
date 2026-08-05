@@ -31,6 +31,7 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
+
     @GetMapping("/all")
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(authService.getAllUsers());

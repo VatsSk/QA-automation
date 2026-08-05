@@ -21,6 +21,13 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+
+    @GetMapping("/isWorking")
+    public String isDeployed(){
+        return "ci cd is established";
+    }
+
+
     @PutMapping("/{username}/extension")
     public ResponseEntity<Map<String, String>> updateExtensionId(@PathVariable String username, @RequestBody Map<String, String> body) {
         return userRepository.findByUsername(username)
