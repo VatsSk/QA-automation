@@ -368,35 +368,39 @@ public class ActionHandlerService {
                 }
                 String rawActual = null;
                 String textSource = step.getTextSource() != null ? step.getTextSource().toLowerCase() : "";
-
-                switch (textSource) {
-                    case "value":
-                        rawActual = element.getAttribute("value");
-                        break;
-                    case "placeholder":
-                        rawActual = element.getAttribute("placeholder");
-                        break;
-                    case "text":
-                        rawActual = element.getText();
-                        if (rawActual == null || rawActual.isEmpty()) {
-                            rawActual = (String) ((JavascriptExecutor) driver)
-                                    .executeScript("return arguments[0].textContent;", element);
-                        }
-                        break;
-                    default:
-                        rawActual = element.getText();
-                        if (rawActual == null || rawActual.isEmpty()) {
-                            rawActual = (String) ((JavascriptExecutor) driver)
-                                    .executeScript("return arguments[0].textContent;", element);
-                        }
-                        if (rawActual == null || rawActual.isEmpty()) {
+                logger.info("TextSource:  {}",textSource);
+                rawActual = element.getText();
+                if(rawActual == null || rawActual.isEmpty()){
+                    switch (textSource) {
+                        case "value":
                             rawActual = element.getAttribute("value");
-                        }
-                        if(rawActual == null || rawActual.isEmpty()){
+                            break;
+                        case "placeholder":
                             rawActual = element.getAttribute("placeholder");
-                        }
-                        break;
+                            break;
+                        case "text":
+                            rawActual = element.getText();
+                            if (rawActual == null || rawActual.isEmpty()) {
+                                rawActual = (String) ((JavascriptExecutor) driver)
+                                        .executeScript("return arguments[0].textContent;", element);
+                            }
+                            break;
+                        default:
+                            rawActual = element.getText();
+                            if (rawActual == null || rawActual.isEmpty()) {
+                                rawActual = (String) ((JavascriptExecutor) driver)
+                                        .executeScript("return arguments[0].textContent;", element);
+                            }
+                            if (rawActual == null || rawActual.isEmpty()) {
+                                rawActual = element.getAttribute("value");
+                            }
+                            if(rawActual == null || rawActual.isEmpty()){
+                                rawActual = element.getAttribute("placeholder");
+                            }
+                            break;
+                    }
                 }
+
 
 //                 Normalize: collapse all whitespace sequences (spaces, newlines, tabs) → single space, then trim.
                 rawActual   = rawActual   != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
