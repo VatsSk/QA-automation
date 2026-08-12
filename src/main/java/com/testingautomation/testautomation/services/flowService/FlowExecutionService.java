@@ -50,7 +50,11 @@ public class FlowExecutionService {
     private FlowSseService flowSseService;
 
     public void executeStep(WebDriver driver, FlowStep step, Flow flow) {
-
+        try {
+            Thread.sleep(2000); // 🚨 This adds 2 seconds of dead time to EVERY step!
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
         ActionType actionType = step.getActionType();
         if (actionType == null) {
             logger.warn("ActionType is null for step [{}]", step.getName());
