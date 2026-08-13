@@ -238,14 +238,6 @@ public class FlowOrchestratorService {
         activeFlows.put(flow.getId(), flow);
         WebDriver driver = null;
         try {
-            // --- COMPONENT EXPANSION LOGIC ---
-            FlowInfo flowInfo = flowInfoRepository.findByFlowId(flow.getId()).orElse(null);
-            if (flowInfo != null && Boolean.TRUE.equals(flowInfo.getContainsComp())) {
-                List<FlowStep> runtimeSteps = buildRuntimeSteps(flow, flowInfo);
-                flow.setSteps(runtimeSteps);
-            }
-            // ---------------------------------
-
             // ── Step 1: Override NAVIGATE URLs BEFORE marking the flow as RUNNING ──
             // Resolve all NAVIGATE step URLs upfront using the selected environment.
             // This happens before any status change or DB write, so if resolution
@@ -378,63 +370,4 @@ public class FlowOrchestratorService {
         }
     }
 
-    private List<FlowStep> buildRuntimeSteps(Flow flow, FlowInfo flowInfo) {
-        List<FlowStep> runtimeSteps = new ArrayList<>();
-        if (flowInfo.getFlowItems() == null || flowInfo.getFlowItems().isEmpty()) {
-            return runtimeSteps;
-        }
-
-        flowInfo.getFlowItems().sort(Comparator.comparingInt(FlowItem::getOrder));
-
-        Map<String, FlowStep> existingStepsMap = new HashMap<>();
-        if (flow.getSteps() != null) {
-            for (FlowStep step : flow.getSteps()) {
-                existingStepsMap.put(step.getId(), step);
-            }
-        }
-
-        for (FlowItem item : flowInfo.getFlowItems()) {
-            if (item.getType() == FlowItemType.STEP) {
-                FlowStep step = existingStepsMap.get(item.getStepId());
-                if (step != null) {
-                    runtimeSteps.add(step);
-                }
-            } else if (item.getType() == FlowItemType.COMPONENT) {
-                Optional<Component> compOpt = componentRepository.findById(item.getComponentId());
-                if (compOpt.isPresent() && compOpt.get().getSteps() != null) {
-                    for (FlowStep compStep : compOpt.get().getSteps()) {
-                        FlowStep runtimeStep = cloneStep(compStep);
-                        runtimeStep.setId(UUID.randomUUID().toString());
-                        runtimeSteps.add(runtimeStep);
-                    }
-                }
-            }
-        }
-
-        int order = 1;
-        for (FlowStep step : runtimeSteps) {
-            step.setStepOrder(order++);
-        }
-
-        return runtimeSteps;
-    }
-
-    private FlowStep cloneStep(FlowStep original) {
-        FlowStep clone = new FlowStep();
-        clone.setName(original.getName());
-        clone.setActionType(original.getActionType());
-        clone.setVerificationType(original.getVerificationType());
-        clone.setSelector(original.getSelector());
-        clone.setValue(original.getValue());
-        clone.setExpectedValue(original.getExpectedValue());
-        clone.setAttribute(original.getAttribute());
-        clone.setTextSource(original.getTextSource());
-        clone.setOverrideWait(original.getOverrideWait());
-        clone.setWait(original.getWait());
-        clone.setRetryCount(original.getRetryCount());
-        clone.setContinueOnFailure(original.getContinueOnFailure());
-        clone.setCaptureScreenshot(original.getCaptureScreenshot());
-        clone.setIsComp(original.getIsComp());
-        return clone;
-    }
 }

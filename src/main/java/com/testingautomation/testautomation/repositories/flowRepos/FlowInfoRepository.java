@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface FlowInfoRepository extends MongoRepository<FlowInfo, String> {
     Optional<FlowInfo> findByFlowId(String flowId);
+    java.util.List<FlowInfo> findByProjectIdAndModuleId(String projectId, String moduleId);
 }

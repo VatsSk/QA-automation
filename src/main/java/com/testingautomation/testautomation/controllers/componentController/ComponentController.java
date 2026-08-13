@@ -41,13 +41,18 @@ public class ComponentController {
         return componentService.updateComponent(id, component);
     }
 
-    @GetMapping("/flow-info/{flowId}")
-    public FlowInfo getFlowInfo(@PathVariable String flowId) {
-        return componentService.getFlowInfo(flowId);
+    @GetMapping("/flow-info/{id}")
+    public FlowInfo getFlowInfo(@PathVariable String id) {
+        return componentService.getFlowInfo(id);
     }
 
-    @PutMapping("/flow-info/{flowId}")
-    public FlowInfo saveFlowInfo(@PathVariable String flowId, @RequestBody FlowInfo flowInfo) {
-        return componentService.saveFlowInfo(flowId, flowInfo);
+    @PostMapping("/flow-info")
+    public FlowInfo createFlowInfo(@RequestBody FlowInfo flowInfo) {
+        return componentService.createFlowInfo(flowInfo);
+    }
+
+    @PutMapping("/flow-info/{id}")
+    public FlowInfo saveFlowInfo(@PathVariable String id, @RequestBody FlowInfo flowInfo) {
+        return componentService.saveFlowInfo(id, flowInfo);
     }
 }

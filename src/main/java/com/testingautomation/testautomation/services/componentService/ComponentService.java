@@ -56,20 +56,33 @@ public class ComponentService {
         return componentRepository.save(component);
     }
 
-    public FlowInfo getFlowInfo(String flowId) {
-        return flowInfoRepository.findByFlowId(flowId).orElse(null);
+    @Autowired
+    private com.testingautomation.testautomation.services.flowService.ComponentFlowExecutionService componentFlowExecutionService;
+
+    public FlowInfo getFlowInfo(String id) {
+        return flowInfoRepository.findById(id).orElse(null);
     }
 
-    public FlowInfo saveFlowInfo(String flowId, FlowInfo flowInfo) {
-        FlowInfo existing = flowInfoRepository.findByFlowId(flowId).orElse(null);
+    public FlowInfo createFlowInfo(FlowInfo flowInfo) {
+        flowInfo.setCreatedAt(Instant.now());
+        flowInfo.setUpdatedAt(Instant.now());
+        FlowInfo saved = flowInfoRepository.save(flowInfo);
+        componentFlowExecutionService.materializeFlow(saved);
+        return saved;
+    }
+
+    public FlowInfo saveFlowInfo(String id, FlowInfo flowInfo) {
+        FlowInfo existing = flowInfoRepository.findById(id).orElse(null);
         if (existing != null) {
             flowInfo.setId(existing.getId());
             flowInfo.setCreatedAt(existing.getCreatedAt());
         } else {
+            flowInfo.setId(id);
             flowInfo.setCreatedAt(Instant.now());
         }
-        flowInfo.setFlowId(flowId);
         flowInfo.setUpdatedAt(Instant.now());
-        return flowInfoRepository.save(flowInfo);
+        FlowInfo saved = flowInfoRepository.save(flowInfo);
+        componentFlowExecutionService.materializeFlow(saved);
+        return saved;
     }
 }

@@ -212,6 +212,7 @@ export const components = {
     listComponents: (projectId, moduleId) => request('GET', `/api/components/${projectId}/${moduleId}`),
     createComponent: (data) => request('POST', `/api/components`, data),
     updateComponent: (id, data) => request('PUT', `/api/components/${id}`, data),
-    getFlowInfo: (flowId) => request('GET', `/api/components/flow-info/${flowId}`),
-    saveFlowInfo: (flowId, data) => request('PUT', `/api/components/flow-info/${flowId}`, data)
+    getFlowInfo: (id) => request('GET', `/api/components/flow-info/${id}`),
+    createFlowInfo: (data) => request('POST', `/api/components/flow-info`, data),
+    saveFlowInfo: (id, data) => request('PUT', `/api/components/flow-info/${id}`, data)
 };

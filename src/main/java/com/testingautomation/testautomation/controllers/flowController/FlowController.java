@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.controllers.flowController;
 
+import com.testingautomation.testautomation.entities.component.FlowInfo;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.services.flowService.FlowOrchestratorService;
 import com.testingautomation.testautomation.services.flowService.FlowService;
@@ -65,17 +66,43 @@ public class FlowController {
         return ResponseEntity.noContent().build();
     }
 
+    @Autowired
+    private com.testingautomation.testautomation.services.flowService.ComponentFlowExecutionService componentFlowExecutionService;
+
+    @Autowired
+    private com.testingautomation.testautomation.repositories.flowRepos.FlowInfoRepository flowInfoRepository;
+
     @PostMapping("/{id}/run")
     public ResponseEntity<String> runFlow(
             @PathVariable String id,
             @RequestParam(required = false) String environmentId) {
+            
+        // First check if it's an unmaterialized Component flow in FlowInfo
+        Optional<FlowInfo> flowInfoOpt = flowInfoRepository.findById(id);
+        if (flowInfoOpt.isPresent()) {
+            logger.info("Triggering execution for Component FlowInfo: {} with environmentId: {}", flowInfoOpt.get().getName(), environmentId);
+            componentFlowExecutionService.executeComponentFlow(flowInfoOpt.get(), environmentId);
+            return ResponseEntity.ok("Component Flow execution started for: " + flowInfoOpt.get().getName());
+        }
+
         Optional<Flow> flowOptional = flowService.getFlowById(id);
         if (flowOptional.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
         Flow flow = flowOptional.get();
-        logger.info("Triggering execution for Flow: {} with environmentId: {}", flow.getName(), environmentId);
+        
+        // If it's a component flow that is already materialized in Flow collection, it still needs to be run from FlowInfo to get fresh dynamic component changes
+        if (flow.isPartComp()) {
+            flowInfoOpt = flowInfoRepository.findById(flow.getId());
+            if (flowInfoOpt.isPresent()) {
+                logger.info("Triggering execution for materialized Component Flow: {} with environmentId: {}", flow.getName(), environmentId);
+                componentFlowExecutionService.executeComponentFlow(flowInfoOpt.get(), environmentId);
+                return ResponseEntity.ok("Component Flow execution started for: " + flow.getName());
+            }
+        }
+
+        logger.info("Triggering execution for Legacy Flow: {} with environmentId: {}", flow.getName(), environmentId);
 
         // If an environmentId is provided, NAVIGATE steps will have their origin replaced.
         // If null, executes using the recorded URLs — backward compatible.
