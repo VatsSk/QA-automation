@@ -148,6 +148,7 @@
                         <div class="page-sub"  id="page-sub">Loading…</div>
                     </div>
                     <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn btn-ghost" onclick="showComponentsModal()">🧩 Components</button>
                         <button class="btn btn-ghost" onclick="showEnvironmentsModal()">⚙ Environments</button>
                         <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
                     </div>
@@ -408,8 +409,17 @@
                   style="justify-content:flex-start;gap:12px">
             <span style="font-size:24px">🔁</span>
             <div style="text-align:left">
-              <div style="font-weight:600">Flows</div>
-              <div style="font-size:12px;opacity:0.7">View and manage automation flows</div>
+              <div style="font-weight:600">Standard Flows</div>
+              <div style="font-size:12px;opacity:0.7">View and manage standard automation flows</div>
+            </div>
+          </button>
+          <button class="btn btn-ghost btn-lg"
+                  onclick="closeModal(); openComponentFlowBuilder('${mid}')"
+                  style="justify-content:flex-start;gap:12px; border: 1px solid var(--bd);">
+            <span style="font-size:24px">🧩</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Component Flows</div>
+              <div style="font-size:12px;opacity:0.7">Create flows using reusable components</div>
             </div>
           </button>
         </div>
@@ -888,6 +898,396 @@
     };
 
     load();
+
+    // ── Components Management Modal ──────────────────────────────────────
+    window.showComponentsModal = async function() {
+        let compModules = [];
+        try {
+            compModules = await api.components.listModules(projectId);
+        } catch(e) {
+            toast('Failed to load component modules', 'error');
+        }
+        
+        const rows = compModules.length === 0
+            ? `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:13px">No component modules yet. Add one below.</div>` 
+            : compModules.map(m => ` 
+            <div class="mod-item" onclick="openComponentModuleModal('${m.id}')" style="margin-bottom:8px">
+                <div class="mod-icon">📦</div>
+                <div class="mod-info">
+                    <div class="mod-name">${esc(m.name)}</div>
+                    <div class="mod-desc">${esc(m.description || 'No description')}</div>
+                </div>
+                <div class="mod-meta">
+                    <span class="badge badge-blue">View Components →</span>
+                </div>
+            </div>`).join('');
+
+        openModal(` 
+        <div class="modal" style="width:600px;max-width:95vw">
+            <div class="modal-head">
+                <h2>🧩 Component Modules</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:16px 0">
+                <p style="margin:0 0 14px;font-size:13px;color:var(--tx2)">
+                    Component modules group your reusable flow components. 
+                </p>
+                <div id="comp-mod-list-inner" style="max-height: 400px; overflow-y: auto;">${rows}</div>
+                <hr style="border:none;border-top:1px solid var(--bd);margin:16px 0">
+                <div style="font-size:13px;font-weight:600;color:var(--tx2);margin-bottom:10px">Add New Component Module</div>
+                <div style="display:grid;grid-template-columns:1fr 2fr;gap:8px;margin-bottom:8px">
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Name *</label>
+                        <input id="comp-mod-new-name" class="inp" placeholder="e.g. Authentication">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Description</label>
+                        <input id="comp-mod-new-desc" class="inp" placeholder="Contains login and logout components">
+                    </div>
+                </div>
+                <button class="btn btn-primary" style="width:100%" onclick="createComponentModule()">+ Add Component Module</button>
+            </div>
+        </div>`);
+    };
+
+    window.createComponentModule = async function() {
+        const name = document.getElementById('comp-mod-new-name').value.trim();
+        const description = document.getElementById('comp-mod-new-desc').value.trim();
+        if (!name) { toast('Module name is required', 'warning'); return; }
+        try {
+            await api.components.createModule({ projectId, name, description, createdBy: user.username });
+            toast('Component module created', 'success');
+            showComponentsModal();
+        } catch(e) { toast('Failed to create: ' + e.message, 'error'); }
+    };
+
+    window.openComponentModuleModal = async function(moduleId) {
+        let components = [];
+        try {
+            components = await api.components.listComponents(projectId, moduleId);
+        } catch(e) {
+            toast('Failed to load components', 'error');
+        }
+
+        const rows = components.length === 0
+            ? `<div style="text-align:center;padding:24px;color:var(--tx3);font-size:13px">No components in this module.</div>` 
+            : components.map(c => ` 
+            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px; border:1px solid var(--bd);border-radius:var(--r);margin-bottom:6px; background:var(--sur2)">
+                <div style="flex:1">
+                    <div style="font-weight:600;font-size:13px">${esc(c.name)}</div>
+                    <div style="font-size:11px;color:var(--tx3);margin-top:2px">${esc(c.description || 'No description')} - ${c.steps ? c.steps.length : 0} steps</div>
+                </div>
+                <button class="btn btn-ghost btn-xs" onclick="editComponent('${c.id}')" title="Edit">✏️ Edit</button>
+            </div>`).join('');
+
+        openModal(` 
+        <div class="modal" style="width:700px;max-width:95vw">
+            <div class="modal-head">
+                <h2>🧩 Components</h2>
+                <button class="modal-close" onclick="showComponentsModal()">⬅ Back</button>
+            </div>
+            <div style="padding:16px 0">
+                <div id="comp-list-inner" style="max-height: 400px; overflow-y: auto; margin-bottom: 16px;">${rows}</div>
+                <div style="display:flex; justify-content:flex-end;">
+                    <button class="btn btn-primary" onclick="createNewComponent('${moduleId}')">+ Create New Component</button>
+                </div>
+            </div>
+        </div>`);
+    };
+
+    window.createNewComponent = function(moduleId) {
+        window.location.href = '/component.html?projectId=' + projectId + '&moduleId=' + moduleId;
+    };
+    
+    window.editComponent = function(compId) {
+        window.location.href = '/component.html?projectId=' + projectId + '&compId=' + compId;
+    };
+
+    // ── Component Flow Builder ──────────────────────────────────────────────
+    let builderItems = [];
+    let allAvailableComponents = [];
+
+    window.openComponentFlowBuilder = async function(moduleId) {
+        builderItems = [];
+        allAvailableComponents = [];
+        
+        try {
+            // Load all components from all modules for selection
+            const compMods = await api.components.listModules(projectId);
+            for (const cm of compMods) {
+                const comps = await api.components.listComponents(projectId, cm.id || cm._id);
+                for (const c of comps) {
+                    allAvailableComponents.push({ ...c, compModuleName: cm.name });
+                }
+            }
+        } catch (e) {
+            console.error('Failed to load components', e);
+        }
+
+        renderBuilderModal(moduleId);
+    };
+
+    function renderBuilderModal(moduleId) {
+        const itemsHtml = builderItems.length === 0 
+            ? `<div style="text-align:center;padding:30px;color:var(--tx3);font-size:13px;border:1px dashed var(--bd);border-radius:var(--r)">No steps added yet. Add a manual step or a component below.</div>`
+            : builderItems.map((item, index) => {
+                if (item.type === 'STEP') {
+                    return `
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px;background:var(--sur2);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:8px">
+                        <div style="font-weight:bold;color:var(--tx3);width:20px">${index + 1}</div>
+                        <div style="flex:1">
+                            <div style="font-weight:600;font-size:13px">Manual Step: ${esc(item.step.name || item.step.actionType)}</div>
+                            <div style="font-size:11px;color:var(--tx3);margin-top:4px">${esc(item.step.actionType)} | ${esc(item.step.selector || '')} | ${esc(item.step.value || '')}</div>
+                        </div>
+                        <button class="btn btn-danger btn-xs" onclick="removeBuilderItem(${index}, '${moduleId}')">✕</button>
+                    </div>`;
+                } else {
+                    const c = allAvailableComponents.find(x => (x.id || x._id) === item.componentId);
+                    const cName = c ? c.name : 'Unknown Component';
+                    return `
+                    <div style="display:flex;align-items:center;gap:10px;padding:12px;background:rgba(59, 130, 246, 0.1);border:1px solid rgba(59, 130, 246, 0.3);border-radius:var(--r);margin-bottom:8px">
+                        <div style="font-weight:bold;color:#3b82f6;width:20px">${index + 1}</div>
+                        <div style="flex:1">
+                            <div style="font-weight:600;font-size:13px;color:#3b82f6">🧩 Component: ${esc(cName)}</div>
+                            <div style="font-size:11px;color:var(--tx3);margin-top:4px">Expands to ${c && c.steps ? c.steps.length : 0} steps at runtime</div>
+                        </div>
+                        <button class="btn btn-danger btn-xs" onclick="removeBuilderItem(${index}, '${moduleId}')">✕</button>
+                    </div>`;
+                }
+            }).join('');
+
+        openModal(`
+        <div class="modal" style="width:800px;max-width:95vw;height:85vh;display:flex;flex-direction:column">
+            <div class="modal-head">
+                <h2>🧩 Build Component Flow</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            
+            <div style="padding:16px 20px; border-bottom:1px solid var(--bd); flex-shrink:0;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Flow Name *</label>
+                        <input id="cb-name" class="inp" placeholder="My Component Flow" value="${document.getElementById('cb-name') ? document.getElementById('cb-name').value : ''}">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Description</label>
+                        <input id="cb-desc" class="inp" placeholder="Flow description" value="${document.getElementById('cb-desc') ? document.getElementById('cb-desc').value : ''}">
+                    </div>
+                </div>
+            </div>
+
+            <div style="flex:1; overflow-y:auto; padding:20px; background:var(--bg)">
+                <div style="font-weight:600;font-size:14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+                    <span>Flow Execution Sequence</span>
+                </div>
+                <div id="builder-items-list">${itemsHtml}</div>
+            </div>
+
+            <div style="padding:16px 20px; border-top:1px solid var(--bd); flex-shrink:0; background:var(--sur)">
+                <div style="display:flex; gap:10px; margin-bottom:16px">
+                    <button class="btn btn-secondary" onclick="showAddManualStepModal('${moduleId}')">+ Add Manual Step</button>
+                    <button class="btn btn-secondary" onclick="showAddComponentModal('${moduleId}')">+ Add Component</button>
+                    <button class="btn btn-secondary" onclick="launchComponentFlowRecorder('${moduleId}')">🔴 Record via Extension</button>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveComponentFlow('${moduleId}')">💾 Save Flow</button>
+                </div>
+            </div>
+        </div>`);
+    }
+
+    window.removeBuilderItem = function(index, moduleId) {
+        builderItems.splice(index, 1);
+        renderBuilderModal(moduleId);
+    };
+
+    window.showAddComponentModal = function(moduleId) {
+        const compOptions = allAvailableComponents.map(c => 
+            `<option value="${c.id || c._id}">${esc(c.compModuleName)} - ${esc(c.name)}</option>`
+        ).join('');
+
+        openModal(`
+        <div class="modal" style="width:500px">
+            <div class="modal-head">
+                <h2>Add Component</h2>
+                <button class="modal-close" onclick="renderBuilderModal('${moduleId}')">✕</button>
+            </div>
+            <div style="padding:20px 0">
+                <div class="field">
+                    <label class="lbl">Select Component</label>
+                    <select id="cb-comp-select" class="inp">
+                        ${compOptions}
+                    </select>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
+                    <button class="btn btn-ghost" onclick="renderBuilderModal('${moduleId}')">Cancel</button>
+                    <button class="btn btn-primary" onclick="addComponentToBuilder('${moduleId}')">Add</button>
+                </div>
+            </div>
+        </div>`);
+    };
+
+    window.addComponentToBuilder = function(moduleId) {
+        const select = document.getElementById('cb-comp-select');
+        if (!select.value) { toast('Please select a component', 'warning'); return; }
+        
+        builderItems.push({
+            type: 'COMPONENT',
+            componentId: select.value
+        });
+        
+        renderBuilderModal(moduleId);
+    };
+
+    window.showAddManualStepModal = function(moduleId) {
+        openModal(`
+        <div class="modal" style="width:600px">
+            <div class="modal-head">
+                <h2>Add Manual Step</h2>
+                <button class="modal-close" onclick="renderBuilderModal('${moduleId}')">✕</button>
+            </div>
+            <div style="padding:20px 0; display:flex; flex-direction:column; gap:12px">
+                <div class="field" style="margin:0">
+                    <label class="lbl">Step Name</label>
+                    <input id="ms-name" class="inp" placeholder="e.g. Click Login Button">
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Action Type</label>
+                    <select id="ms-action" class="inp">
+                        <option value="NAVIGATE">NAVIGATE</option>
+                        <option value="CLICK">CLICK</option>
+                        <option value="TYPE">TYPE</option>
+                        <option value="VERIFY">VERIFY</option>
+                        <option value="WAIT">WAIT</option>
+                    </select>
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Selector (CSS/XPath)</label>
+                    <input id="ms-selector" class="inp" placeholder="#btn-login">
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Value</label>
+                    <input id="ms-value" class="inp" placeholder="https://... or JohnDoe">
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
+                    <button class="btn btn-ghost" onclick="renderBuilderModal('${moduleId}')">Cancel</button>
+                    <button class="btn btn-primary" onclick="addManualStepToBuilder('${moduleId}')">Add Step</button>
+                </div>
+            </div>
+        </div>`);
+    };
+
+    window.addManualStepToBuilder = function(moduleId) {
+        const name = document.getElementById('ms-name').value;
+        const actionType = document.getElementById('ms-action').value;
+        const selector = document.getElementById('ms-selector').value;
+        const value = document.getElementById('ms-value').value;
+
+        // Give it a temp ID. The backend handles actual ID assignment upon save, or we can send it as null.
+        builderItems.push({
+            type: 'STEP',
+            step: {
+                id: null,
+                name: name,
+                actionType: actionType,
+                selector: selector,
+                value: value,
+                isComp: false
+            }
+        });
+
+        renderBuilderModal(moduleId);
+    };
+
+    window.saveComponentFlow = async function(moduleId) {
+        const name = document.getElementById('cb-name').value.trim();
+        const desc = document.getElementById('cb-desc').value.trim();
+
+        if (!name) { toast('Flow Name is required', 'warning'); return; }
+
+        try {
+            // 1. Create standard Flow document
+            const flowData = {
+                name: name,
+                description: desc,
+                projectId: projectId,
+                moduleId: moduleId,
+                steps: [] // We extract native steps from builderItems
+            };
+
+            // Extract native steps for the Flow document
+            builderItems.forEach((item, idx) => {
+                if (item.type === 'STEP') {
+                    item.step.stepOrder = idx + 1;
+                    flowData.steps.push(item.step);
+                }
+            });
+
+            const savedFlow = await api.flows.createDraft(flowData);
+            const flowId = savedFlow.id || savedFlow._id;
+
+            // Since we get generated IDs back from the saved flow, map them back to builderItems
+            let stepIndex = 0;
+            const flowItems = builderItems.map((item, idx) => {
+                if (item.type === 'STEP') {
+                    const savedStepId = savedFlow.steps[stepIndex].id;
+                    stepIndex++;
+                    return { order: idx + 1, type: 'STEP', stepId: savedStepId };
+                } else {
+                    return { order: idx + 1, type: 'COMPONENT', componentId: item.componentId };
+                }
+            });
+
+            // 2. Save FlowInfo document
+            const flowInfoData = {
+                projectId: projectId,
+                moduleId: moduleId,
+                flowId: flowId,
+                containsComp: true,
+                flowItems: flowItems
+            };
+
+            await api.components.saveFlowInfo(flowId, flowInfoData);
+
+            toast('Component Flow saved successfully!', 'success');
+            closeModal();
+        } catch (e) {
+            toast('Failed to save flow: ' + e.message, 'error');
+        }
+    };
+
+
+    window.launchComponentFlowRecorder = async function (moduleId) {
+        try {
+            const projectData = await fetch(`/api/projects/url/${projectId}`).then(r => r.json());
+            let extensionId;
+            try { const res = await api.users.getExtensionId(user.username); extensionId = res.extensionId; } catch(e) {}
+            if (!extensionId) { toast('Please configure your Chrome Extension ID', 'warning'); return; }
+            if (!window.chrome || !window.chrome.runtime) { toast('Chrome extension is not installed', 'error'); return; }
+
+            const flowName = document.getElementById('cb-name').value.trim() || 'Untitled Flow';
+            const flowDesc = document.getElementById('cb-desc').value.trim() || '';
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                {
+                    action: 'START_RECORDING',
+                    projectId,
+                    compModuleId,
+                    name: flowName,
+                    description: flowDesc,
+                    createdBy: user.username,
+                    url: projectData.loginUrl,
+                    flag: 'COMPONENT'
+                },
+                (res) => {
+                    if (chrome.runtime.lastError) { toast('Failed to connect to extension.', 'error'); return; }
+                    toast('Recording started in extension window.', 'success');
+                }
+            );
+        } catch (e) { toast('Failed to start recorder: ' + e.message, 'error'); }
+    };
+
 </script>
 </body>
-</html>

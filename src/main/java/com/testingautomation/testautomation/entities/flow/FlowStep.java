@@ -59,6 +59,8 @@ public class FlowStep extends ExecutionEntity {
 
     private Boolean captureScreenshot = true;
 
+    private Boolean isComp;
+
 //    private Boolean enabled = true;
 
 //    private String remarks;
