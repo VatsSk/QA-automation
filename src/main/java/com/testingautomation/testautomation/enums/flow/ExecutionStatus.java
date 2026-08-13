@@ -12,5 +12,7 @@ public enum ExecutionStatus {
 
     FAILED,
 
-    CANCELLED
+    CANCELLED,
+
+    PAUSED
 }

@@ -56,6 +56,9 @@ public class FlowOrchestratorService {
     @Autowired
     private FlowSseService flowSseService;
 
+    @Autowired
+    private WebDriverRegistry webDriverRegistry;
+
     @Value("${storage.s3.base-prefix}")
     private String basePrefix;
     @Value("${storage.s3.bucket-name}")
@@ -258,6 +261,17 @@ public class FlowOrchestratorService {
             flowRepository.save(flow);
             // SSE: notify clients that flow execution has started
             flowSseService.sendFlowStarted(flow);
+            
+            // Cleanup any existing paused driver for this flow before starting a fresh run
+            WebDriver existingDriver = webDriverRegistry.getDriver(flow.getId());
+            if (existingDriver != null) {
+                logger.info("Cleaning up existing paused WebDriver for flow [{}] before starting a new run", flow.getId());
+                try {
+                    existingDriver.quit();
+                } catch (Exception ignored) {}
+                webDriverRegistry.removeDriver(flow.getId());
+            }
+
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
             driver = webDriverFactory.createDriver();
@@ -292,6 +306,13 @@ public class FlowOrchestratorService {
                 }
                 try {
                     flowExecutionService.executeStep(driver, step, flow);
+                    System.out.println("step status : "+step.getExecutionStatus() );
+                    if (step.getExecutionStatus() == ExecutionStatus.PAUSED) {
+                        System.out.println("step paused");
+                        flow.setExecutionStatus(ExecutionStatus.PAUSED);
+                        flow.setExecutionMessage("Execution paused at step: " + step.getName());
+                        break;
+                    }
                 } catch (Exception e) {
                     if (isCancelled(flow)) {
                         logger.info("Flow [{}] step interrupted due to user cancellation.", flow.getName());
@@ -307,9 +328,11 @@ public class FlowOrchestratorService {
                 return;
             }
 
-            flow.setExecutionStatus(ExecutionStatus.PASSED);
-            flow.setExecutionMessage("Flow executed successfully");
-            logger.info("Successfully executed flow: {}", flow.getName());
+            if (flow.getExecutionStatus() != ExecutionStatus.PAUSED) {
+                flow.setExecutionStatus(ExecutionStatus.PASSED);
+                flow.setExecutionMessage("Flow executed successfully");
+                logger.info("Successfully executed flow: {}", flow.getName());
+            }
 
         } catch (GlobalExceptionHandler.FlowExecutionException ex) {
             if (isCancelled(flow)) {
@@ -333,24 +356,128 @@ public class FlowOrchestratorService {
                 flow.setExecutionMessage("Unexpectedly step failed!");
             }
         } finally {
-            activeFlows.remove(flow.getId());
-            activeDrivers.remove(flow.getId());
-            cancelledFlowIds.remove(flow.getId());
-            flow.setExecutionCompletedAt(Instant.now());
-            flow.setUpdatedAt(Instant.now());
-            flowRepository.save(flow);
-            // SSE: send final state and complete all emitters
-            if (flow.getExecutionStatus() == ExecutionStatus.FAILED) {
-                flowSseService.sendFlowFailed(flow);
+            if (flow.getExecutionStatus() != ExecutionStatus.PAUSED) {
+                activeFlows.remove(flow.getId());
+                activeDrivers.remove(flow.getId());
+                cancelledFlowIds.remove(flow.getId());
+                flow.setExecutionCompletedAt(Instant.now());
+                flow.setUpdatedAt(Instant.now());
+                flowRepository.save(flow);
+                // SSE: send final state and complete all emitters
+                if (flow.getExecutionStatus() == ExecutionStatus.FAILED) {
+                    flowSseService.sendFlowFailed(flow);
+                } else {
+                    flowSseService.sendFlowCompleted(flow);
+                }
+                if (driver != null) {
+                    try {
+                        logger.info("Quitting WebDriver for flow: {}", flow.getName());
+                        driver.quit();
+                    } catch (Exception ignored) {}
+                }
             } else {
-                flowSseService.sendFlowCompleted(flow);
-            }
-            if (driver != null) {
-                try {
-                    logger.info("Quitting WebDriver for flow: {}", flow.getName());
-                    driver.quit();
-                } catch (Exception ignored) {}
+                flow.setUpdatedAt(Instant.now());
+                flowRepository.save(flow);
             }
         }
+    }
+
+    public void resumeFlow(String flowId, int stepNo) {
+        CompletableFuture.runAsync(() -> {
+            Flow flow = flowRepository.findById(flowId).orElse(null);
+            if (flow == null) return;
+            WebDriver driver = webDriverRegistry.getDriver(flowId);
+            if (driver == null) {
+                logger.error("No active WebDriver found for flow [{}] to resume.", flowId);
+                flow.setExecutionStatus(ExecutionStatus.FAILED);
+                flow.setExecutionMessage("Cannot resume, no active WebDriver session.");
+                flowRepository.save(flow);
+                flowSseService.sendFlowFailed(flow);
+                return;
+            }
+
+            activeFlows.put(flow.getId(), flow);
+            activeDrivers.put(flow.getId(), driver);
+            
+            flow.setExecutionStatus(ExecutionStatus.RUNNING);
+            flow.setExecutionMessage("Resuming execution from step " + stepNo);
+            flowRepository.save(flow);
+            flowSseService.sendFlowStarted(flow);
+
+            try {
+                for (FlowStep step : flow.getSteps()) {
+                    if (step.getStepOrder() < stepNo) {
+                        continue;
+                    }
+                    if (isCancelled(flow)) {
+                        logger.info("Flow [{}] cancelled before step [{}].", flow.getName(), step.getName());
+                        flow.setExecutionStatus(ExecutionStatus.CANCELLED);
+                        flow.setExecutionMessage("Execution cancelled by user");
+                        break;
+                    }
+                    try {
+                        flowExecutionService.executeStep(driver, step, flow);
+                        if (step.getExecutionStatus() == ExecutionStatus.PAUSED) {
+                            flow.setExecutionStatus(ExecutionStatus.PAUSED);
+                            flow.setExecutionMessage("Execution paused at step: " + step.getName());
+                            break;
+                        }
+                    } catch (Exception e) {
+                        if (isCancelled(flow)) {
+                            logger.info("Flow [{}] step interrupted due to user cancellation.", flow.getName());
+                            flow.setExecutionStatus(ExecutionStatus.CANCELLED);
+                            flow.setExecutionMessage("Execution cancelled by user");
+                            break;
+                        } else {
+                            throw e;
+                        }
+                    }
+                }
+                
+                if (flow.getExecutionStatus() == ExecutionStatus.CANCELLED) {
+                    return;
+                }
+                
+                if (flow.getExecutionStatus() != ExecutionStatus.PAUSED) {
+                    flow.setExecutionStatus(ExecutionStatus.PASSED);
+                    flow.setExecutionMessage("Flow executed successfully");
+                    logger.info("Successfully executed flow: {}", flow.getName());
+                }
+
+            } catch (Exception e) {
+                if (isCancelled(flow)) {
+                    flow.setExecutionStatus(ExecutionStatus.CANCELLED);
+                    flow.setExecutionMessage("Execution cancelled by user");
+                } else {
+                    logger.error("Error executing flow [{}]: {}", flow.getName(), e.getMessage(), e);
+                    flow.setExecutionStatus(ExecutionStatus.FAILED);
+                    flow.setExecutionMessage("Unexpectedly step failed!");
+                }
+            } finally {
+                if (flow.getExecutionStatus() != ExecutionStatus.PAUSED) {
+                    activeFlows.remove(flow.getId());
+                    activeDrivers.remove(flow.getId());
+                    cancelledFlowIds.remove(flow.getId());
+                    webDriverRegistry.removeDriver(flow.getId());
+                    flow.setExecutionCompletedAt(Instant.now());
+                    flow.setUpdatedAt(Instant.now());
+                    flowRepository.save(flow);
+                    
+                    if (flow.getExecutionStatus() == ExecutionStatus.FAILED) {
+                        flowSseService.sendFlowFailed(flow);
+                    } else {
+                        flowSseService.sendFlowCompleted(flow);
+                    }
+                    
+                    try {
+                        logger.info("Quitting WebDriver for flow: {}", flow.getName());
+                        driver.quit();
+                    } catch (Exception ignored) {}
+                } else {
+                    flow.setUpdatedAt(Instant.now());
+                    flowRepository.save(flow);
+                }
+            }
+        }, executor);
     }
 }

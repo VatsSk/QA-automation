@@ -30,5 +30,7 @@ public class Flow extends ExecutionEntity {
     private Integer defaultWait = 5000;
     private String flowBasePath;
 
+    private Boolean isDebugEnabled = false;
+
     private List<FlowStep> steps = new ArrayList<>();
 }

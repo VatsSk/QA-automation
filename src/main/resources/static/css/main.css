@@ -247,6 +247,7 @@ textarea.inp { resize: vertical; min-height: 64px; }
 .badge-failed   { background: var(--rd-d); color: var(--rd); border-color: var(--rd-b); }
 .badge-error    { background: var(--rd-d); color: var(--rd); border-color: var(--rd-b); }
 .badge-running   { background: var(--am-d); color: var(--am); border-color: var(--am-b); }
+.badge-paused    { background: var(--am-d); color: var(--am); border-color: var(--am-b); }
 .badge-cancelled { background: var(--sl-d); color: var(--sl); border-color: var(--sl-b); }
 .badge-draft    { background: var(--pu-d); color: var(--pu); border-color: var(--pu-b); }
 .badge-partial,
