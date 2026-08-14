@@ -33,6 +33,8 @@ public class ComponentController {
 
     @PostMapping
     public Component createComponent(@RequestBody Component component) {
+        System.out.println("inside create component controller");
+        System.out.println("component: "+component);
         return componentService.createComponent(component);
     }
 
@@ -48,6 +50,7 @@ public class ComponentController {
 
     @PostMapping("/flow-info")
     public FlowInfo createFlowInfo(@RequestBody FlowInfo flowInfo) {
+        System.out.println("FlowInfo : "+flowInfo);
         return componentService.createFlowInfo(flowInfo);
     }
 

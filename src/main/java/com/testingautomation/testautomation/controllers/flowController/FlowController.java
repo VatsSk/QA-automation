@@ -45,8 +45,19 @@ public class FlowController {
     }
 
     @GetMapping("/{projectId}/{moduleId}")
-    public ResponseEntity<List<Flow>> getFlows(@PathVariable String projectId, @PathVariable String moduleId) {
+    public ResponseEntity<List<Flow>> getFlows(
+            @PathVariable String projectId, 
+            @PathVariable String moduleId,
+            @RequestParam(required = false) Boolean isPartComp) {
+        
         List<Flow> flows = flowService.getFlowsByModule(projectId, moduleId);
+        
+        if (isPartComp != null) {
+            flows = flows.stream()
+                    .filter(f -> f.isPartComp() == isPartComp)
+                    .toList();
+        }
+        
         return ResponseEntity.ok(flows);
     }
 

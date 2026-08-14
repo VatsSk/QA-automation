@@ -73,6 +73,7 @@ public class ComponentFlowExecutionService {
                     for (FlowStep compStep : compOpt.get().getSteps()) {
                         FlowStep runtimeStep = cloneStep(compStep);
                         runtimeStep.setId(UUID.randomUUID().toString());
+                        runtimeStep.setName(compOpt.get().getName() + " - " + compStep.getName());
                         runtimeSteps.add(runtimeStep);
                     }
                 }

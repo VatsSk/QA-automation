@@ -1046,6 +1046,7 @@
         panel.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div></div>`;
         try {
             const components = await api.components.listComponents(projectId, compModuleId);
+            console.log('Fetched components for module', compModuleId, ':', components);
             const actionsDiv = document.getElementById('tab-actions');
             actionsDiv.innerHTML = `
                 <button class="btn btn-ghost" onclick="backToCompMods()">← Back</button>
@@ -1072,7 +1073,7 @@
                             <div class="mod-desc">${esc(c.description || 'No description')} — ${c.steps ? c.steps.length : 0} steps</div>
                         </div>
                         <div class="mod-meta">
-                            <button class="btn btn-ghost btn-xs" onclick="window.location.href='/component.html?projectId=${projectId}&compId=${c.id}'">✏️ Edit</button>
+                            <button class="btn btn-ghost btn-xs" onclick="window.location.href='/component.html?projectId=${projectId}&compId=${c.id || c._id}'">✏️ Edit</button>
                         </div>
                     </div>`).join('')}
                 </div>`;

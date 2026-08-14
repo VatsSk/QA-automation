@@ -135,8 +135,11 @@ export const runs = {
 
 // ── Flows ──────────────────────────────────────────────────────────────────
 export const flows = {
-    list:    (projectId, moduleId) =>
-        request('GET', `/api/flows/${projectId}/${moduleId}`),
+    list: (projectId, moduleId, isPartComp = null) => {
+        let url = `/api/flows/${projectId}/${moduleId}`;
+        if (isPartComp !== null) url += `?isPartComp=${isPartComp}`;
+        return request('GET', url);
+    },
     get:     (id)      => request('GET',    `/api/flows/${id}`),
     createDraft: (d)   => request('POST',   `/api/flows/draft`, d),
     update:  (id, d)   => request('PUT',    `/api/flows/${id}`, d),

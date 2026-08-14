@@ -665,45 +665,25 @@
         btn.textContent = 'Saving…';
 
         try {
-            // 1. Build flow data
-            const flowData = {
-                name,
-                description: desc,
-                projectId,
-                moduleId,
-                steps: []
-            };
-
-            builderItems.forEach((item, idx) => {
-                if (item.type === 'STEP') {
-                    item.step.stepOrder = idx + 1;
-                    flowData.steps.push(item.step);
-                }
-            });
-
-            const savedFlow = await api.flows.createDraft(flowData);
-            const flowId = savedFlow.id || savedFlow._id;
-
-            // Map back generated step IDs
-            let stepIndex = 0;
             const flowItems = builderItems.map((item, idx) => {
                 if (item.type === 'STEP') {
-                    const savedStepId = savedFlow.steps[stepIndex].id;
-                    stepIndex++;
-                    return { order: idx + 1, type: 'STEP', stepId: savedStepId };
+                    item.step.stepOrder = idx + 1;
+                    return { order: idx + 1, type: 'STEP', step: item.step };
                 } else {
                     return { order: idx + 1, type: 'COMPONENT', componentId: item.componentId };
                 }
             });
 
-            // 2. Save FlowInfo
-            await api.components.saveFlowInfo(flowId, {
-                projectId,
-                moduleId,
-                flowId,
+            const flowInfoData = {
+                name: name,
+                description: desc,
+                projectId: projectId,
+                moduleId: moduleId,
                 containsComp: true,
-                flowItems
-            });
+                flowItems: flowItems
+            };
+
+            await api.components.createFlowInfo(flowInfoData);
 
             toast('Component Flow saved successfully!', 'success');
             setTimeout(() => {

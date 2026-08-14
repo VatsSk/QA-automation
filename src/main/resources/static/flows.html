@@ -230,23 +230,37 @@
         }
     };
 
-    // ── Fetch ALL flows ───────────────────────────────────────────────────────
-    async function fetchAllFlows() {
-        const resp = await api.flows.list(projectId, moduleId);
+    let standardFlowsCache = null;
+    let componentFlowsCache = null;
+
+    async function fetchFlows(isPartComp) {
+        const resp = await api.flows.list(projectId, moduleId, isPartComp);
         if (Array.isArray(resp)) return resp;
         return resp?.results ?? resp?.content ?? [];
     }
 
-    async function ensureAllFlowsLoaded(force = false) {
-        if (allFlowsCache && !force) return allFlowsCache;
+    async function ensureStandardFlowsLoaded(force = false) {
+        if (standardFlowsCache && !force) return standardFlowsCache;
         try {
             document.getElementById('flows-content').innerHTML = `<div class="empty"><div class="ei">⏳</div><h3>Loading flows…</h3></div>`;
-            const all = await fetchAllFlows();
-            allFlowsCache = all;
-            return allFlowsCache;
+            standardFlowsCache = await fetchFlows(false);
+            return standardFlowsCache;
         } catch (e) {
-            console.error('Fetch all flows failed:', e);
-            allFlowsCache = [];
+            console.error('Fetch standard flows failed:', e);
+            standardFlowsCache = [];
+            throw e;
+        }
+    }
+
+    async function ensureComponentFlowsLoaded(force = false) {
+        if (componentFlowsCache && !force) return componentFlowsCache;
+        try {
+            document.getElementById('comp-flows-content').innerHTML = `<div class="spinner-wrap"><div class="spinner"></div></div>`;
+            componentFlowsCache = await fetchFlows(true);
+            return componentFlowsCache;
+        } catch (e) {
+            console.error('Fetch component flows failed:', e);
+            componentFlowsCache = [];
             throw e;
         }
     }
@@ -257,11 +271,7 @@
         const content = document.getElementById('comp-flows-content');
         content.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div></div>`;
         try {
-            await ensureAllFlowsLoaded();
-            // Filter: component flows have containsComp === true OR flowType === 'COMPONENT'
-            const compFlows = (allFlowsCache || []).filter(f =>
-                f.containsComp === true || f.flowType === 'COMPONENT'
-            );
+            const compFlows = await ensureComponentFlowsLoaded();
             if (!compFlows.length) {
                 content.innerHTML = `
                     <div class="empty">
@@ -349,10 +359,8 @@
         return formatDuration(duration);
     }
 
-    function renderFilteredFlows() {
-        const all = allFlowsCache || [];
-        // Standard flows = those NOT component flows
-        const standard = all.filter(f => !f.containsComp && f.flowType !== 'COMPONENT');
+    async function renderFilteredFlows() {
+        const standard = await ensureStandardFlowsLoaded();
         const filtered = standard.filter(f => matchesFlowSearch(f, flowFilter.search));
 
         const total = filtered.length;

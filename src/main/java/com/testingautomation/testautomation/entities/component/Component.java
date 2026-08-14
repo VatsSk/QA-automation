@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.entities.component;
 
 import com.testingautomation.testautomation.entities.baseEntity.BaseEntity;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import lombok.ToString;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -14,6 +15,7 @@ import java.util.List;
 @Getter
 @Setter
 @Document(collection = "components")
+@ToString
 @CompoundIndexes({
     @CompoundIndex(name = "project_module_idx", def = "{'projectId': 1, 'compModuleId': 1}"),
     @CompoundIndex(name = "project_module_name_idx", def = "{'projectId': 1, 'compModuleId': 1, 'name': 1}")
