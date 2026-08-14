@@ -15,9 +15,12 @@ import java.util.List;
 @Setter
 @Document(collection = "flow_info")
 @CompoundIndexes({
-    @CompoundIndex(name = "project_flow_idx", def = "{'projectId': 1, 'flowId': 1}", unique = true)
+    @CompoundIndex(name = "project_module_idx", def = "{'projectId': 1, 'moduleId': 1}")
 })
 public class FlowInfo extends BaseEntity {
+    private String name;
+    private String description;
+    
     private String projectId;
     private String moduleId;
     
