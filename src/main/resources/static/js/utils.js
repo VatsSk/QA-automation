@@ -204,7 +204,7 @@ export async function buildSidebar(activePage, api) {
                         ? mods.map(m => {
                             const mid = m.id || m._id;
                             return `<div class="sb-child"
-                  onclick="window.location.href='/runs.html?projectId=${pid}&moduleId=${mid}'">
+                  onclick="window.location.href='/flows.html?projectId=${pid}&moduleId=${mid}'">
                   <span style="font-size:12px;flex-shrink:0">🗂️</span>
                   <span class="sb-name">${esc(m.name)}</span>
                 </div>`;

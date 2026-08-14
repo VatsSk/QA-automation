@@ -119,6 +119,23 @@
         }
         .btn-sort:hover:not(:disabled) { color: var(--tx); }
         .btn-sort:disabled { opacity: 0.3; cursor: default; }
+
+        /* ── Tab styles ── */
+        .page-tabs { display: flex; gap: 0; border-bottom: 1px solid var(--bd); margin-bottom: 20px; }
+        .tab-btn {
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 10px 18px;
+            font-size: 13.5px;
+            font-weight: 600;
+            color: var(--tx2);
+            cursor: pointer;
+            transition: color 0.15s, border-color 0.15s;
+            margin-bottom: -1px;
+        }
+        .tab-btn:hover { color: var(--tx); }
+        .tab-btn.active { color: var(--pri); border-bottom-color: var(--pri); }
     </style>
 </head>
 <body>
@@ -142,20 +159,35 @@
 
         <div class="main-scroll">
             <div class="page">
-                <div class="page-header row-between">
+                <!-- Page Header -->
+                <div class="page-header row-between" style="margin-bottom:0">
                     <div>
                         <div class="page-title" id="page-title">Modules</div>
-                        <div class="page-sub"  id="page-sub">Loading…</div>
+                        <div class="page-sub" id="page-sub">Loading…</div>
                     </div>
-                    <div style="display:flex;gap:8px;align-items:center">
-                        <button class="btn btn-ghost" onclick="showComponentsModal()">🧩 Components</button>
-                        <button class="btn btn-ghost" onclick="showEnvironmentsModal()">⚙ Environments</button>
-                        <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+                    <div id="tab-actions" style="display:flex;gap:8px;align-items:center">
+                        <!-- populated by switchTab() -->
                     </div>
                 </div>
 
-                <div id="mod-list">
-                    <div class="spinner-wrap"><div class="spinner"></div></div>
+                <!-- Tab Bar -->
+                <div class="page-tabs" id="page-tab-bar" style="margin-top:16px;margin-bottom:20px;display:flex;gap:4px;border-bottom:1px solid var(--bd);padding-bottom:0">
+                    <button class="tab-btn active" id="tab-btn-modules" onclick="switchTab('modules')">🗂️ Modules</button>
+                    <button class="tab-btn" id="tab-btn-components" onclick="switchTab('components')">🧩 Components</button>
+                </div>
+
+                <!-- Modules Tab Panel -->
+                <div id="tab-modules-panel">
+                    <div id="mod-list">
+                        <div class="spinner-wrap"><div class="spinner"></div></div>
+                    </div>
+                </div>
+
+                <!-- Components Tab Panel -->
+                <div id="tab-components-panel" style="display:none">
+                    <div id="comp-panel-content">
+                        <div class="spinner-wrap"><div class="spinner"></div></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -283,6 +315,36 @@
     </div>`;
     }
 
+    window.openModuleModal = function(mid, name) {
+        openModal(`
+      <div class="modal">
+        <div class="modal-head">
+          <h2>🗂️ ${esc(name)}</h2>
+          <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+          <button class="btn btn-primary btn-lg"
+                  onclick="closeModal();window.location.href='/flows.html?projectId=${esc(projectId)}&moduleId=${mid}'"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">🔁</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Flows</div>
+              <div style="font-size:12px;opacity:0.7">View and manage standard & component flows</div>
+            </div>
+          </button>
+          <button class="btn btn-secondary btn-lg"
+                  onclick="closeModal();window.location.href='/flows.html?projectId=${esc(projectId)}&moduleId=${mid}&view=runs'"
+                  style="justify-content:flex-start;gap:12px">
+            <span style="font-size:24px">▶</span>
+            <div style="text-align:left">
+              <div style="font-weight:600">Runs</div>
+              <div style="font-size:12px;opacity:0.7">View and manage test runs</div>
+            </div>
+          </button>
+        </div>
+      </div>`);
+    };
+
     // ── Environment selector helper (shared across all run modals) ──────────
     function buildEnvOptions() {
         if (!environmentsCache.length) {
@@ -387,44 +449,7 @@
         }
     };
 
-    window.openModuleModal = function (mid, name) {
-        openModal(`
-      <div class="modal">
-        <div class="modal-head">
-          <h2>🗂️ ${esc(name)}</h2>
-          <button class="modal-close" onclick="closeModal()">✕</button>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
-          <button class="btn btn-primary btn-lg"
-                  onclick="closeModal();window.location.href='/runs.html?projectId=${esc(projectId)}&moduleId=${mid}'"
-                  style="justify-content:flex-start;gap:12px">
-            <span style="font-size:24px">▶</span>
-            <div style="text-align:left">
-              <div style="font-weight:600">Runs</div>
-              <div style="font-size:12px;opacity:0.7">View and manage test runs</div>
-            </div>
-          </button>
-          <button class="btn btn-secondary btn-lg"
-                  onclick="closeModal();window.location.href='/flows.html?projectId=${esc(projectId)}&moduleId=${mid}'"
-                  style="justify-content:flex-start;gap:12px">
-            <span style="font-size:24px">🔁</span>
-            <div style="text-align:left">
-              <div style="font-weight:600">Standard Flows</div>
-              <div style="font-size:12px;opacity:0.7">View and manage standard automation flows</div>
-            </div>
-          </button>
-          <button class="btn btn-ghost btn-lg"
-                  onclick="closeModal(); openComponentFlowBuilder('${mid}')"
-                  style="justify-content:flex-start;gap:12px; border: 1px solid var(--bd);">
-            <span style="font-size:24px">🧩</span>
-            <div style="text-align:left">
-              <div style="font-weight:600">Component Flows</div>
-              <div style="font-size:12px;opacity:0.7">Create flows using reusable components</div>
-            </div>
-          </button>
-        </div>
-      </div>`);
-    };
+
 
     // ── New/Delete Module ──────────────────────────────────────────────────
     window.showNewModuleModal = function () {
@@ -898,6 +923,191 @@
     };
 
     load();
+
+    // ── Tab Switching ──────────────────────────────────────────────────────────
+    let componentsLoaded = false;
+
+    window.switchTab = function(tab) {
+        const modulesPanel = document.getElementById('tab-modules-panel');
+        const componentsPanel = document.getElementById('tab-components-panel');
+        const btnModules = document.getElementById('tab-btn-modules');
+        const btnComponents = document.getElementById('tab-btn-components');
+        const actionsDiv = document.getElementById('tab-actions');
+
+        if (tab === 'modules') {
+            modulesPanel.style.display = '';
+            componentsPanel.style.display = 'none';
+            btnModules.classList.add('active');
+            btnComponents.classList.remove('active');
+            actionsDiv.innerHTML = `
+                <button class="btn btn-ghost" onclick="showEnvironmentsModal()">⚙ Environments</button>
+                <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+            `;
+            // Update URL
+            const url = new URL(window.location);
+            url.searchParams.delete('tab');
+            window.history.replaceState({}, '', url);
+        } else {
+            modulesPanel.style.display = 'none';
+            componentsPanel.style.display = '';
+            btnModules.classList.remove('active');
+            btnComponents.classList.add('active');
+            actionsDiv.innerHTML = `
+                <button class="btn btn-primary" onclick="showAddCompModuleModal()">+ New Component Module</button>
+            `;
+            // Update URL
+            const url = new URL(window.location);
+            url.searchParams.set('tab', 'components');
+            window.history.replaceState({}, '', url);
+            if (!componentsLoaded) loadComponentsPanel();
+        }
+    };
+
+    async function loadComponentsPanel() {
+        componentsLoaded = true;
+        const panel = document.getElementById('comp-panel-content');
+        panel.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div></div>`;
+        try {
+            const compMods = await api.components.listModules(projectId);
+            renderCompModList(compMods);
+        } catch(e) {
+            panel.innerHTML = `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
+        }
+    }
+
+    function renderCompModList(compMods) {
+        const panel = document.getElementById('comp-panel-content');
+        if (!compMods.length) {
+            panel.innerHTML = `
+                <div class="empty">
+                    <div class="ei">📦</div>
+                    <h3>No component modules yet</h3>
+                    <p>Create a component module to start organizing reusable components.</p>
+                    <button class="btn btn-primary" onclick="showAddCompModuleModal()">+ New Component Module</button>
+                </div>`;
+            return;
+        }
+        panel.innerHTML = `<div class="mod-list">${compMods.map(m => compModRow(m)).join('')}</div>`;
+    }
+
+    function compModRow(m) {
+        const mid = m.id || m._id;
+        return `
+        <div class="mod-item" onclick="loadCompList('${esc(mid)}', '${esc(m.name)}')"
+             style="cursor:pointer">
+            <div class="mod-icon">📦</div>
+            <div class="mod-info">
+                <div class="mod-name">${esc(m.name)}</div>
+                <div class="mod-desc">${esc(m.description || 'No description')}</div>
+            </div>
+            <div class="mod-meta">
+                <span class="badge badge-blue">View Components →</span>
+            </div>
+        </div>`;
+    }
+
+    window.showAddCompModuleModal = function() {
+        openModal(`
+        <div class="modal">
+            <div class="modal-head">
+                <h2>📦 New Component Module</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div class="field">
+                <label class="lbl">Name *</label>
+                <input id="cpm-name" class="inp" placeholder="e.g. Authentication" autofocus>
+            </div>
+            <div class="field">
+                <label class="lbl">Description</label>
+                <input id="cpm-desc" class="inp" placeholder="Contains login components">
+            </div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">
+                <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="createCompModule()">Create</button>
+            </div>
+        </div>`);
+    };
+
+    window.createCompModule = async function() {
+        const name = document.getElementById('cpm-name').value.trim();
+        const description = document.getElementById('cpm-desc').value.trim();
+        if (!name) { toast('Module name is required', 'warning'); return; }
+        try {
+            await api.components.createModule({ projectId, name, description, createdBy: user.username });
+            toast('Component module created', 'success');
+            closeModal();
+            componentsLoaded = false;
+            loadComponentsPanel();
+        } catch(e) { toast('Failed to create: ' + e.message, 'error'); }
+    };
+
+    window.loadCompList = async function(compModuleId, compModName) {
+        const panel = document.getElementById('comp-panel-content');
+        panel.innerHTML = `<div class="spinner-wrap"><div class="spinner"></div></div>`;
+        try {
+            const components = await api.components.listComponents(projectId, compModuleId);
+            const actionsDiv = document.getElementById('tab-actions');
+            actionsDiv.innerHTML = `
+                <button class="btn btn-ghost" onclick="backToCompMods()">← Back</button>
+                <button class="btn btn-primary" onclick="window.location.href='/component.html?projectId=${projectId}&moduleId=${compModuleId}'">+ New Component</button>
+            `;
+            if (!components.length) {
+                panel.innerHTML = `
+                    <div class="empty">
+                        <div class="ei">🧩</div>
+                        <h3>No components in ${esc(compModName)}</h3>
+                        <p>Create your first reusable component.</p>
+                        <button class="btn btn-primary" onclick="window.location.href='/component.html?projectId=${projectId}&moduleId=${compModuleId}'">+ New Component</button>
+                    </div>`;
+                return;
+            }
+            panel.innerHTML = `
+                <div class="page-sub" style="margin-bottom:14px">${esc(compModName)} — ${components.length} component${components.length !== 1 ? 's' : ''}</div>
+                <div class="mod-list">
+                ${components.map(c => `
+                    <div class="mod-item">
+                        <div class="mod-icon">🧩</div>
+                        <div class="mod-info">
+                            <div class="mod-name">${esc(c.name)}</div>
+                            <div class="mod-desc">${esc(c.description || 'No description')} — ${c.steps ? c.steps.length : 0} steps</div>
+                        </div>
+                        <div class="mod-meta">
+                            <button class="btn btn-ghost btn-xs" onclick="window.location.href='/component.html?projectId=${projectId}&compId=${c.id}'">✏️ Edit</button>
+                        </div>
+                    </div>`).join('')}
+                </div>`;
+        } catch(e) {
+            panel.innerHTML = `<div class="empty"><div class="ei">⚠️</div><h3>Failed to load</h3><p>${esc(e.message)}</p></div>`;
+        }
+    };
+
+    window.backToCompMods = function() {
+        componentsLoaded = false;
+        const actionsDiv = document.getElementById('tab-actions');
+        actionsDiv.innerHTML = `<button class="btn btn-primary" onclick="showAddCompModuleModal()">+ New Component Module</button>`;
+        loadComponentsPanel();
+    };
+
+    // ── Check for tab param on load ─────────────────────────────────────────
+    const initTab = params.get('tab') || 'modules';
+    // Initialize actions for default tab
+    document.getElementById('tab-actions').innerHTML = `
+        <button class="btn btn-ghost" onclick="showEnvironmentsModal()">⚙ Environments</button>
+        <button class="btn btn-primary" onclick="showNewModuleModal()">+ New Module</button>
+    `;
+    if (initTab === 'components') {
+        switchTab('components');
+    }
+
+    // Check for openCompBuilder action
+    if (params.get('action') === 'openCompBuilder') {
+        const targetModuleId = params.get('moduleId');
+        if (targetModuleId) {
+            setTimeout(() => {
+                openComponentFlowBuilder(targetModuleId);
+            }, 300);
+        }
+    }
 
     // ── Components Management Modal ──────────────────────────────────────
     window.showComponentsModal = async function() {
