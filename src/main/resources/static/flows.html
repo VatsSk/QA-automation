@@ -265,6 +265,13 @@
         }
     }
 
+    async function ensureAllFlowsLoaded(force = false) {
+        await Promise.all([
+            ensureStandardFlowsLoaded(force),
+            ensureComponentFlowsLoaded(force)
+        ]);
+    }
+
     // ── Component Flows (filter by containsComp flag) ────────────────────────
     async function loadComponentFlows() {
         compFlowsLoaded = true;
