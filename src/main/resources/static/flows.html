@@ -130,7 +130,6 @@
 
     // ── State ─────────────────────────────────────────────────────────────────
     let flowFilter = { search: '', page: 0, size: 20 };
-    let allFlowsCache = null;
     let environmentsCache = [];
 
     // Runs state
@@ -181,7 +180,7 @@
                 switchFlowTab('standard', true);
             }
             wireFlowSearch();
-            await ensureAllFlowsLoaded();
+            await ensureStandardFlowsLoaded();
             renderFilteredFlows();
         }
     }
@@ -621,9 +620,10 @@
     };
 
     async function refreshFlowCacheAndRender() {
-        allFlowsCache = null;
+        standardFlowsCache = null;
+        componentFlowsCache = null;
         compFlowsLoaded = false;
-        await ensureAllFlowsLoaded(true);
+        await ensureStandardFlowsLoaded(true);
         renderFilteredFlows();
     }
 
