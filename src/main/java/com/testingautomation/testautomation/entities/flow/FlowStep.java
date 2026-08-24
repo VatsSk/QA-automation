@@ -29,6 +29,12 @@ public class FlowStep extends ExecutionEntity {
     private String value;
 
     /**
+     * URL value specifically for URL_CHANGE steps.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias({"url_change", "urlChange"})
+    private String url;
+
+    /**
      * Used only by verification steps.
      */
     private String expectedValue;

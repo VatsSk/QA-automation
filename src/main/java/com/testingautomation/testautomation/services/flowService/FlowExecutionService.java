@@ -51,11 +51,11 @@ public class FlowExecutionService {
 
     public void executeStep(WebDriver driver, FlowStep step, Flow flow) {
 
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
+//        try {
+//            Thread.sleep(2000);
+//        } catch (InterruptedException e) {
+//            throw new RuntimeException(e);
+//        }
         ActionType actionType = step.getActionType();
         if (actionType == null) {
             logger.warn("ActionType is null for step [{}]", step.getName());
@@ -102,7 +102,7 @@ public class FlowExecutionService {
                         throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Unable to find element in Verify","Unable to find element with "+step.getSelector(),ex);
                     }
                 }
-                else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL) {
+                else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL && actionType != ActionType.URL_CHANGE) {
                     if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
                         try {
                             element = wait.until(ExpectedConditions.presenceOfElementLocated(TextExtractor.resolveLocator(step.getSelector())));
@@ -129,7 +129,7 @@ public class FlowExecutionService {
                 switch (actionType) {
                     case NAVIGATE: actionHandlerService.handleNavigate(driver, step); break;
                     case WAIT: actionHandlerService.handleWait(step); break;
-                    case TYPE: actionHandlerService.handleType(element, step); break;
+                    case TYPE: actionHandlerService.handleType(driver, element, step); break;
                     case CLICK: actionHandlerService.handleClick(driver, element, step); break;
                     case CHECKBOX: actionHandlerService.handleCheckbox(element, step); break;
                     case RADIO: actionHandlerService.handleRadio(element, step); break;
@@ -141,6 +141,7 @@ public class FlowExecutionService {
                     case PRESS_KEY: actionHandlerService.handlePressKey(element, step); break;
                     case DRAG_DROP: actionHandlerService.handleDragDrop(driver, element, step); break;
                     case VERIFY: actionHandlerService.handleVerify(driver,element, step,waitTime); break;
+                    case URL_CHANGE: actionHandlerService.handleUrlChange(step, flow); break;
                     default: logger.info("ActionType [{}] is not yet fully integrated.", actionType);
                 }
                 

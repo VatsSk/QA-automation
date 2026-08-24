@@ -28,6 +28,10 @@ public class Flow extends ExecutionEntity {
 //    private Integer version = 1;
 
     private Integer defaultWait = 5000;
+    
+    @com.fasterxml.jackson.annotation.JsonAlias({"url_change_wait", "urlChangeWait"})
+    private Integer urlChangeWait;
+
     private String flowBasePath;
 
     private List<FlowStep> steps = new ArrayList<>();

@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
 import lombok.AllArgsConstructor;
@@ -40,15 +41,36 @@ public class ActionHandlerService {
         }
     }
 
-    public void handleType(WebElement element, FlowStep step) {
+    public void handleType(WebDriver driver, WebElement element, FlowStep step) {
         if (element == null) return;
         logger.info("Typing value [{}] into element", step.getValue());
-        try{
-            element.clear();
-            if (step.getValue() != null) {
-                element.sendKeys(step.getValue());
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        try {
+            // Scroll into view
+            try {
+                ((JavascriptExecutor) driver).executeScript(
+                        "arguments[0].scrollIntoView({block:'center',inline:'center'});",
+                        element);
+                // Wait until clickable to avoid ElementNotInteractableException
+                wait.until(ExpectedConditions.elementToBeClickable(element));
+            } catch (Exception ignored) {
+                logger.warn("Element might not be clickable, proceeding with type attempt anyway");
             }
-        }catch(Exception e){
+
+            try {
+                element.clear();
+                if (step.getValue() != null) {
+                    element.sendKeys(step.getValue());
+                }
+            } catch (ElementNotInteractableException e) {
+                logger.warn("Element not interactable natively, falling back to JavaScript Type");
+                ((JavascriptExecutor) driver).executeScript("arguments[0].value = '';", element);
+                if (step.getValue() != null) {
+                    ((JavascriptExecutor) driver).executeScript("arguments[0].value = arguments[1];", element, step.getValue());
+                    ((JavascriptExecutor) driver).executeScript("arguments[0].dispatchEvent(new Event('input', { bubbles: true })); arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", element);
+                }
+            }
+        } catch (Exception e) {
             throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Type error!","Unable to Type on element with "+step.getSelector()+" selector",e);
         }
     }
@@ -535,6 +557,50 @@ public class ActionHandlerService {
             default:
                 logger.warn("Unhandled VerificationType [{}] in step [{}]. Skipping.", vType, step.getName());
         }
+    }
+
+    public void handleUrlChange(FlowStep step, Flow flow) {
+        long waitTime = resolveUrlChangeWait(step, flow);
+        if (waitTime < 0) {
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(),
+                    step.getName(),
+                    step.getActionType(),
+                    "Validation Error",
+                    "URL_CHANGE wait must be greater than or equal to 0 milliseconds.",
+                    null
+            );
+        }
+        
+        logger.info("Handling URL_CHANGE by waiting for {} milliseconds", waitTime);
+        
+        if (waitTime == 0) {
+            return;
+        }
+
+        try {
+            Thread.sleep(waitTime);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(),
+                    step.getName(),
+                    step.getActionType(),
+                    "Execution interrupted",
+                    "Execution interrupted while waiting for URL_CHANGE",
+                    e
+            );
+        }
+    }
+
+    private long resolveUrlChangeWait(FlowStep step, Flow flow) {
+        if (step.getWait() != null) {
+            return step.getWait();
+        }
+        if (flow != null && flow.getUrlChangeWait() != null) {
+            return flow.getUrlChangeWait();
+        }
+        return 2000L;
     }
 }
 

@@ -28,5 +28,7 @@ public enum ActionType {
 
     DRAG_DROP,
 
-    VERIFY
+    VERIFY,
+
+    URL_CHANGE,
 }
