@@ -25,7 +25,7 @@ public class Flow extends ExecutionEntity {
 
     private String description;
 
-//    private Integer version = 1;
+    private Integer version = 1;
 
     private Integer defaultWait = 5000;
     

@@ -80,8 +80,9 @@ public class FlowService {
         clone.setModuleId(original.getModuleId());
         clone.setName(original.getName() + " - Copy");
         clone.setDescription(original.getDescription());
-//        clone.setVersion(1);
+        clone.setVersion(original.getVersion());
         clone.setDefaultWait(original.getDefaultWait());
+        clone.setUrlChangeWait(original.getUrlChangeWait());
         clone.setExecutionStatus(ExecutionStatus.DRAFT);
         clone.setCreatedAt(Instant.now());
         clone.setUpdatedAt(Instant.now());
@@ -97,8 +98,10 @@ public class FlowService {
                 stepClone.setVerificationType(step.getVerificationType());
                 stepClone.setSelector(step.getSelector());
                 stepClone.setValue(step.getValue());
+                stepClone.setUrl(step.getUrl());
                 stepClone.setExpectedValue(step.getExpectedValue());
                 stepClone.setAttribute(step.getAttribute());
+                stepClone.setTextSource(step.getTextSource());
                 stepClone.setOverrideWait(step.getOverrideWait());
                 stepClone.setWait(step.getWait());
                 stepClone.setRetryCount(step.getRetryCount());

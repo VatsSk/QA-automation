@@ -51,11 +51,17 @@ public class FlowExecutionService {
 
     public void executeStep(WebDriver driver, FlowStep step, Flow flow) {
 
-//        try {
-//            Thread.sleep(2000);
-//        } catch (InterruptedException e) {
-//            throw new RuntimeException(e);
-//        }
+        // Backward compatibility for old flows (version < 2) that relied on hardcoded delays
+        logger.info("Running flow for version {}",flow.getVersion());
+        if (flow.getVersion() == null ) {
+            logger.info("Running flow for version inside if block {}",flow.getVersion());
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(), step.getName(), step.getActionType(), "Interrupted", "Flow execution interrupted during legacy step wait", e);
+            }
+        }
         ActionType actionType = step.getActionType();
         if (actionType == null) {
             logger.warn("ActionType is null for step [{}]", step.getName());
