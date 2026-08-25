@@ -108,7 +108,7 @@
                         <h3 style="margin:0; font-size:16px;">Component Steps</h3>
                         <div style="display:flex; gap:8px;">
                             <button class="btn btn-secondary" onclick="showAddStepModal()">+ Add Manual Step</button>
-                            <button class="btn btn-secondary" onclick="launchComponentRecorder()">🔴 Record via Extension</button>
+                            <button id="record-btn" class="btn btn-secondary" onclick="launchComponentRecorder()">🔴 Record via Extension</button>
                         </div>
                     </div>
                     
@@ -154,15 +154,11 @@
             document.getElementById('crumb-mod').href = '/modules.html?projectId=' + projectId;
 
             if (compId) {
-                // Fetch existing component
-                const allModules = await api.components.listModules(projectId);
-                for (const m of allModules) {
-                    const comps = await api.components.listComponents(projectId, m.id || m._id);
-                    const found = comps.find(c => (c.id || c._id) === compId);
-                    if (found) {
-                        componentData = found;
-                        break;
-                    }
+                // Fetch existing component directly
+                try {
+                    componentData = await api.components.getComponent(compId);
+                } catch (e) {
+                    console.error("Component fetch error:", e);
                 }
                 
                 if (componentData) {
@@ -171,6 +167,7 @@
                     steps = componentData.steps || [];
                     document.getElementById('page-title').textContent = 'Edit Component';
                     document.getElementById('crumb-comp').textContent = componentData.name;
+                    document.getElementById('record-btn').setAttribute('onclick', 'launchEditComponentRecorder()');
                 } else {
                     toast('Component not found', 'error');
                 }
@@ -337,21 +334,25 @@
             const compName = document.getElementById('comp-name').value.trim() || 'Untitled Component';
             const compDesc = document.getElementById('comp-desc').value.trim() || '';
 
-            console.log(moduleId, user.username)
+            const payload = {
+                action: "START_RECORDING",
+                projectId,
+                compModuleId: moduleId,
+                compId: compId || null,
+                name: compName,
+                description: compDesc,
+                createdBy: user.username,
+                url: projectData.loginUrl,
+                flag: "COMPONENT"
+            };
+            
+            console.log("Launching Component Recorder [CREATE]");
+            console.log("Extension ID:", extensionId);
+            console.log("Payload:", payload);
 
             chrome.runtime.sendMessage(
                 extensionId,
-                {
-                    action: "START_RECORDING",
-                    projectId,
-                    compModuleId: moduleId,
-                    compId: compId || null,
-                    name: compName,
-                    description: compDesc,
-                    createdBy: user.username,
-                    url: projectData.loginUrl,
-                    flag: "COMPONENT"
-                },
+                payload,
                 (res) => {
                     if (chrome.runtime.lastError) {
                         toast('Failed to connect to extension. Please check that the extension is installed and the ID is correct.', 'error', 5000);
@@ -362,6 +363,67 @@
             );
         } catch (e) {
             toast('Failed to start component recorder: ' + e.message, 'error');
+        }
+    };
+
+    window.launchEditComponentRecorder = async function () {
+        try {
+            const projectData = await fetch(`/api/projects/url/${projectId}`).then(r => {
+                if (!r.ok) throw new Error('Failed to fetch project');
+                return r.json();
+            });
+
+            let extensionId;
+            try {
+                const res = await api.users.getExtensionId(user.username);
+                extensionId = res.extensionId;
+            } catch (e) {
+                console.error('Failed to fetch extension ID', e);
+            }
+
+            if (!extensionId) {
+                toast('Please configure your Chrome Extension ID from the Projects page.', 'warning', 5000);
+                return;
+            }
+
+            if (!window.chrome || !window.chrome.runtime) {
+                toast('Chrome extension is not installed or not accessible from this page.', 'error', 5000);
+                return;
+            }
+
+            const compName = document.getElementById('comp-name').value.trim() || 'Untitled Component';
+            const compDesc = document.getElementById('comp-desc').value.trim() || '';
+
+            const payload = {
+                action: "START_RECORDING",
+                projectId,
+                compModuleId: moduleId,
+                compId: compId,
+                name: compName,
+                description: compDesc,
+                createdBy: user.username,
+                url: projectData.loginUrl,
+                flag: "EDIT_COMPONENT",
+                steps: steps
+            };
+            
+            console.log("Launching Component Recorder [EDIT]");
+            console.log("Extension ID:", extensionId);
+            console.log("Payload:", payload);
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                payload,
+                (res) => {
+                    if (chrome.runtime.lastError) {
+                        toast('Failed to connect to extension. Please check that the extension is installed and the ID is correct.', 'error', 5000);
+                        return;
+                    }
+                    toast('window is already open close it to open new one', 'error', 10000);
+                }
+            );
+        } catch (e) {
+            toast('Failed to start edit component recorder: ' + e.message, 'error');
         }
     };
 

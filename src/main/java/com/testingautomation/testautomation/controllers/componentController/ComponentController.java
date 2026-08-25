@@ -31,6 +31,11 @@ public class ComponentController {
         return componentService.getComponents(projectId, moduleId);
     }
 
+    @GetMapping("/{id}")
+    public Component getComponent(@PathVariable String id) {
+        return componentService.getComponent(id);
+    }
+
     @PostMapping
     public Component createComponent(@RequestBody Component component) {
         System.out.println("inside create component controller");

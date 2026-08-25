@@ -366,6 +366,9 @@
                     <span id="comp-section-chevron">▼</span>
                 </div>
                 <div class="sidebar-section-body" id="comp-section-body">
+                    <select id="comp-module-select" class="inp comp-search-inp" style="margin-bottom:8px" onchange="filterComponents()">
+                        <option value="">Select a Module...</option>
+                    </select>
                     <input class="inp comp-search-inp" id="comp-search" placeholder="🔍 Search components…" oninput="filterComponents()">
                     <div class="comp-list" id="comp-list">
                         <div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">
@@ -479,12 +482,21 @@
         try {
             const compMods = await api.components.listModules(projectId);
             allAvailableComponents = [];
+            
+            const moduleSelect = document.getElementById('comp-module-select');
+            let moduleOptions = '<option value="">All Modules</option>';
+            
             for (const cm of compMods) {
-                const comps = await api.components.listComponents(projectId, cm.id || cm._id);
+                const cmId = cm.id || cm._id;
+                moduleOptions += `<option value="${cmId}">${esc(cm.name)}</option>`;
+                
+                const comps = await api.components.listComponents(projectId, cmId);
                 for (const c of comps) {
-                    allAvailableComponents.push({ ...c, compModuleName: cm.name });
+                    allAvailableComponents.push({ ...c, compModuleName: cm.name, compModuleId: cmId });
                 }
             }
+            
+            moduleSelect.innerHTML = moduleOptions;
             filteredComponents = [...allAvailableComponents];
             renderComponentList();
         } catch (e) {
@@ -512,12 +524,13 @@
 
     window.filterComponents = function() {
         const q = document.getElementById('comp-search').value.toLowerCase().trim();
-        filteredComponents = !q
-            ? [...allAvailableComponents]
-            : allAvailableComponents.filter(c =>
-                c.name.toLowerCase().includes(q) ||
-                c.compModuleName.toLowerCase().includes(q)
-            );
+        const modId = document.getElementById('comp-module-select').value;
+        
+        filteredComponents = allAvailableComponents.filter(c => {
+            if (modId && c.compModuleId !== modId) return false;
+            if (!q) return true;
+            return c.name.toLowerCase().includes(q) || c.compModuleName.toLowerCase().includes(q);
+        });
         renderComponentList();
     };
 

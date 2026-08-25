@@ -959,7 +959,10 @@
             const url = new URL(window.location);
             url.searchParams.set('tab', 'components');
             window.history.replaceState({}, '', url);
-            if (!componentsLoaded) loadComponentsPanel();
+            
+            // Always reload to reset back button and view state
+            componentsLoaded = false;
+            loadComponentsPanel();
         }
     };
 
@@ -1058,7 +1061,10 @@
                         <div class="ei">🧩</div>
                         <h3>No components in ${esc(compModName)}</h3>
                         <p>Create your first reusable component.</p>
-                        <button class="btn btn-primary" onclick="window.location.href='/component.html?projectId=${projectId}&moduleId=${compModuleId}'">+ New Component</button>
+                        <div style="display:flex;gap:8px;justify-content:center;margin-top:16px;">
+                            <button class="btn btn-ghost" onclick="backToCompMods()">← Back to Modules</button>
+                            <button class="btn btn-primary" onclick="window.location.href='/component.html?projectId=${projectId}&moduleId=${compModuleId}'">+ New Component</button>
+                        </div>
                     </div>`;
                 return;
             }
@@ -1228,7 +1234,7 @@
             for (const cm of compMods) {
                 const comps = await api.components.listComponents(projectId, cm.id || cm._id);
                 for (const c of comps) {
-                    allAvailableComponents.push({ ...c, compModuleName: cm.name });
+                    allAvailableComponents.push({ ...c, compModuleName: cm.name, compModuleId: cm.id || cm._id });
                 }
             }
         } catch (e) {
@@ -1314,9 +1320,18 @@
     };
 
     window.showAddComponentModal = function(moduleId) {
-        const compOptions = allAvailableComponents.map(c => 
-            `<option value="${c.id || c._id}">${esc(c.compModuleName)} - ${esc(c.name)}</option>`
-        ).join('');
+        // Extract unique component modules
+        const modulesMap = new Map();
+        allAvailableComponents.forEach(c => {
+            if (!modulesMap.has(c.compModuleId)) {
+                modulesMap.set(c.compModuleId, c.compModuleName);
+            }
+        });
+        
+        let moduleOptions = '<option value="">Select a Module...</option>';
+        modulesMap.forEach((name, id) => {
+            moduleOptions += `<option value="${id}">${esc(name)}</option>`;
+        });
 
         openModal(`
         <div class="modal" style="width:500px">
@@ -1326,9 +1341,15 @@
             </div>
             <div style="padding:20px 0">
                 <div class="field">
+                    <label class="lbl">Select Component Module</label>
+                    <select id="cb-module-select" class="inp" onchange="updateComponentSelect()">
+                        ${moduleOptions}
+                    </select>
+                </div>
+                <div class="field" style="margin-top:16px">
                     <label class="lbl">Select Component</label>
-                    <select id="cb-comp-select" class="inp">
-                        ${compOptions}
+                    <select id="cb-comp-select" class="inp" disabled>
+                        <option value="">Select a module first...</option>
                     </select>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
@@ -1337,6 +1358,28 @@
                 </div>
             </div>
         </div>`);
+    };
+
+    window.updateComponentSelect = function() {
+        const modId = document.getElementById('cb-module-select').value;
+        const compSelect = document.getElementById('cb-comp-select');
+        
+        if (!modId) {
+            compSelect.innerHTML = '<option value="">Select a module first...</option>';
+            compSelect.disabled = true;
+            return;
+        }
+        
+        const filteredComps = allAvailableComponents.filter(c => c.compModuleId === modId);
+        if (filteredComps.length === 0) {
+            compSelect.innerHTML = '<option value="">No components found</option>';
+            compSelect.disabled = true;
+        } else {
+            compSelect.innerHTML = filteredComps.map(c => 
+                `<option value="${c.id || c._id}">${esc(c.name)}</option>`
+            ).join('');
+            compSelect.disabled = false;
+        }
     };
 
     window.addComponentToBuilder = function(moduleId) {
