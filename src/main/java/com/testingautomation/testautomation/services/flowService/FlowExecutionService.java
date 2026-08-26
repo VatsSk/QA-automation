@@ -49,12 +49,25 @@ public class FlowExecutionService {
     @Autowired
     private FlowSseService flowSseService;
 
-    public void executeStep(WebDriver driver, FlowStep step, Flow flow) {
+    public void executeStep(com.testingautomation.testautomation.dto.FlowExecutionContext context, FlowStep step, Flow flow) {
+        WebDriver driver = context.getDriver();
         try {
             Thread.sleep(2000); // 🚨 This adds 2 seconds of dead time to EVERY step!
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+        String stepTabRef = step.getTabRef();
+        ActionType initialActionType = step.getActionType();
+        
+        if (stepTabRef != null && !stepTabRef.equals(context.getCurrentTabRef()) && 
+            initialActionType != ActionType.SWITCH_TO_NEW_TAB && 
+            initialActionType != ActionType.SWITCH_TO_PARENT_TAB && 
+            initialActionType != ActionType.CLOSE_TAB &&
+            initialActionType != ActionType.TAB_LOAD_TIMEOUT &&
+            initialActionType != ActionType.SWITCH_TAB) {
+            switchToTab(context, stepTabRef, step, flow);
+        }
+
         ActionType actionType = step.getActionType();
         if (actionType == null) {
             logger.warn("ActionType is null for step [{}]", step.getName());
@@ -101,7 +114,8 @@ public class FlowExecutionService {
                         throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Unable to find element in Verify","Unable to find element with "+step.getSelector(),ex);
                     }
                 }
-                else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL) {
+                else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL
+                        && actionType != ActionType.SWITCH_TO_NEW_TAB && actionType != ActionType.SWITCH_TO_PARENT_TAB && actionType != ActionType.CLOSE_TAB && actionType != ActionType.TAB_LOAD_TIMEOUT && actionType != ActionType.SWITCH_TAB) {
                     if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
                         try {
                             element = wait.until(ExpectedConditions.presenceOfElementLocated(TextExtractor.resolveLocator(step.getSelector())));
@@ -140,6 +154,11 @@ public class FlowExecutionService {
                     case PRESS_KEY: actionHandlerService.handlePressKey(element, step); break;
                     case DRAG_DROP: actionHandlerService.handleDragDrop(driver, element, step); break;
                     case VERIFY: actionHandlerService.handleVerify(driver,element, step,waitTime); break;
+                    case SWITCH_TO_NEW_TAB: actionHandlerService.handleSwitchToNewTab(driver, step, context); break;
+                    case SWITCH_TO_PARENT_TAB: actionHandlerService.handleSwitchToParentTab(driver, step, context); break;
+                    case CLOSE_TAB: actionHandlerService.handleCloseTab(driver, step, context); break;
+                    case TAB_LOAD_TIMEOUT: actionHandlerService.handleTabLoadTimeout(step); break;
+                    case SWITCH_TAB: actionHandlerService.handleSwitchTab(driver, step, context); break;
                     default: logger.info("ActionType [{}] is not yet fully integrated.", actionType);
                 }
                 
@@ -201,6 +220,23 @@ public class FlowExecutionService {
 
             step.setExecutionCompletedAt(Instant.now());
 
+    }
+
+    private void switchToTab(com.testingautomation.testautomation.dto.FlowExecutionContext context, String tabRef, FlowStep step, Flow flow) {
+        String handle = context.getTabRefToHandle().get(tabRef);
+        if (handle == null) {
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(),
+                    step.getName(),
+                    step.getActionType(),
+                    "Target tab not found: " + tabRef,
+                    "Target tab not found",
+                    null
+            );
+        }
+        context.getDriver().switchTo().window(handle);
+        context.setCurrentTabRef(tabRef);
+        flowSseService.sendTabSwitched(flow.getId(), step, tabRef);
     }
 
     private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow, int attempt) {
