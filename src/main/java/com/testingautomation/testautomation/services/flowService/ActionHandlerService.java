@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.enums.flow.VerificationType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
 import lombok.AllArgsConstructor;
@@ -389,16 +390,15 @@ public class ActionHandlerService {
 //        if(element!=null){
 //            handleHover(driver,element,step);
 //        }
-
         if (element != null) {
             ((JavascriptExecutor) driver).executeScript(
                     "arguments[0].scrollIntoView({block:'center',inline:'center'});",
                     element);
         }
-        com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
+        VerificationType vType = step.getVerificationType();
         if (vType == null) {
             logger.warn("VerificationType is null for step [{}], defaulting to VISIBLE check", step.getName());
-            vType = com.testingautomation.testautomation.enums.flow.VerificationType.VISIBLE;
+            vType = VerificationType.VISIBLE;
         }
 
         String expected = step.getExpectedValue();
