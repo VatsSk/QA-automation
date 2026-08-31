@@ -61,6 +61,20 @@ public class FlowStep extends ExecutionEntity {
 
     private Boolean isComp;
 
+    private String tabRef;
+
+    private String sourceTabRef;
+
+    private String fromTabRef;
+
+    private String toTabRef;
+
+    private String message;
+
+    private Object triggeringElement;
+
+    private Long pageReadyTimeoutMs;
+
 //    private Boolean enabled = true;
 
 //    private String remarks;

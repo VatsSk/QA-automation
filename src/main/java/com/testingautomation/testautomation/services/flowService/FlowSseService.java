@@ -119,6 +119,16 @@ public class FlowSseService {
         completeEmitters(flow.getId());
     }
 
+    public void sendTabSwitched(String flowId, com.testingautomation.testautomation.entities.flow.FlowStep step, String tabRef) {
+        String stepId = step.getId() != null ? step.getId() : "";
+        send(flowId, "tab-switched", Map.of("stepId", stepId, "tabRef", tabRef));
+    }
+
+    public void sendTabStuck(String flowId, com.testingautomation.testautomation.entities.flow.FlowStep step, String currentUrl) {
+        String stepId = step.getId() != null ? step.getId() : "";
+        send(flowId, "tab-stuck", Map.of("stepId", stepId, "currentUrl", currentUrl));
+    }
+
     public void sendFlowFailed(Flow flow) {
         send(flow.getId(), "flow-failed", flow);
         completeEmitters(flow.getId());

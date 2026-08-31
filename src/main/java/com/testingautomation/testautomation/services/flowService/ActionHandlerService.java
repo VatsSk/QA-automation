@@ -26,6 +26,9 @@ public class ActionHandlerService {
 
     @Autowired
     private final VerificationService verificationService;
+
+    @Autowired
+    private final FlowSseService flowSseService;
     public void handleNavigate(WebDriver driver, FlowStep step) {
         String url = step.getValue();
         if (url == null || url.isEmpty()) {
@@ -216,8 +219,23 @@ public class ActionHandlerService {
     }
 
     public void handleWait(FlowStep step) {
-        int waitTime = step.getValue() != null ? Integer.parseInt(step.getValue()) : 1000;
+        int waitTime = step.getValue() != null && !step.getValue().trim().isEmpty() ? Integer.parseInt(step.getValue()) : 1000;
         logger.info("Hard waiting for {} milliseconds", waitTime);
+        try {
+            Thread.sleep(waitTime);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public void handleTabLoadTimeout(FlowStep step) {
+        int waitTime = 5000; // default 5 seconds
+        if (step.getValue() != null && !step.getValue().trim().isEmpty()) {
+            try {
+                waitTime = Integer.parseInt(step.getValue());
+            } catch (NumberFormatException ignored) {}
+        }
+        logger.info("Waiting {} ms for tab to load...", waitTime);
         try {
             Thread.sleep(waitTime);
         } catch (InterruptedException e) {
@@ -264,6 +282,106 @@ public class ActionHandlerService {
             actions.dragAndDrop(sourceElement, targetElement).perform();
         } catch (Exception e) {
             logger.error("Failed to perform DragDrop to target {}: {}", targetLocator, e.getMessage());
+        }
+    }
+
+    public void handleSwitchToNewTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        String targetRef = step.getToTabRef() != null ? step.getToTabRef() : (step.getTabRef() != null ? step.getTabRef() : "tab_0");
+        logger.info("Switching to new tab [{}]", targetRef);
+        
+        long timeoutMs = step.getPageReadyTimeoutMs() != null ? step.getPageReadyTimeoutMs() : 30000;
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(timeoutMs));
+        
+        try {
+            wait.until(d -> d.getWindowHandles().size() > context.getTabRefToHandle().size());
+            
+            String newHandle = null;
+            for (String handle : driver.getWindowHandles()) {
+                if (!context.getTabRefToHandle().containsValue(handle)) {
+                    newHandle = handle;
+                    break;
+                }
+            }
+            
+            if (newHandle != null) {
+                driver.switchTo().window(newHandle);
+                context.getTabRefToHandle().put(targetRef, newHandle);
+                context.getWindowStack().push(newHandle);
+                context.setCurrentTabRef(targetRef);
+                
+                // wait for page ready
+                wait.until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
+            }
+        } catch (TimeoutException e) {
+            try {
+                flowSseService.sendTabStuck(context.getFlowId(), step, context.getDriver().getCurrentUrl());
+            } catch (Exception ignored) {}
+            if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
+                throw new GlobalExceptionHandler.FlowExecutionException(
+                        step.getStepOrder(), step.getName(), step.getActionType(),
+                        "New tab did not open or load in time", "Timeout waiting for new tab", e
+                );
+            }
+        }
+    }
+
+    public void handleSwitchToParentTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        logger.info("Switching to parent tab [{}]", step.getSourceTabRef());
+        String targetRef = step.getSourceTabRef() != null ? step.getSourceTabRef() : "tab_0";
+        String handle = context.getTabRefToHandle().get(targetRef);
+        
+        if (handle != null) {
+            driver.switchTo().window(handle);
+            context.setCurrentTabRef(targetRef);
+        } else {
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(), step.getName(), step.getActionType(),
+                    "Parent tab not found", "Could not find handle for tab " + targetRef, null
+            );
+        }
+    }
+
+    public void handleSwitchTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        String targetRef = step.getToTabRef() != null ? step.getToTabRef() : (step.getTabRef() != null ? step.getTabRef() : "tab_0");
+        logger.info("Switching tab to [{}]", targetRef);
+        String handle = context.getTabRefToHandle().get(targetRef);
+        
+        if (handle != null) {
+            driver.switchTo().window(handle);
+            context.setCurrentTabRef(targetRef);
+        } else {
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(), step.getName(), step.getActionType(),
+                    "Target tab not found", "Could not find handle for tab " + targetRef, null
+            );
+        }
+    }
+
+    public void handleCloseTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        logger.info("Closing tab [{}]", step.getTabRef());
+        String tabToClose = step.getTabRef() != null ? step.getTabRef() : context.getCurrentTabRef();
+        String handle = context.getTabRefToHandle().get(tabToClose);
+        
+        if (handle != null) {
+            String currentHandle = driver.getWindowHandle();
+            if (!currentHandle.equals(handle)) {
+                driver.switchTo().window(handle);
+            }
+            driver.close();
+            context.getTabRefToHandle().remove(tabToClose);
+            context.getWindowStack().remove(handle);
+            
+            if (!context.getWindowStack().isEmpty()) {
+                String topHandle = context.getWindowStack().peek();
+                driver.switchTo().window(topHandle);
+                // Find tabRef for topHandle
+                for (java.util.Map.Entry<String, String> entry : context.getTabRefToHandle().entrySet()) {
+                    if (entry.getValue().equals(topHandle)) {
+                        context.setCurrentTabRef(entry.getKey());
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -415,6 +533,68 @@ public class ActionHandlerService {
                 break;
             }
 
+            case CONTAINS: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"CONTAINS verification failed","CONTAINS verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                String rawActual = getElementTextForVerification(driver, element, step);
+                rawActual = rawActual != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
+                expected = expected != null ? expected.replaceAll("\\s+", " ").trim() : "";
+
+                logger.info("CONTAINS verification. Expected: [{}], Actual: [{}]", expected, rawActual);
+
+                if (!rawActual.contains(expected)) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"CONTAINS verification failed",String.format("CONTAINS verification failed: expected [%s] to be contained in [%s]. Selector: %s", expected, rawActual, step.getSelector()),null);
+                }
+                logger.info("CONTAINS verification passed. Value: [{}]", rawActual);
+                break;
+            }
+
+            case NOT_EQUALS: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_EQUALS verification failed","NOT_EQUALS verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                String rawActual = getElementTextForVerification(driver, element, step);
+                rawActual = rawActual != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
+                expected = expected != null ? expected.replaceAll("\\s+", " ").trim() : "";
+
+                logger.info("NOT_EQUALS verification. Expected: [{}], Actual: [{}]", expected, rawActual);
+
+                if (rawActual.equals(expected)) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_EQUALS verification failed",String.format("NOT_EQUALS verification failed: text was exactly equal to [%s]. Selector: %s", expected, step.getSelector()),null);
+                }
+                logger.info("NOT_EQUALS verification passed. Value: [{}]", rawActual);
+                break;
+            }
+
+            case TOOLTIP: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TOOLTIP verification failed","TOOLTIP verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                String titleAttr = element.getAttribute("title");
+                
+                if (titleAttr == null || titleAttr.trim().isEmpty()) {
+                    titleAttr = element.getAttribute("data-tooltip");
+                }
+                if (titleAttr == null || titleAttr.trim().isEmpty()) {
+                    titleAttr = element.getAttribute("aria-label");
+                }
+                if (titleAttr == null || titleAttr.trim().isEmpty()) {
+                    titleAttr = element.getAttribute("data-original-title"); // Common for bootstrap
+                }
+                if (titleAttr == null) titleAttr = "";
+                
+                String expectedTitle = expected != null ? expected.trim() : "";
+
+                logger.info("TOOLTIP verification. Expected: [{}], Actual: [{}]", expectedTitle, titleAttr);
+
+                if (!titleAttr.trim().equals(expectedTitle)) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TOOLTIP verification failed",String.format("TOOLTIP verification failed: expected [%s] but found [%s]. Selector: %s", expectedTitle, titleAttr, step.getSelector()),null);
+                }
+                logger.info("TOOLTIP verification passed. Value: [{}]", titleAttr);
+                break;
+            }
+
             case VALUE: {
                 if (element == null) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"VALUE verification failed","VALUE verification failed: element is null. Selector: " + step.getSelector(),null);
@@ -525,6 +705,21 @@ public class ActionHandlerService {
                 logger.info("COUNT verification passed. Found [{}] element(s).", actualCount);
                 break;
             }
+            
+            case PAGE_READY: {
+                logger.info("Verifying page ready state");
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
+                try {
+                    wait.until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
+                    logger.info("PAGE_READY verification passed.");
+                } catch (TimeoutException e) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(
+                            step.getStepOrder(), step.getName(), step.getActionType(),
+                            "PAGE_READY verification failed", "Page did not reach ready state in time", e
+                    );
+                }
+                break;
+            }
 
             // ── AI (future / not yet implemented) ───────────────────────────────────
             case AI: {
@@ -535,6 +730,41 @@ public class ActionHandlerService {
             default:
                 logger.warn("Unhandled VerificationType [{}] in step [{}]. Skipping.", vType, step.getName());
         }
+    }
+
+    private String getElementTextForVerification(WebDriver driver, WebElement element, FlowStep step) {
+        String rawActual = element.getText();
+        String textSource = step.getTextSource() != null ? step.getTextSource().toLowerCase() : "";
+        
+        if (rawActual == null || rawActual.isEmpty()) {
+            switch (textSource) {
+                case "value":
+                    rawActual = element.getAttribute("value");
+                    break;
+                case "placeholder":
+                    rawActual = element.getAttribute("placeholder");
+                    break;
+                case "text":
+                    rawActual = element.getText();
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = (String) ((JavascriptExecutor) driver).executeScript("return arguments[0].textContent;", element);
+                    }
+                    break;
+                default:
+                    rawActual = element.getText();
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = (String) ((JavascriptExecutor) driver).executeScript("return arguments[0].textContent;", element);
+                    }
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = element.getAttribute("value");
+                    }
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = element.getAttribute("placeholder");
+                    }
+                    break;
+            }
+        }
+        return rawActual;
     }
 }
 

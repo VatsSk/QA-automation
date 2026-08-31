@@ -24,7 +24,7 @@ public class UserController {
 
     @GetMapping("/isWorking")
     public String isDeployed(){
-        return "ci cd is established";
+        return "ajay is established";
     }
 
 

@@ -38,7 +38,7 @@ public class UiScannerService {
 
             String script = """
                 return Array.from(document.querySelectorAll(
-                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex],'
+                             'input, textarea, select, button, a, [role="button"], [onclick], [tabindex]'
                            ))
                            .filter(function(el) {
                              const rect = el.getBoundingClientRect();
