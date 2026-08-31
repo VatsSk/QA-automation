@@ -64,7 +64,7 @@ public class ActionHandlerService {
         try {
             // Scroll into view
             ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView({block:'center',inline:'center'});",
+                    "arguments[0].scrollIntoView(true);",
                     element);
 
             // Wait until clickable
@@ -392,7 +392,7 @@ public class ActionHandlerService {
 
         if (element != null) {
             ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView({block:'center',inline:'center'});",
+                    "arguments[0].scrollIntoView(true);",
                     element);
         }
         com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();

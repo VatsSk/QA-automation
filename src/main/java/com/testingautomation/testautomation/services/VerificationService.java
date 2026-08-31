@@ -121,10 +121,13 @@ public class VerificationService {
                             boolean visible = isActuallyVisible(d, el);
 
                             if (!displayed || !visible) {
-                                logger.debug("[Filter] Rejected element -> displayed: {}, visible: {}", displayed, visible);
+                                logger.debug("[Filter] Element status -> displayed: {}, visible: {}", displayed, visible);
                             }
 
-                            return displayed && visible;
+                            // If an element is just out of the viewport (e.g. horizontally scrolled table),
+                            // Selenium's isDisplayed() might return false.
+                            // We should return 'visible' (from JS check) so we can find it and scroll to it later.
+                            return visible;
                         } catch (Exception e) {
                             return false;
                         }
