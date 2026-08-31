@@ -611,6 +611,28 @@ public class ActionHandlerService {
                 break;
             }
 
+            case SELECTED_VALUE: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"SELECTED_VALUE verification failed","SELECTED_VALUE verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                org.openqa.selenium.support.ui.Select select = new org.openqa.selenium.support.ui.Select(element);
+                WebElement selectedOption = select.getFirstSelectedOption();
+                String actualText = selectedOption != null ? selectedOption.getText() : "";
+                if (actualText == null) actualText = "";
+                String expectedValue = expected != null ? expected.trim() : "";
+                
+                if (!actualText.trim().equals(expectedValue)) {
+                    String actualValAttr = selectedOption != null ? selectedOption.getAttribute("value") : "";
+                    if (actualValAttr == null) actualValAttr = "";
+                    if (!actualValAttr.trim().equals(expectedValue)) {
+                        throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"SELECTED_VALUE verification failed",String.format("SELECTED_VALUE verification failed: expected [%s] but found text [%s] and value [%s]. Selector: %s",
+                                expectedValue, actualText.trim(), actualValAttr.trim(), step.getSelector()),null);
+                    }
+                }
+                logger.info("SELECTED_VALUE verification passed. Value: [{}]", expectedValue);
+                break;
+            }
+
             // ── Attribute ────────────────────────────────────────────────────────────
             case ATTRIBUTE: {
                 if (element == null) {

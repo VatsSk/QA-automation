@@ -40,5 +40,7 @@ public enum VerificationType {
 
     NOT_EQUALS,
 
-    TOOLTIP
+    TOOLTIP,
+
+    SELECTED_VALUE
 }
