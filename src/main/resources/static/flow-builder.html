@@ -356,73 +356,35 @@
             </div>
         </div>
 
-        <!-- Right: Component / Manual step sidebar -->
+        <!-- Right: Component sidebar -->
         <div class="builder-sidebar">
-
-            <!-- Add Component -->
-            <div class="sidebar-section">
-                <div class="sidebar-section-header" onclick="toggleSidebarSection('comp-section-body')">
+            <div class="sidebar-section" style="border-bottom: none; flex: 1; display: flex; flex-direction: column;">
+                <div class="sidebar-section-header" style="cursor: default;">
                     <span>🧩 Add Component</span>
-                    <span id="comp-section-chevron">▼</span>
                 </div>
-                <div class="sidebar-section-body" id="comp-section-body">
-                    <input class="inp comp-search-inp" id="comp-search" placeholder="🔍 Search components…" oninput="filterComponents()">
-                    <div class="comp-list" id="comp-list">
-                        <div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">
-                            Loading components…
-                        </div>
-                    </div>
-                    <p style="font-size:11px;color:var(--tx3);margin-top:6px">Click a component to add it to the sequence.</p>
-                </div>
-            </div>
-
-            <!-- Add Manual Step -->
-            <div class="sidebar-section">
-                <div class="sidebar-section-header" onclick="toggleSidebarSection('step-section-body')">
-                    <span>✏️ Add Manual Step</span>
-                    <span id="step-section-chevron">▼</span>
-                </div>
-                <div class="sidebar-section-body" id="step-section-body">
-                    <div class="ms-field">
-                        <label>Step Name</label>
-                        <input id="ms-name" class="inp" placeholder="e.g. Click Login Button" style="width:100%">
-                    </div>
-                    <div class="ms-field">
-                        <label>Action Type</label>
-                        <select id="ms-action" class="inp" style="width:100%">
-                            <option value="NAVIGATE">NAVIGATE</option>
-                            <option value="CLICK">CLICK</option>
-                            <option value="TYPE">TYPE</option>
-                            <option value="VERIFY">VERIFY</option>
-                            <option value="WAIT">WAIT</option>
+                <div class="sidebar-section-body" style="display: flex; flex-direction: column; flex: 1; gap: 12px; overflow: hidden;">
+                    
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <label style="font-size: 11px; font-weight: 600; color: var(--tx3); text-transform: uppercase; letter-spacing: 0.06em;">Module</label>
+                        <select id="module-dropdown" class="inp comp-search-inp" style="margin-bottom: 0;" onchange="fetchComponentsForModule()">
+                            <option value="">-- Select Module --</option>
                         </select>
                     </div>
-                    <div class="ms-field">
-                        <label>Selector (CSS/XPath)</label>
-                        <input id="ms-selector" class="inp" placeholder="#btn-login" style="width:100%">
+
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <label style="font-size: 11px; font-weight: 600; color: var(--tx3); text-transform: uppercase; letter-spacing: 0.06em;">Search</label>
+                        <input class="inp comp-search-inp" id="comp-search" style="margin-bottom: 0;" placeholder="🔍 Search components…" oninput="filterComponents()">
                     </div>
-                    <div class="ms-field">
-                        <label>Value</label>
-                        <input id="ms-value" class="inp" placeholder="https://… or text value" style="width:100%">
+
+                    <div class="comp-list" id="comp-list" style="flex: 1; max-height: none; margin-bottom: 4px;">
+                        <div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">
+                            Select a module to view components
+                        </div>
                     </div>
-                    <button class="btn btn-secondary" style="width:100%;margin-top:4px" onclick="addManualStep()">
-                        + Add Step
-                    </button>
+                    
+                    <p style="font-size:11px;color:var(--tx3); text-align: center;">Click a component to add it to the sequence.</p>
                 </div>
             </div>
-
-            <!-- Record via Extension -->
-            <div class="sidebar-section" style="border-bottom:none">
-                <div class="sidebar-section-body">
-                    <button class="btn btn-ghost" style="width:100%" onclick="launchComponentFlowRecorder()">
-                        🔴 Record via Extension
-                    </button>
-                    <p style="font-size:11px;color:var(--tx3);margin-top:6px;text-align:center">
-                        Opens Chrome extension to record steps automatically.
-                    </p>
-                </div>
-            </div>
-
         </div>
     </div>
 </div>
@@ -450,7 +412,8 @@
 
     // ── State ──────────────────────────────────────────────────────────────
     let builderItems = [];
-    let allAvailableComponents = [];
+    let compMods = [];
+    let currentModuleComponents = [];
     let filteredComponents = [];
 
     // ── Boot ──────────────────────────────────────────────────────────────
@@ -458,8 +421,8 @@
         try {
             document.title = 'Component Flow Builder — QA Studio';
 
-            // Load components for sidebar
-            await loadComponents();
+            // Load modules for dropdown
+            await loadModules();
 
             // Show the app
             document.getElementById('builder-loading').style.display = 'none';
@@ -475,31 +438,56 @@
         }
     }
 
-    async function loadComponents() {
+    async function loadModules() {
         try {
-            const compMods = await api.components.listModules(projectId);
-            allAvailableComponents = [];
-            for (const cm of compMods) {
-                const comps = await api.components.listComponents(projectId, cm.id || cm._id);
-                for (const c of comps) {
-                    allAvailableComponents.push({ ...c, compModuleName: cm.name });
-                }
+            compMods = await api.components.listModules(projectId);
+            const select = document.getElementById('module-dropdown');
+            select.innerHTML = '<option value="">-- Select Module --</option>' + 
+                compMods.map(m => `<option value="${m.id || m._id}">${esc(m.name)}</option>`).join('');
+            
+            // if there is only one module, select it automatically
+            if (compMods.length === 1) {
+                select.selectedIndex = 1;
+                await fetchComponentsForModule();
             }
-            filteredComponents = [...allAvailableComponents];
-            renderComponentList();
         } catch (e) {
-            console.error('Failed to load components', e);
+            console.error('Failed to load modules', e);
             document.getElementById('comp-list').innerHTML =
-                `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Failed to load components</div>`;
+                `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Failed to load modules</div>`;
         }
     }
+
+    window.fetchComponentsForModule = async function() {
+        const modId = document.getElementById('module-dropdown').value;
+        const list = document.getElementById('comp-list');
+        
+        if (!modId) {
+            currentModuleComponents = [];
+            filteredComponents = [];
+            list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Select a module to view components</div>`;
+            return;
+        }
+
+        list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Loading components…</div>`;
+        try {
+            const comps = await api.components.listComponents(projectId, modId);
+            const selectedMod = compMods.find(m => (m.id || m._id) === modId);
+            currentModuleComponents = comps.map(c => ({ ...c, compModuleName: selectedMod ? selectedMod.name : '' }));
+            filteredComponents = [...currentModuleComponents];
+            document.getElementById('comp-search').value = '';
+            renderComponentList();
+        } catch (e) {
+            console.error('Failed to fetch components', e);
+            list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Failed to load components</div>`;
+        }
+    };
 
     // ── Component List ────────────────────────────────────────────────────
     function renderComponentList() {
         const list = document.getElementById('comp-list');
         if (!filteredComponents.length) {
             list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">
-                ${allAvailableComponents.length === 0 ? 'No components available' : 'No matches found'}
+                ${currentModuleComponents.length === 0 ? 'No components found in this module' : 'No matches found'}
             </div>`;
             return;
         }
@@ -513,18 +501,17 @@
     window.filterComponents = function() {
         const q = document.getElementById('comp-search').value.toLowerCase().trim();
         filteredComponents = !q
-            ? [...allAvailableComponents]
-            : allAvailableComponents.filter(c =>
-                c.name.toLowerCase().includes(q) ||
-                c.compModuleName.toLowerCase().includes(q)
+            ? [...currentModuleComponents]
+            : currentModuleComponents.filter(c =>
+                c.name.toLowerCase().includes(q)
             );
         renderComponentList();
     };
 
     window.addComponent = function(componentId) {
-        const c = allAvailableComponents.find(x => (x.id || x._id) === componentId);
+        const c = currentModuleComponents.find(x => (x.id || x._id) === componentId);
         if (!c) return;
-        builderItems.push({ type: 'COMPONENT', componentId });
+        builderItems.push({ type: 'COMPONENT', componentId, component: c });
         renderBuilderItems();
         toast(`Added component: ${c.name}`, 'success');
     };
@@ -541,115 +528,31 @@
             list.innerHTML = `
                 <div class="step-empty">
                     <div class="ei">🧩</div>
-                    <p>No steps added yet.</p>
-                    <p style="margin-top:4px">Use the panel on the right to add components or manual steps.</p>
+                    <p>No components added yet.</p>
+                    <p style="margin-top:4px">Use the panel on the right to add components.</p>
                 </div>`;
             return;
         }
 
         list.innerHTML = builderItems.map((item, index) => {
-            if (item.type === 'STEP') {
-                return `
-                <div class="step-item">
-                    <div class="step-num">${index + 1}</div>
-                    <div class="step-info">
-                        <div class="step-label">✏️ ${esc(item.step.name || item.step.actionType)}</div>
-                        <div class="step-sub">${esc(item.step.actionType)}${item.step.selector ? ' · ' + esc(item.step.selector) : ''}${item.step.value ? ' · ' + esc(item.step.value) : ''}</div>
-                    </div>
-                    <button class="btn btn-danger btn-xs step-remove" onclick="removeBuilderItem(${index})" title="Remove">✕</button>
-                </div>`;
-            } else {
-                const c = allAvailableComponents.find(x => (x.id || x._id) === item.componentId);
-                const cName = c ? c.name : 'Unknown Component';
-                const stepCount = c && c.steps ? c.steps.length : 0;
-                return `
-                <div class="step-item is-component">
-                    <div class="step-num">${index + 1}</div>
-                    <div class="step-info">
-                        <div class="step-label">🧩 ${esc(cName)}</div>
-                        <div class="step-sub">Component · expands to ${stepCount} step${stepCount !== 1 ? 's' : ''} at runtime${c ? ' · ' + esc(c.compModuleName) : ''}</div>
-                    </div>
-                    <button class="btn btn-danger btn-xs step-remove" onclick="removeBuilderItem(${index})" title="Remove">✕</button>
-                </div>`;
-            }
+            const c = item.component;
+            const cName = c ? c.name : 'Unknown Component';
+            const stepCount = c && c.steps ? c.steps.length : 0;
+            return `
+            <div class="step-item is-component">
+                <div class="step-num">${index + 1}</div>
+                <div class="step-info">
+                    <div class="step-label">🧩 ${esc(cName)}</div>
+                    <div class="step-sub">Component · expands to ${stepCount} step${stepCount !== 1 ? 's' : ''} at runtime${c ? ' · ' + esc(c.compModuleName) : ''}</div>
+                </div>
+                <button class="btn btn-danger btn-xs step-remove" onclick="removeBuilderItem(${index})" title="Remove">✕</button>
+            </div>`;
         }).join('');
     }
 
     window.removeBuilderItem = function(index) {
         builderItems.splice(index, 1);
         renderBuilderItems();
-    };
-
-    // ── Add Manual Step ───────────────────────────────────────────────────
-    window.addManualStep = function() {
-        const name       = document.getElementById('ms-name').value.trim();
-        const actionType = document.getElementById('ms-action').value;
-        const selector   = document.getElementById('ms-selector').value.trim();
-        const value      = document.getElementById('ms-value').value.trim();
-
-        if (!actionType) { toast('Select an action type', 'warning'); return; }
-
-        builderItems.push({
-            type: 'STEP',
-            step: { id: null, name, actionType, selector, value, isComp: false }
-        });
-
-        // Clear fields
-        document.getElementById('ms-name').value = '';
-        document.getElementById('ms-selector').value = '';
-        document.getElementById('ms-value').value = '';
-        document.getElementById('ms-action').selectedIndex = 0;
-
-        renderBuilderItems();
-        toast('Manual step added', 'success');
-    };
-
-    // ── Sidebar Toggle ────────────────────────────────────────────────────
-    window.toggleSidebarSection = function(id) {
-        const body = document.getElementById(id);
-        const isHidden = body.style.display === 'none';
-        body.style.display = isHidden ? '' : 'none';
-    };
-
-    // ── Launch Extension Recorder ─────────────────────────────────────────
-    window.launchComponentFlowRecorder = async function() {
-        try {
-            const projectData = await fetch(`/api/projects/url/${projectId}`).then(r => r.json());
-            let extensionId;
-            try {
-                const res = await api.users.getExtensionId(user.username);
-                extensionId = res.extensionId;
-            } catch(e) {}
-
-            if (!extensionId) { toast('Please configure your Chrome Extension ID', 'warning', 5000); return; }
-            if (!window.chrome || !window.chrome.runtime) { toast('Chrome extension is not installed', 'error', 5000); return; }
-
-            const flowName = document.getElementById('cb-name').value.trim() || 'Untitled Component Flow';
-            const flowDesc = document.getElementById('cb-desc').value.trim() || '';
-
-            chrome.runtime.sendMessage(
-                extensionId,
-                {
-                    action: 'START_RECORDING',
-                    projectId,
-                    compModuleId: moduleId,
-                    name: flowName,
-                    description: flowDesc,
-                    createdBy: user.username,
-                    url: projectData.loginUrl,
-                    flag: 'COMPONENT'
-                },
-                (res) => {
-                    if (chrome.runtime.lastError) {
-                        toast('Failed to connect to extension. Please check extension ID.', 'error', 5000);
-                        return;
-                    }
-                    toast('Recording started in extension window.', 'success');
-                }
-            );
-        } catch (e) {
-            toast('Failed to start recorder: ' + e.message, 'error');
-        }
     };
 
     // ── Save ──────────────────────────────────────────────────────────────
