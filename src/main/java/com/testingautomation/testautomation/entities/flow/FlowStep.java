@@ -59,6 +59,8 @@ public class FlowStep extends ExecutionEntity {
 
     private Boolean captureScreenshot = true;
 
+    private Boolean isComp;
+
     private String tabRef;
 
     private String sourceTabRef;

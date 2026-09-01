@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.enums.flow.VerificationType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
 import lombok.AllArgsConstructor;
@@ -389,16 +390,15 @@ public class ActionHandlerService {
 //        if(element!=null){
 //            handleHover(driver,element,step);
 //        }
-
         if (element != null) {
             ((JavascriptExecutor) driver).executeScript(
                     "arguments[0].scrollIntoView(true);",
                     element);
         }
-        com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
+        VerificationType vType = step.getVerificationType();
         if (vType == null) {
             logger.warn("VerificationType is null for step [{}], defaulting to VISIBLE check", step.getName());
-            vType = com.testingautomation.testautomation.enums.flow.VerificationType.VISIBLE;
+            vType = VerificationType.VISIBLE;
         }
 
         String expected = step.getExpectedValue();
@@ -608,6 +608,28 @@ public class ActionHandlerService {
 
                 }
                 logger.info("VALUE verification passed. Value: [{}]", actualValue);
+                break;
+            }
+
+            case SELECTED_VALUE: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"SELECTED_VALUE verification failed","SELECTED_VALUE verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                org.openqa.selenium.support.ui.Select select = new org.openqa.selenium.support.ui.Select(element);
+                WebElement selectedOption = select.getFirstSelectedOption();
+                String actualText = selectedOption != null ? selectedOption.getText() : "";
+                if (actualText == null) actualText = "";
+                String expectedValue = expected != null ? expected.trim() : "";
+                
+                if (!actualText.trim().equals(expectedValue)) {
+                    String actualValAttr = selectedOption != null ? selectedOption.getAttribute("value") : "";
+                    if (actualValAttr == null) actualValAttr = "";
+                    if (!actualValAttr.trim().equals(expectedValue)) {
+                        throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"SELECTED_VALUE verification failed",String.format("SELECTED_VALUE verification failed: expected [%s] but found text [%s] and value [%s]. Selector: %s",
+                                expectedValue, actualText.trim(), actualValAttr.trim(), step.getSelector()),null);
+                    }
+                }
+                logger.info("SELECTED_VALUE verification passed. Value: [{}]", expectedValue);
                 break;
             }
 

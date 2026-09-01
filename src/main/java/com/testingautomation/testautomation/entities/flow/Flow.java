@@ -33,5 +33,7 @@ public class Flow extends ExecutionEntity {
     
     private String flowBasePath;
 
+    private boolean isPartComp;
+
     private List<FlowStep> steps = new ArrayList<>();
 }

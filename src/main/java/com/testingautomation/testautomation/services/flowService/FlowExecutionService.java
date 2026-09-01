@@ -105,13 +105,17 @@ public class FlowExecutionService {
             WebElement element = null;
             try {
 
-                
                 // Fetch element if required
                 if(actionType==ActionType.VERIFY){
                     try{
                         element=verificationService.findBestElement(driver,step.getSelector(),Duration.ofMillis(waitTime));
                     }catch(Exception ex){
-                        throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Unable to find element in Verify","Unable to find element with "+step.getSelector(),ex);
+                        com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
+                        if (vType == com.testingautomation.testautomation.enums.flow.VerificationType.NOT_VISIBLE || vType == com.testingautomation.testautomation.enums.flow.VerificationType.NOT_EXISTS) {
+                            element = null;
+                        } else {
+                            throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Unable to find element in Verify","Unable to find element with "+step.getSelector(),ex);
+                        }
                     }
                 }
                 else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL

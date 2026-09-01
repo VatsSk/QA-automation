@@ -2,6 +2,12 @@ package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.config.WebDriverConfig.WebDriverFactory;
 import com.testingautomation.testautomation.entities.ProjectEnvironment;
+import com.testingautomation.testautomation.entities.component.Component;
+import com.testingautomation.testautomation.entities.component.FlowInfo;
+import com.testingautomation.testautomation.entities.component.FlowItem;
+import com.testingautomation.testautomation.enums.flow.FlowItemType;
+import com.testingautomation.testautomation.repositories.flowRepos.ComponentRepository;
+import com.testingautomation.testautomation.repositories.flowRepos.FlowInfoRepository;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ActionType;
@@ -20,9 +26,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +65,12 @@ public class FlowOrchestratorService {
 
     @Autowired
     private FlowSseService flowSseService;
+
+    @Autowired
+    private FlowInfoRepository flowInfoRepository;
+
+    @Autowired
+    private ComponentRepository componentRepository;
 
     @Value("${storage.s3.base-prefix}")
     private String basePrefix;
@@ -364,4 +380,5 @@ public class FlowOrchestratorService {
             }
         }
     }
+
 }

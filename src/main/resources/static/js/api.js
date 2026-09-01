@@ -135,8 +135,11 @@ export const runs = {
 
 // ── Flows ──────────────────────────────────────────────────────────────────
 export const flows = {
-    list:    (projectId, moduleId) =>
-        request('GET', `/api/flows/${projectId}/${moduleId}`),
+    list: (projectId, moduleId, isPartComp = null) => {
+        let url = `/api/flows/${projectId}/${moduleId}`;
+        if (isPartComp !== null) url += `?isPartComp=${isPartComp}`;
+        return request('GET', url);
+    },
     get:     (id)      => request('GET',    `/api/flows/${id}`),
     update:  (id, d)   => request('PUT',    `/api/flows/${id}`, d),
     remove:  (id)      => request('DELETE', `/api/flows/${id}`),
@@ -203,4 +206,15 @@ export const uploads = {
 
         return uploadFile('/api/uploads/project-login', fd);
     }
+};
+
+export const components = {
+    listModules: (projectId) => request('GET', `/api/components/modules/${projectId}`),
+    createModule: (data) => request('POST', `/api/components/modules`, data),
+    listComponents: (projectId, moduleId) => request('GET', `/api/components/${projectId}/${moduleId}`),
+    createComponent: (data) => request('POST', `/api/components`, data),
+    updateComponent: (id, data) => request('PUT', `/api/components/${id}`, data),
+    getFlowInfo: (id) => request('GET', `/api/components/flow-info/${id}`),
+    createFlowInfo: (data) => request('POST', `/api/components/flow-info`, data),
+    saveFlowInfo: (id, data) => request('PUT', `/api/components/flow-info/${id}`, data)
 };
