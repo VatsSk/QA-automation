@@ -221,7 +221,7 @@ public class VerificationService {
 //        return topElement === el || el.contains(topElement);
 //    """, element));
 //}
-private boolean isActuallyVisible(WebDriver driver, WebElement element) {
+public boolean isActuallyVisible(WebDriver driver, WebElement element) {
     JavascriptExecutor js = (JavascriptExecutor) driver;
 
     if (element == null) {

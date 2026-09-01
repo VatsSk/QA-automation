@@ -410,7 +410,7 @@ public class ActionHandlerService {
             case VISIBLE: {
                 logger.info("Verifying visibility of element [{}]", step.getName());
                 logger.info("Element : {}",element);
-                if (element == null || !element.isDisplayed()) {
+                if (!verificationService.isActuallyVisible(driver, element)) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"VISIBLE verification failed","VISIBLE verification failed: element is not visible. Selector: " + step.getSelector(),null);
                 }
                 logger.info("VISIBLE verification passed.");
@@ -419,7 +419,7 @@ public class ActionHandlerService {
 
             case NOT_VISIBLE: {
                 // element may already be null (not found), or present but hidden — both are acceptable
-                boolean notVisible = (element == null) || !element.isDisplayed();
+                boolean notVisible = !verificationService.isActuallyVisible(driver, element);
                 if (!notVisible) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_VISIBLE verification failed","NOT_VISIBLE verification failed: element is visible. Selector: " + step.getSelector(),null);
                 }

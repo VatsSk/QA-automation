@@ -8,7 +8,7 @@
  */
 
 const BASE = window.QA_API_BASE || 'http://localhost:8088';
-//  const BASE = window.QA_API_BASE || 'http://3.7.136.248:8088';
+ // const BASE = window.QA_API_BASE || 'http://3.7.136.248:8088';
 
 function getToken() {
     return localStorage.getItem('qa_token') || '';
@@ -141,6 +141,7 @@ export const flows = {
         return request('GET', url);
     },
     get:     (id)      => request('GET',    `/api/flows/${id}`),
+    createDraft: (d)   => request('POST',   `/api/flows/draft`, d),
     update:  (id, d)   => request('PUT',    `/api/flows/${id}`, d),
     remove:  (id)      => request('DELETE', `/api/flows/${id}`),
     clone:   (id)      => request('POST',   `/api/flows/${id}/clone`),
