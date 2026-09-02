@@ -40,6 +40,9 @@ public class FlowExecutionService {
     @Autowired
     private ScreenshotService screenshotService;
 
+    @Autowired
+    private FrameContextManager frameContextManager;
+
 
 
 
@@ -97,13 +100,21 @@ public class FlowExecutionService {
         int waitTime = Boolean.TRUE.equals(step.getOverrideWait()) && step.getWait() != null 
                 ? step.getWait() 
                 : (flow.getDefaultWait() != null ? flow.getDefaultWait() : 5000);
-                
-        WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
 
         while (attempts <= retries && !success) {
             attempts++;
             WebElement element = null;
             try {
+
+                // Ensure we are in the correct frame context before finding the element
+                if (actionType != ActionType.NAVIGATE && actionType != ActionType.SWITCH_TO_NEW_TAB && actionType != ActionType.SWITCH_TO_PARENT_TAB && actionType != ActionType.SWITCH_TAB && actionType != ActionType.CLOSE_TAB) {
+                    frameContextManager.ensureFrameContext(context, step.getFramePath(), Duration.ofMillis(waitTime));
+                }
+
+                // Create a fresh WebDriverWait AFTER frame context is established.
+                // Iframe switching (especially cross-origin) can take significant time and would
+                // exhaust a wait created before the switch, leaving no time for element lookup.
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
 
                 // Fetch element if required
                 if(actionType==ActionType.VERIFY){
@@ -122,7 +133,10 @@ public class FlowExecutionService {
                         && actionType != ActionType.SWITCH_TO_NEW_TAB && actionType != ActionType.SWITCH_TO_PARENT_TAB && actionType != ActionType.CLOSE_TAB && actionType != ActionType.TAB_LOAD_TIMEOUT && actionType != ActionType.SWITCH_TAB) {
                     if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
                         try {
-                            element = wait.until(ExpectedConditions.presenceOfElementLocated(TextExtractor.resolveLocator(step.getSelector())));
+                            // Use visibilityOfElementLocated instead of presenceOfElementLocated so that
+                            // elements inside cross-origin iframes (e.g. game UIs) are fully rendered
+                            // and interactable before Selenium attempts to interact with them.
+                            element = wait.until(ExpectedConditions.visibilityOfElementLocated(TextExtractor.resolveLocator(step.getSelector())));
                         }catch(Exception ex) {
                             throw new GlobalExceptionHandler.FlowExecutionException(
                                     step.getStepOrder(),
@@ -135,7 +149,7 @@ public class FlowExecutionService {
                         }
                     }
                 } else if (actionType == ActionType.SCROLL && step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
-                    element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
+                    element = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector(step.getSelector())));
                 }
 
                 boolean takePreScreenshot = (actionType == ActionType.CLICK || actionType == ActionType.VERIFY || actionType == ActionType.SELECT);
@@ -144,7 +158,7 @@ public class FlowExecutionService {
                 }
 
                 switch (actionType) {
-                    case NAVIGATE: actionHandlerService.handleNavigate(driver, step); break;
+                    case NAVIGATE: actionHandlerService.handleNavigate(driver, step); frameContextManager.invalidateContext(context); break;
                     case WAIT: actionHandlerService.handleWait(step); break;
                     case TYPE: actionHandlerService.handleType(element, step); break;
                     case CLICK: actionHandlerService.handleClick(driver, element, step); break;
@@ -158,11 +172,11 @@ public class FlowExecutionService {
                     case PRESS_KEY: actionHandlerService.handlePressKey(element, step); break;
                     case DRAG_DROP: actionHandlerService.handleDragDrop(driver, element, step); break;
                     case VERIFY: actionHandlerService.handleVerify(driver,element, step,waitTime); break;
-                    case SWITCH_TO_NEW_TAB: actionHandlerService.handleSwitchToNewTab(driver, step, context); break;
-                    case SWITCH_TO_PARENT_TAB: actionHandlerService.handleSwitchToParentTab(driver, step, context); break;
-                    case CLOSE_TAB: actionHandlerService.handleCloseTab(driver, step, context); break;
+                    case SWITCH_TO_NEW_TAB: actionHandlerService.handleSwitchToNewTab(driver, step, context); frameContextManager.invalidateContext(context); break;
+                    case SWITCH_TO_PARENT_TAB: actionHandlerService.handleSwitchToParentTab(driver, step, context); frameContextManager.invalidateContext(context); break;
+                    case CLOSE_TAB: actionHandlerService.handleCloseTab(driver, step, context); frameContextManager.invalidateContext(context); break;
                     case TAB_LOAD_TIMEOUT: actionHandlerService.handleTabLoadTimeout(step); break;
-                    case SWITCH_TAB: actionHandlerService.handleSwitchTab(driver, step, context); break;
+                    case SWITCH_TAB: actionHandlerService.handleSwitchTab(driver, step, context); frameContextManager.invalidateContext(context); break;
                     default: logger.info("ActionType [{}] is not yet fully integrated.", actionType);
                 }
                 
@@ -240,6 +254,7 @@ public class FlowExecutionService {
         }
         context.getDriver().switchTo().window(handle);
         context.setCurrentTabRef(tabRef);
+        frameContextManager.invalidateContext(context);
         flowSseService.sendTabSwitched(flow.getId(), step, tabRef);
     }
 

@@ -12,6 +12,9 @@ public class FlowExecutionContext {
     private Deque<String> windowStack = new ArrayDeque<>();
     private String currentTabRef;
     private String flowId;
+    
+    private java.util.List<com.testingautomation.testautomation.dto.FrameNode> currentFramePath = new java.util.ArrayList<>();
+    private boolean frameContextValid = true;
 
     public FlowExecutionContext(WebDriver driver, String flowId) {
         this.driver = driver;
@@ -56,5 +59,21 @@ public class FlowExecutionContext {
 
     public void setCurrentTabRef(String currentTabRef) {
         this.currentTabRef = currentTabRef;
+    }
+
+    public java.util.List<com.testingautomation.testautomation.dto.FrameNode> getCurrentFramePath() {
+        return currentFramePath;
+    }
+
+    public void setCurrentFramePath(java.util.List<com.testingautomation.testautomation.dto.FrameNode> currentFramePath) {
+        this.currentFramePath = currentFramePath;
+    }
+
+    public boolean isFrameContextValid() {
+        return frameContextValid;
+    }
+
+    public void setFrameContextValid(boolean frameContextValid) {
+        this.frameContextValid = frameContextValid;
     }
 }

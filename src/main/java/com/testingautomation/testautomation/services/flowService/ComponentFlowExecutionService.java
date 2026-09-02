@@ -105,6 +105,7 @@ public class ComponentFlowExecutionService {
         clone.setContinueOnFailure(original.getContinueOnFailure());
         clone.setCaptureScreenshot(original.getCaptureScreenshot());
         clone.setIsComp(original.getIsComp());
+        clone.setFramePath(original.getFramePath());
         return clone;
     }
 }

@@ -1,10 +1,14 @@
 package com.testingautomation.testautomation.entities.flow;
 
+import com.testingautomation.testautomation.dto.FrameNode;
 import com.testingautomation.testautomation.entities.baseEntity.ExecutionEntity;
 import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.VerificationType;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.data.mongodb.core.mapping.Field;
+
+import java.util.List;
 
 @Getter
 @Setter
@@ -74,6 +78,9 @@ public class FlowStep extends ExecutionEntity {
     private Object triggeringElement;
 
     private Long pageReadyTimeoutMs;
+
+    @Field("framePath")
+    private List<FrameNode> framePath;
 
 //    private Boolean enabled = true;
 
