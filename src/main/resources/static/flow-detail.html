@@ -864,6 +864,164 @@
     const stepsPerPage = 25;
     let environmentsCache = [];
 
+    window.selectedStepsForComponent = new Set();
+
+    window.toggleComponentStep = function(cb, stepOrder) {
+        if (cb.checked) {
+            window.selectedStepsForComponent.add(stepOrder);
+        } else {
+            window.selectedStepsForComponent.delete(stepOrder);
+        }
+        const btn = document.getElementById('create-comp-btn');
+        if (btn) {
+            btn.style.display = window.selectedStepsForComponent.size > 0 ? 'inline-flex' : 'none';
+        }
+    };
+
+    window.componentModules = [];
+
+    window.openCreateComponentModal = async function() {
+        if (window.selectedStepsForComponent.size === 0) {
+            toast('No steps selected', 'warning');
+            return;
+        }
+
+        try {
+            window.componentModules = await api.components.listModules(flow.projectId || projectId) || [];
+        } catch(e) {
+            console.error("Failed to fetch component modules", e);
+            window.componentModules = [];
+        }
+
+        let moduleOptions = window.componentModules.map(m => `<option value="${m.id || m._id}">${esc(m.name)}</option>`).join('');
+        moduleOptions += `<option value="NEW">+ Create New Module</option>`;
+
+        openModal(`
+            <div class="modal" style="width:500px">
+                <div class="modal-head">
+                    <h2>🧩 Create Component</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0; display:flex; flex-direction:column; gap:12px;">
+                    <div style="font-size:13px; color:var(--tx2); margin-bottom:4px;">
+                        Selected ${window.selectedStepsForComponent.size} step(s). They will be extracted into a reusable component.
+                    </div>
+
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Component Module *</label>
+                        <select id="comp-module-select" class="inp" onchange="toggleNewModuleInput(this.value)">
+                            ${moduleOptions}
+                        </select>
+                    </div>
+
+                    <div class="field" id="new-module-input-container" style="margin:0; ${window.componentModules.length === 0 ? '' : 'display:none;'}">
+                        <label class="lbl">New Module Name *</label>
+                        <input id="new-module-name" class="inp" placeholder="e.g. Login Components">
+                    </div>
+
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Component Name *</label>
+                        <input id="new-comp-name" class="inp" placeholder="e.g. Login Sequence">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Description</label>
+                        <input id="new-comp-desc" class="inp" placeholder="Optional description">
+                    </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" id="save-comp-btn" onclick="saveComponentFromSteps()">Save Component</button>
+                </div>
+            </div>
+        `);
+
+        if (window.componentModules.length === 0) {
+            document.getElementById('comp-module-select').value = 'NEW';
+        }
+    };
+
+    window.toggleNewModuleInput = function(val) {
+        const container = document.getElementById('new-module-input-container');
+        if (container) {
+            container.style.display = val === 'NEW' ? 'block' : 'none';
+        }
+    };
+
+    window.saveComponentFromSteps = async function() {
+        const name = document.getElementById('new-comp-name').value.trim();
+        const desc = document.getElementById('new-comp-desc').value.trim();
+        const moduleSelect = document.getElementById('comp-module-select').value;
+        const newModuleName = document.getElementById('new-module-name').value.trim();
+
+        if (!name) {
+            toast('Component Name is required', 'warning');
+            return;
+        }
+
+        let finalCompModuleId = moduleSelect;
+
+        if (moduleSelect === 'NEW') {
+            if (!newModuleName) {
+                toast('New Module Name is required', 'warning');
+                return;
+            }
+            try {
+                const newMod = await api.components.createModule({
+                    projectId: flow.projectId || projectId,
+                    name: newModuleName,
+                    description: ''
+                });
+                finalCompModuleId = newMod.id || newMod._id;
+            } catch(e) {
+                toast('Failed to create component module: ' + e.message, 'error');
+                return;
+            }
+        }
+
+        const saveBtn = document.getElementById('save-comp-btn');
+        if (saveBtn) saveBtn.disabled = true;
+
+        const selectedArray = Array.from(window.selectedStepsForComponent).sort((a, b) => a - b);
+        const stepsToSave = [];
+        selectedArray.forEach((order, idx) => {
+            const originalStep = stepById.get(order);
+            if (originalStep) {
+                const s = { ...originalStep };
+                delete s.executionStatus;
+                delete s.executionMessage;
+                delete s.executionStartedAt;
+                delete s.executionCompletedAt;
+                delete s.executionTime;
+                delete s.screenshotUrl;
+                s.stepOrder = idx + 1;
+                s.isComp = true;
+                stepsToSave.push(s);
+            }
+        });
+        
+        const payload = {
+            projectId: flow.projectId || projectId,
+            compModuleId: finalCompModuleId,
+            name,
+            description: desc,
+            steps: stepsToSave,
+            createdBy: user.username
+        };
+        
+        try {
+            await api.components.createComponent(payload);
+            toast('Component created successfully!', 'success');
+            closeModal();
+            window.selectedStepsForComponent.clear();
+            const btn = document.getElementById('create-comp-btn');
+            if (btn) btn.style.display = 'none';
+            document.querySelectorAll('.step-comp-checkbox').forEach(cb => cb.checked = false);
+        } catch (e) {
+            toast('Failed to create component: ' + e.message, 'error');
+            if (saveBtn) saveBtn.disabled = false;
+        }
+    };
+
     // O(1) Lookup Maps
     let stepById = new Map();
     let domById = new Map();
