@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.entities.flow.Flow;
+import com.testingautomation.testautomation.enums.flow.VerificationType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
 import lombok.AllArgsConstructor;
@@ -27,6 +28,9 @@ public class ActionHandlerService {
 
     @Autowired
     private final VerificationService verificationService;
+
+    @Autowired
+    private final FlowSseService flowSseService;
     public void handleNavigate(WebDriver driver, FlowStep step) {
         String url = step.getValue();
         if (url == null || url.isEmpty()) {
@@ -81,10 +85,8 @@ public class ActionHandlerService {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
         try {
-            // Scroll into view
-            ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView({block:'center',inline:'center'});",
-                    element);
+            // Scroll into view (handles nested scrollable containers)
+            smartScrollIntoView(driver, element);
 
             // Wait until clickable
             wait.until(ExpectedConditions.elementToBeClickable(element));
@@ -238,8 +240,23 @@ public class ActionHandlerService {
     }
 
     public void handleWait(FlowStep step) {
-        int waitTime = step.getValue() != null ? Integer.parseInt(step.getValue()) : 1000;
+        int waitTime = step.getValue() != null && !step.getValue().trim().isEmpty() ? Integer.parseInt(step.getValue()) : 1000;
         logger.info("Hard waiting for {} milliseconds", waitTime);
+        try {
+            Thread.sleep(waitTime);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    public void handleTabLoadTimeout(FlowStep step) {
+        int waitTime = 5000; // default 5 seconds
+        if (step.getValue() != null && !step.getValue().trim().isEmpty()) {
+            try {
+                waitTime = Integer.parseInt(step.getValue());
+            } catch (NumberFormatException ignored) {}
+        }
+        logger.info("Waiting {} ms for tab to load...", waitTime);
         try {
             Thread.sleep(waitTime);
         } catch (InterruptedException e) {
@@ -250,7 +267,7 @@ public class ActionHandlerService {
     public void handleScroll(WebDriver driver, WebElement element, FlowStep step) {
         logger.info("Scrolling to element");
         if (element != null) {
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", element);
+            smartScrollIntoView(driver, element);
         } else if (step.getValue() != null) {
             // Scroll by pixel value, e.g. "0, 500"
             ((JavascriptExecutor) driver).executeScript("window.scrollBy(" + step.getValue() + ");");
@@ -289,20 +306,117 @@ public class ActionHandlerService {
         }
     }
 
+    public void handleSwitchToNewTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        String targetRef = step.getToTabRef() != null ? step.getToTabRef() : (step.getTabRef() != null ? step.getTabRef() : "tab_0");
+        logger.info("Switching to new tab [{}]", targetRef);
+
+        long timeoutMs = step.getPageReadyTimeoutMs() != null ? step.getPageReadyTimeoutMs() : 30000;
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(timeoutMs));
+
+        try {
+            wait.until(d -> d.getWindowHandles().size() > context.getTabRefToHandle().size());
+
+            String newHandle = null;
+            for (String handle : driver.getWindowHandles()) {
+                if (!context.getTabRefToHandle().containsValue(handle)) {
+                    newHandle = handle;
+                    break;
+                }
+            }
+
+            if (newHandle != null) {
+                driver.switchTo().window(newHandle);
+                context.getTabRefToHandle().put(targetRef, newHandle);
+                context.getWindowStack().push(newHandle);
+                context.setCurrentTabRef(targetRef);
+
+                // wait for page ready
+                wait.until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
+            }
+        } catch (TimeoutException e) {
+            try {
+                flowSseService.sendTabStuck(context.getFlowId(), step, context.getDriver().getCurrentUrl());
+            } catch (Exception ignored) {}
+            if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
+                throw new GlobalExceptionHandler.FlowExecutionException(
+                        step.getStepOrder(), step.getName(), step.getActionType(),
+                        "New tab did not open or load in time", "Timeout waiting for new tab", e
+                );
+            }
+        }
+    }
+
+    public void handleSwitchToParentTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        logger.info("Switching to parent tab [{}]", step.getSourceTabRef());
+        String targetRef = step.getSourceTabRef() != null ? step.getSourceTabRef() : "tab_0";
+        String handle = context.getTabRefToHandle().get(targetRef);
+
+        if (handle != null) {
+            driver.switchTo().window(handle);
+            context.setCurrentTabRef(targetRef);
+        } else {
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(), step.getName(), step.getActionType(),
+                    "Parent tab not found", "Could not find handle for tab " + targetRef, null
+            );
+        }
+    }
+
+    public void handleSwitchTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        String targetRef = step.getToTabRef() != null ? step.getToTabRef() : (step.getTabRef() != null ? step.getTabRef() : "tab_0");
+        logger.info("Switching tab to [{}]", targetRef);
+        String handle = context.getTabRefToHandle().get(targetRef);
+
+        if (handle != null) {
+            driver.switchTo().window(handle);
+            context.setCurrentTabRef(targetRef);
+        } else {
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(), step.getName(), step.getActionType(),
+                    "Target tab not found", "Could not find handle for tab " + targetRef, null
+            );
+        }
+    }
+
+    public void handleCloseTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+        logger.info("Closing tab [{}]", step.getTabRef());
+        String tabToClose = step.getTabRef() != null ? step.getTabRef() : context.getCurrentTabRef();
+        String handle = context.getTabRefToHandle().get(tabToClose);
+
+        if (handle != null) {
+            String currentHandle = driver.getWindowHandle();
+            if (!currentHandle.equals(handle)) {
+                driver.switchTo().window(handle);
+            }
+            driver.close();
+            context.getTabRefToHandle().remove(tabToClose);
+            context.getWindowStack().remove(handle);
+
+            if (!context.getWindowStack().isEmpty()) {
+                String topHandle = context.getWindowStack().peek();
+                driver.switchTo().window(topHandle);
+                // Find tabRef for topHandle
+                for (java.util.Map.Entry<String, String> entry : context.getTabRefToHandle().entrySet()) {
+                    if (entry.getValue().equals(topHandle)) {
+                        context.setCurrentTabRef(entry.getKey());
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
     public void handleVerify(WebDriver driver, WebElement element, FlowStep step,int waitTime) {
 //        if(element!=null){
 //            handleHover(driver,element,step);
 //        }
-
         if (element != null) {
-            ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView({block:'center',inline:'center'});",
-                    element);
+            smartScrollIntoView(driver, element);
         }
-        com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
+        VerificationType vType = step.getVerificationType();
         if (vType == null) {
             logger.warn("VerificationType is null for step [{}], defaulting to VISIBLE check", step.getName());
-            vType = com.testingautomation.testautomation.enums.flow.VerificationType.VISIBLE;
+            vType = VerificationType.VISIBLE;
         }
 
         String expected = step.getExpectedValue();
@@ -314,7 +428,7 @@ public class ActionHandlerService {
             case VISIBLE: {
                 logger.info("Verifying visibility of element [{}]", step.getName());
                 logger.info("Element : {}",element);
-                if (element == null || !element.isDisplayed()) {
+                if (!verificationService.isActuallyVisible(driver, element)) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"VISIBLE verification failed","VISIBLE verification failed: element is not visible. Selector: " + step.getSelector(),null);
                 }
                 logger.info("VISIBLE verification passed.");
@@ -323,7 +437,7 @@ public class ActionHandlerService {
 
             case NOT_VISIBLE: {
                 // element may already be null (not found), or present but hidden — both are acceptable
-                boolean notVisible = (element == null) || !element.isDisplayed();
+                boolean notVisible = !verificationService.isActuallyVisible(driver, element);
                 if (!notVisible) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_VISIBLE verification failed","NOT_VISIBLE verification failed: element is visible. Selector: " + step.getSelector(),null);
                 }
@@ -437,6 +551,68 @@ public class ActionHandlerService {
                 break;
             }
 
+            case CONTAINS: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"CONTAINS verification failed","CONTAINS verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                String rawActual = getElementTextForVerification(driver, element, step);
+                rawActual = rawActual != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
+                expected = expected != null ? expected.replaceAll("\\s+", " ").trim() : "";
+
+                logger.info("CONTAINS verification. Expected: [{}], Actual: [{}]", expected, rawActual);
+
+                if (!rawActual.contains(expected)) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"CONTAINS verification failed",String.format("CONTAINS verification failed: expected [%s] to be contained in [%s]. Selector: %s", expected, rawActual, step.getSelector()),null);
+                }
+                logger.info("CONTAINS verification passed. Value: [{}]", rawActual);
+                break;
+            }
+
+            case NOT_EQUALS: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_EQUALS verification failed","NOT_EQUALS verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                String rawActual = getElementTextForVerification(driver, element, step);
+                rawActual = rawActual != null ? rawActual.replaceAll("\\s+", " ").trim() : "";
+                expected = expected != null ? expected.replaceAll("\\s+", " ").trim() : "";
+
+                logger.info("NOT_EQUALS verification. Expected: [{}], Actual: [{}]", expected, rawActual);
+
+                if (rawActual.equals(expected)) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"NOT_EQUALS verification failed",String.format("NOT_EQUALS verification failed: text was exactly equal to [%s]. Selector: %s", expected, step.getSelector()),null);
+                }
+                logger.info("NOT_EQUALS verification passed. Value: [{}]", rawActual);
+                break;
+            }
+
+            case TOOLTIP: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TOOLTIP verification failed","TOOLTIP verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                String titleAttr = element.getAttribute("title");
+
+                if (titleAttr == null || titleAttr.trim().isEmpty()) {
+                    titleAttr = element.getAttribute("data-tooltip");
+                }
+                if (titleAttr == null || titleAttr.trim().isEmpty()) {
+                    titleAttr = element.getAttribute("aria-label");
+                }
+                if (titleAttr == null || titleAttr.trim().isEmpty()) {
+                    titleAttr = element.getAttribute("data-original-title"); // Common for bootstrap
+                }
+                if (titleAttr == null) titleAttr = "";
+
+                String expectedTitle = expected != null ? expected.trim() : "";
+
+                logger.info("TOOLTIP verification. Expected: [{}], Actual: [{}]", expectedTitle, titleAttr);
+
+                if (!titleAttr.trim().equals(expectedTitle)) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TOOLTIP verification failed",String.format("TOOLTIP verification failed: expected [%s] but found [%s]. Selector: %s", expectedTitle, titleAttr, step.getSelector()),null);
+                }
+                logger.info("TOOLTIP verification passed. Value: [{}]", titleAttr);
+                break;
+            }
+
             case VALUE: {
                 if (element == null) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"VALUE verification failed","VALUE verification failed: element is null. Selector: " + step.getSelector(),null);
@@ -450,6 +626,28 @@ public class ActionHandlerService {
 
                 }
                 logger.info("VALUE verification passed. Value: [{}]", actualValue);
+                break;
+            }
+
+            case SELECTED_VALUE: {
+                if (element == null) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"SELECTED_VALUE verification failed","SELECTED_VALUE verification failed: element is null. Selector: " + step.getSelector(),null);
+                }
+                org.openqa.selenium.support.ui.Select select = new org.openqa.selenium.support.ui.Select(element);
+                WebElement selectedOption = select.getFirstSelectedOption();
+                String actualText = selectedOption != null ? selectedOption.getText() : "";
+                if (actualText == null) actualText = "";
+                String expectedValue = expected != null ? expected.trim() : "";
+
+                if (!actualText.trim().equals(expectedValue)) {
+                    String actualValAttr = selectedOption != null ? selectedOption.getAttribute("value") : "";
+                    if (actualValAttr == null) actualValAttr = "";
+                    if (!actualValAttr.trim().equals(expectedValue)) {
+                        throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"SELECTED_VALUE verification failed",String.format("SELECTED_VALUE verification failed: expected [%s] but found text [%s] and value [%s]. Selector: %s",
+                                expectedValue, actualText.trim(), actualValAttr.trim(), step.getSelector()),null);
+                    }
+                }
+                logger.info("SELECTED_VALUE verification passed. Value: [{}]", expectedValue);
                 break;
             }
 
@@ -548,6 +746,21 @@ public class ActionHandlerService {
                 break;
             }
 
+            case PAGE_READY: {
+                logger.info("Verifying page ready state");
+                WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
+                try {
+                    wait.until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
+                    logger.info("PAGE_READY verification passed.");
+                } catch (TimeoutException e) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(
+                            step.getStepOrder(), step.getName(), step.getActionType(),
+                            "PAGE_READY verification failed", "Page did not reach ready state in time", e
+                    );
+                }
+                break;
+            }
+
             // ── AI (future / not yet implemented) ───────────────────────────────────
             case AI: {
                 logger.warn("AI verification type is not yet implemented for step [{}]. Skipping.", step.getName());
@@ -571,9 +784,9 @@ public class ActionHandlerService {
                     null
             );
         }
-        
+
         logger.info("Handling URL_CHANGE by waiting for {} milliseconds", waitTime);
-        
+
         if (waitTime == 0) {
             return;
         }
@@ -601,6 +814,82 @@ public class ActionHandlerService {
             return flow.getUrlChangeWait();
         }
         return 2000L;
+    }
+
+    private String getElementTextForVerification(WebDriver driver, WebElement element, FlowStep step) {
+        String rawActual = element.getText();
+        String textSource = step.getTextSource() != null ? step.getTextSource().toLowerCase() : "";
+
+        if (rawActual == null || rawActual.isEmpty()) {
+            switch (textSource) {
+                case "value":
+                    rawActual = element.getAttribute("value");
+                    break;
+                case "placeholder":
+                    rawActual = element.getAttribute("placeholder");
+                    break;
+                case "text":
+                    rawActual = element.getText();
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = (String) ((JavascriptExecutor) driver).executeScript("return arguments[0].textContent;", element);
+                    }
+                    break;
+                default:
+                    rawActual = element.getText();
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = (String) ((JavascriptExecutor) driver).executeScript("return arguments[0].textContent;", element);
+                    }
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = element.getAttribute("value");
+                    }
+                    if (rawActual == null || rawActual.isEmpty()) {
+                        rawActual = element.getAttribute("placeholder");
+                    }
+                    break;
+            }
+        }
+        return rawActual;
+    }
+
+    /**
+     * Scrolls an element into view by handling both the main window and any
+     * nested scrollable ancestor containers (divs/tables with overflow: auto/scroll).
+     *
+     * Plain scrollIntoView(true) only adjusts the nearest scrollable ancestor at the
+     * viewport level — it does NOT scroll inner containers (e.g. a table body with a
+     * fixed height and overflow:auto). This method walks up the full ancestor chain
+     * and individually scrolls every scrollable parent so the element becomes visible.
+     */
+    private void smartScrollIntoView(WebDriver driver, WebElement element) {
+        // Step 1: Native scrollIntoView centers the element in the viewport (handles simple cases)
+        try {
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'});",
+                    element
+            );
+        } catch (Exception ignored) {}
+
+        // Step 2: Walk up every ancestor and scroll each scrollable container
+        try {
+            ((JavascriptExecutor) driver).executeScript("""
+                var el = arguments[0];
+                var parent = el.parentElement;
+                while (parent && parent !== document.body && parent !== document.documentElement) {
+                    var style = window.getComputedStyle(parent);
+                    var overflow = style.overflow + ' ' + style.overflowY + ' ' + style.overflowX;
+                    if (/auto|scroll/.test(overflow)) {
+                        var rect = el.getBoundingClientRect();
+                        var parentRect = parent.getBoundingClientRect();
+                        // Center the element within the scrollable container
+                        parent.scrollTop  += rect.top  - parentRect.top  - (parentRect.height / 2) + (rect.height / 2);
+                        parent.scrollLeft += rect.left - parentRect.left - (parentRect.width  / 2) + (rect.width  / 2);
+                    }
+                    parent = parent.parentElement;
+                }
+            """, element);
+        } catch (Exception e) {
+            logger.warn("smartScrollIntoView ancestor walk failed: {}", e.getMessage());
+        }
     }
 }
 

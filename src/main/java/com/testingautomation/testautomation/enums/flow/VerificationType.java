@@ -32,5 +32,15 @@ public enum VerificationType {
 
     COUNT,
 
-    AI
+    AI,
+
+    PAGE_READY,
+
+    CONTAINS,
+
+    NOT_EQUALS,
+
+    TOOLTIP,
+
+    SELECTED_VALUE
 }

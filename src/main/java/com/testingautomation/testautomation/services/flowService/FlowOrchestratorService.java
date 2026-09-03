@@ -2,6 +2,12 @@ package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.config.WebDriverConfig.WebDriverFactory;
 import com.testingautomation.testautomation.entities.ProjectEnvironment;
+import com.testingautomation.testautomation.entities.component.Component;
+import com.testingautomation.testautomation.entities.component.FlowInfo;
+import com.testingautomation.testautomation.entities.component.FlowItem;
+import com.testingautomation.testautomation.enums.flow.FlowItemType;
+import com.testingautomation.testautomation.repositories.flowRepos.ComponentRepository;
+import com.testingautomation.testautomation.repositories.flowRepos.FlowInfoRepository;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ActionType;
@@ -20,9 +26,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -55,6 +65,12 @@ public class FlowOrchestratorService {
 
     @Autowired
     private FlowSseService flowSseService;
+
+    @Autowired
+    private FlowInfoRepository flowInfoRepository;
+
+    @Autowired
+    private ComponentRepository componentRepository;
 
     @Value("${storage.s3.base-prefix}")
     private String basePrefix;
@@ -226,9 +242,14 @@ public class FlowOrchestratorService {
             // Resolve all NAVIGATE step URLs upfront using the selected environment.
             // This happens before any status change or DB write, so if resolution
             // fails for any reason the flow never enters the RUNNING state.
-            if (environment != null && flow.getSteps() != null) {
-                for (FlowStep step : flow.getSteps()) {
-                    if (step.getActionType() == ActionType.NAVIGATE) {
+            if (flow.getSteps() != null) {
+                for (int i = 0; i < flow.getSteps().size(); i++) {
+                    FlowStep step = flow.getSteps().get(i);
+                    if (step.getActionType() == ActionType.NEW_TAB_OPENED || step.getActionType() == ActionType.SWITCH_TO_NEW_TAB) {
+                        step.setActionType(ActionType.SWITCH_TO_NEW_TAB);
+                        logger.info("Compiled NEW_TAB_OPENED step [{}] to SWITCH_TO_NEW_TAB with tabRef [{}]", step.getName(), step.getTabRef());
+                    }
+                    if (environment != null && step.getActionType() == ActionType.NAVIGATE) {
                         String resolvedUrl = navigationUrlResolver.resolve(step, environment);
                         step.setValue(resolvedUrl);
                         logger.info("Pre-resolved NAVIGATE step [{}]: {}", step.getName(), resolvedUrl);
@@ -261,8 +282,14 @@ public class FlowOrchestratorService {
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
             driver = webDriverFactory.createDriver();
+            com.testingautomation.testautomation.dto.FlowExecutionContext context = null;
             if (driver != null) {
                 activeDrivers.put(flow.getId(), driver);
+                context = new com.testingautomation.testautomation.dto.FlowExecutionContext(driver, flow.getId());
+                String initialHandle = driver.getWindowHandle();
+                context.getTabRefToHandle().put("tab_0", initialHandle);
+                context.getWindowStack().push(initialHandle);
+                context.setCurrentTabRef("tab_0");
             }
             if (isCancelled(flow)) {
                 logger.info("Flow [{}] execution cancelled after driver creation.", flow.getName());
@@ -291,7 +318,7 @@ public class FlowOrchestratorService {
                     break;
                 }
                 try {
-                    flowExecutionService.executeStep(driver, step, flow);
+                    flowExecutionService.executeStep(context, step, flow);
                 } catch (Exception e) {
                     if (isCancelled(flow)) {
                         logger.info("Flow [{}] step interrupted due to user cancellation.", flow.getName());
@@ -353,4 +380,5 @@ public class FlowOrchestratorService {
             }
         }
     }
+
 }

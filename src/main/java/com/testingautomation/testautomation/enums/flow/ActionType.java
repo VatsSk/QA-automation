@@ -31,4 +31,16 @@ public enum ActionType {
     VERIFY,
 
     URL_CHANGE,
+
+    SWITCH_TO_NEW_TAB,
+
+    SWITCH_TO_PARENT_TAB,
+
+    CLOSE_TAB,
+
+    NEW_TAB_OPENED,
+
+    TAB_LOAD_TIMEOUT,
+
+    SWITCH_TAB
 }
