@@ -63,10 +63,8 @@ public class ActionHandlerService {
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
 
         try {
-            // Scroll into view
-            ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView(true);",
-                    element);
+            // Scroll into view (handles nested scrollable containers)
+            smartScrollIntoView(driver, element);
 
             // Wait until clickable
             wait.until(ExpectedConditions.elementToBeClickable(element));
@@ -247,7 +245,7 @@ public class ActionHandlerService {
     public void handleScroll(WebDriver driver, WebElement element, FlowStep step) {
         logger.info("Scrolling to element");
         if (element != null) {
-            ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView(true);", element);
+            smartScrollIntoView(driver, element);
         } else if (step.getValue() != null) {
             // Scroll by pixel value, e.g. "0, 500"
             ((JavascriptExecutor) driver).executeScript("window.scrollBy(" + step.getValue() + ");");
@@ -391,9 +389,7 @@ public class ActionHandlerService {
 //            handleHover(driver,element,step);
 //        }
         if (element != null) {
-            ((JavascriptExecutor) driver).executeScript(
-                    "arguments[0].scrollIntoView(true);",
-                    element);
+            smartScrollIntoView(driver, element);
         }
         VerificationType vType = step.getVerificationType();
         if (vType == null) {
@@ -787,6 +783,47 @@ public class ActionHandlerService {
             }
         }
         return rawActual;
+    }
+
+    /**
+     * Scrolls an element into view by handling both the main window and any
+     * nested scrollable ancestor containers (divs/tables with overflow: auto/scroll).
+     *
+     * Plain scrollIntoView(true) only adjusts the nearest scrollable ancestor at the
+     * viewport level — it does NOT scroll inner containers (e.g. a table body with a
+     * fixed height and overflow:auto). This method walks up the full ancestor chain
+     * and individually scrolls every scrollable parent so the element becomes visible.
+     */
+    private void smartScrollIntoView(WebDriver driver, WebElement element) {
+        // Step 1: Native scrollIntoView centers the element in the viewport (handles simple cases)
+        try {
+            ((JavascriptExecutor) driver).executeScript(
+                    "arguments[0].scrollIntoView({behavior: 'instant', block: 'center', inline: 'nearest'});",
+                    element
+            );
+        } catch (Exception ignored) {}
+
+        // Step 2: Walk up every ancestor and scroll each scrollable container
+        try {
+            ((JavascriptExecutor) driver).executeScript("""
+                var el = arguments[0];
+                var parent = el.parentElement;
+                while (parent && parent !== document.body && parent !== document.documentElement) {
+                    var style = window.getComputedStyle(parent);
+                    var overflow = style.overflow + ' ' + style.overflowY + ' ' + style.overflowX;
+                    if (/auto|scroll/.test(overflow)) {
+                        var rect = el.getBoundingClientRect();
+                        var parentRect = parent.getBoundingClientRect();
+                        // Center the element within the scrollable container
+                        parent.scrollTop  += rect.top  - parentRect.top  - (parentRect.height / 2) + (rect.height / 2);
+                        parent.scrollLeft += rect.left - parentRect.left - (parentRect.width  / 2) + (rect.width  / 2);
+                    }
+                    parent = parent.parentElement;
+                }
+            """, element);
+        } catch (Exception e) {
+            logger.warn("smartScrollIntoView ancestor walk failed: {}", e.getMessage());
+        }
     }
 }
 
