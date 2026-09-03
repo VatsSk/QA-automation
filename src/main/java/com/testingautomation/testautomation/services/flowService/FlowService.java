@@ -25,6 +25,9 @@ public class FlowService {
 
     @Autowired
     private FlowRepository flowRepository;
+    
+    @Autowired
+    private com.testingautomation.testautomation.repositories.flowRepos.FlowInfoRepository flowInfoRepository;
     @Autowired
     private StorageService storageService;
 

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>QA Studio — Component Editor</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <style>
+        .step-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .step-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: var(--sur2);
+            border: 1px solid var(--bd);
+            border-radius: var(--r);
+        }
+        .step-order {
+            font-weight: bold;
+            color: var(--tx3);
+            width: 24px;
+            text-align: center;
+        }
+        .step-info {
+            flex: 1;
+        }
+        .step-title {
+            font-weight: 600;
+            font-size: 14px;
+        }
+        .step-details {
+            font-size: 11px;
+            color: var(--tx3);
+            margin-top: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .step-actions {
+            display: flex;
+            gap: 8px;
+        }
+        .form-section {
+            background: var(--sur);
+            border: 1px solid var(--bd);
+            border-radius: var(--rl);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+<div id="toasts"></div>
+<div id="modal-root"></div>
+
+<div class="app-layout">
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <div class="main-col">
+        <div class="topbar">
+            <div class="crumb">
+                <a class="crumb-link" href="/projects.html">Projects</a>
+                <span class="crumb-sep">›</span>
+                <a class="crumb-link" id="crumb-proj" href="#">Project</a>
+                <span class="crumb-sep">›</span>
+                <a class="crumb-link" id="crumb-mod" href="#">Modules</a>
+                <span class="crumb-sep">›</span>
+                <span class="crumb-cur" id="crumb-comp">New Component</span>
+            </div>
+            <div class="topbar-right">
+                <button class="btn-icon theme-btn" onclick="toggleTheme()">☀</button>
+            </div>
+        </div>
+
+        <div class="main-scroll">
+            <div class="page">
+                <div class="page-header row-between">
+                    <div>
+                        <div class="page-title" id="page-title">Create Component</div>
+                        <div class="page-sub" id="page-sub">Define a reusable sequence of steps</div>
+                    </div>
+                    <div style="display:flex;gap:8px;align-items:center">
+                        <button class="btn btn-ghost" onclick="window.history.back()">⬅ Back</button>
+                        <button class="btn btn-primary" onclick="saveComponent()">💾 Save Component</button>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+                        <div class="field" style="margin:0">
+                            <label class="lbl">Component Name *</label>
+                            <input id="comp-name" class="inp" placeholder="e.g. Login Sequence">
+                        </div>
+                        <div class="field" style="margin:0">
+                            <label class="lbl">Description</label>
+                            <input id="comp-desc" class="inp" placeholder="Optional description">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <h3 style="margin:0; font-size:16px;">Component Steps</h3>
+                        <div style="display:flex; gap:8px;">
+                            <button class="btn btn-secondary" onclick="showAddStepModal()">+ Add Manual Step</button>
+                            <button class="btn btn-secondary" onclick="launchComponentRecorder()">🔴 Record via Extension</button>
+                        </div>
+                    </div>
+                    
+                    <div id="step-list" class="step-list">
+                        <div class="empty" style="padding:40px;text-align:center;color:var(--tx3);border:1px dashed var(--bd);border-radius:var(--r);margin-top:16px">
+                            No steps added yet. Add a manual step or record via extension.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    import * as api from './js/api.js';
+    import { esc, toast, openModal, closeModal, requireLogin, initTheme, toggleTheme, buildSidebar } from './js/utils.js';
+
+    window.toggleTheme = toggleTheme;
+    window.closeModal  = closeModal;
+
+    const user = requireLogin();
+    if (!user) throw new Error('not logged in');
+
+    initTheme();
+    buildSidebar('modules', api);
+
+    const params = new URLSearchParams(location.search);
+    const projectId = params.get('projectId');
+    const moduleId = params.get('moduleId') || params.get('compModuleId'); // Read moduleId from URL
+    const compId = params.get('compId');
+
+    if (!projectId) { window.location.href = '/projects.html'; }
+
+    let steps = [];
+    let componentData = null;
+
+    async function load() {
+        try {
+            const project = await api.projects.get(projectId);
+            document.getElementById('crumb-proj').textContent = project?.name || 'Project';
+            document.getElementById('crumb-proj').href = '/modules.html?projectId=' + projectId;
+            document.getElementById('crumb-mod').href = '/modules.html?projectId=' + projectId;
+
+            if (compId) {
+                // Fetch existing component
+                const allModules = await api.components.listModules(projectId);
+                for (const m of allModules) {
+                    const comps = await api.components.listComponents(projectId, m.id || m._id);
+                    const found = comps.find(c => (c.id || c._id) === compId);
+                    if (found) {
+                        componentData = found;
+                        break;
+                    }
+                }
+                
+                if (componentData) {
+                    document.getElementById('comp-name').value = componentData.name;
+                    document.getElementById('comp-desc').value = componentData.description || '';
+                    steps = componentData.steps || [];
+                    document.getElementById('page-title').textContent = 'Edit Component';
+                    document.getElementById('crumb-comp').textContent = componentData.name;
+                } else {
+                    toast('Component not found', 'error');
+                }
+            }
+            
+            renderSteps();
+        } catch (e) {
+            toast('Failed to load data: ' + e.message, 'error');
+        }
+    }
+
+    function renderSteps() {
+        const container = document.getElementById('step-list');
+        if (steps.length === 0) {
+            container.innerHTML = `
+                <div class="empty" style="padding:40px;text-align:center;color:var(--tx3);border:1px dashed var(--bd);border-radius:var(--r);margin-top:16px">
+                    No steps added yet. Add a manual step.
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = steps.map((step, index) => `
+            <div class="step-item">
+                <div class="step-order">${index + 1}</div>
+                <div class="step-info">
+                    <div class="step-title">${esc(step.name || step.actionType)}</div>
+                    <div class="step-details">${esc(step.actionType)} | Selector: ${esc(step.selector || 'N/A')} | Value: ${esc(step.value || 'N/A')}</div>
+                </div>
+                <div class="step-actions">
+                    <button class="btn btn-danger btn-xs" onclick="removeStep(${index})">✕</button>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    window.removeStep = function(index) {
+        steps.splice(index, 1);
+        renderSteps();
+    };
+
+    window.showAddStepModal = function() {
+        openModal(`
+        <div class="modal" style="width:600px">
+            <div class="modal-head">
+                <h2>Add Manual Step</h2>
+                <button class="modal-close" onclick="closeModal()">✕</button>
+            </div>
+            <div style="padding:20px 0; display:flex; flex-direction:column; gap:12px">
+                <div class="field" style="margin:0">
+                    <label class="lbl">Step Name *</label>
+                    <input id="ms-name" class="inp" placeholder="e.g. Click Login Button">
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Action Type</label>
+                    <select id="ms-action" class="inp">
+                        <option value="NAVIGATE">NAVIGATE</option>
+                        <option value="CLICK">CLICK</option>
+                        <option value="TYPE">TYPE</option>
+                        <option value="VERIFY">VERIFY</option>
+                        <option value="WAIT">WAIT</option>
+                    </select>
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Selector (CSS/XPath)</label>
+                    <input id="ms-selector" class="inp" placeholder="#btn-login">
+                </div>
+                <div class="field" style="margin:0">
+                    <label class="lbl">Value</label>
+                    <input id="ms-value" class="inp" placeholder="https://... or JohnDoe">
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="addStep()">Add Step</button>
+                </div>
+            </div>
+        </div>`);
+    };
+
+    window.addStep = function() {
+        const name = document.getElementById('ms-name').value.trim();
+        const actionType = document.getElementById('ms-action').value;
+        const selector = document.getElementById('ms-selector').value.trim();
+        const value = document.getElementById('ms-value').value.trim();
+
+        if (!name) { toast('Step Name is required', 'warning'); return; }
+
+        steps.push({
+            name,
+            actionType,
+            selector,
+            value,
+            stepOrder: steps.length + 1,
+            isComp: true
+        });
+
+        closeModal();
+        renderSteps();
+    };
+
+    window.saveComponent = async function() {
+        const name = document.getElementById('comp-name').value.trim();
+        const desc = document.getElementById('comp-desc').value.trim();
+
+        if (!name) { toast('Component Name is required', 'warning'); return; }
+
+        steps.forEach((s, idx) => s.stepOrder = idx + 1);
+
+        const payload = {
+            projectId,
+            name,
+            description: desc,
+            steps: steps,
+            createdBy: user.username
+        };
+
+        if (componentData) {
+            payload.compModuleId = componentData.compModuleId;
+        } else {
+            payload.compModuleId = moduleId;
+        }
+
+        try {
+            if (compId) {
+                await api.components.updateComponent(compId, payload);
+                toast('Component updated successfully!', 'success');
+            } else {
+                await api.components.createComponent(payload);
+                toast('Component created successfully!', 'success');
+            }
+            
+            setTimeout(() => {
+                window.location.href = '/modules.html?projectId=' + projectId;
+            }, 1000);
+        } catch (e) {
+            toast('Failed to save component: ' + e.message, 'error');
+        }
+    };
+
+    window.launchComponentRecorder = async function () {
+        try {
+            const projectData = await fetch(`/api/projects/url/${projectId}`).then(r => {
+                if (!r.ok) throw new Error('Failed to fetch project');
+                return r.json();
+            });
+
+            let extensionId;
+            try {
+                const res = await api.users.getExtensionId(user.username);
+                extensionId = res.extensionId;
+            } catch (e) {
+                console.error('Failed to fetch extension ID', e);
+            }
+
+            if (!extensionId) {
+                toast('Please configure your Chrome Extension ID from the Projects page.', 'warning', 5000);
+                return;
+            }
+
+            if (!window.chrome || !window.chrome.runtime) {
+                toast('Chrome extension is not installed or not accessible from this page.', 'error', 5000);
+                return;
+            }
+
+            const compName = document.getElementById('comp-name').value.trim() || 'Untitled Component';
+            const compDesc = document.getElementById('comp-desc').value.trim() || '';
+
+            console.log(moduleId, user.username)
+
+            chrome.runtime.sendMessage(
+                extensionId,
+                {
+                    action: "START_RECORDING",
+                    projectId,
+                    compModuleId: moduleId,
+                    compId: compId || null,
+                    name: compName,
+                    description: compDesc,
+                    createdBy: user.username,
+                    url: projectData.loginUrl,
+                    flag: "COMPONENT"
+                },
+                (res) => {
+                    if (chrome.runtime.lastError) {
+                        toast('Failed to connect to extension. Please check that the extension is installed and the ID is correct.', 'error', 5000);
+                        return;
+                    }
+                    toast('window is already open close it to open new one', 'error', 10000);
+                }
+            );
+        } catch (e) {
+            toast('Failed to start component recorder: ' + e.message, 'error');
+        }
+    };
+
+    load();
+</script>
+</body>
+</html>
