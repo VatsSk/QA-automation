@@ -1,10 +1,13 @@
 package com.testingautomation.testautomation.controllers.flowController;
 
+import com.testingautomation.testautomation.dto.FlowExecutionContext;
 import com.testingautomation.testautomation.entities.component.FlowInfo;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.services.flowService.FlowOrchestratorService;
 import com.testingautomation.testautomation.services.flowService.FlowService;
 import com.testingautomation.testautomation.services.flowService.FlowSseService;
+import com.testingautomation.testautomation.services.flowService.WebDriverRegistry;
+import org.openqa.selenium.WebDriver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +33,9 @@ public class FlowController {
 
     @Autowired
     private FlowOrchestratorService flowOrchestratorService;
+
+    @Autowired
+    private WebDriverRegistry webDriverRegistry;
 
     @PutMapping("/{id}")
     public ResponseEntity<Flow> createOrUpdateFlow(@PathVariable String id,@RequestBody Flow flow) {
@@ -115,8 +121,13 @@ public class FlowController {
 
         logger.info("Triggering execution for Legacy Flow: {} with environmentId: {}", flow.getName(), environmentId);
 
-        // If an environmentId is provided, NAVIGATE steps will have their origin replaced.
-        // If null, executes using the recorded URLs — backward compatible.
+        // Close any paused browser session for this flow before starting fresh
+        FlowExecutionContext existingContext = webDriverRegistry.getContext(id);
+        if (existingContext != null && existingContext.getDriver() != null) {
+            logger.info("Closing existing paused WebDriver for flow [{}] before new run", id);
+            try { existingContext.getDriver().quit(); } catch (Exception ignored) {}
+            webDriverRegistry.removeContext(id);
+        }
 
         flowOrchestratorService.executeFlow(flow, environmentId);
         return ResponseEntity.ok("Flow execution started for: " + flow.getName());

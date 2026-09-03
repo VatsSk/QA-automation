@@ -145,6 +145,14 @@
             border-left: 3px solid var(--am);
             animation: pulse 2s ease-in-out infinite;
         }
+        .step-card.step-paused {
+            border-left: 3px solid var(--am);
+        }
+        .step-card.step-paused.selected {
+            background: linear-gradient(90deg, rgba(255,160,0,.04) 0%, transparent 40%);
+            border-color: var(--am);
+            box-shadow: 0 0 0 1px var(--am);
+        }
 
         /* Step head (collapsed view) */
         .step-head {
@@ -182,6 +190,11 @@
             background: var(--gr-d);
             border-color: var(--gr-b);
             color: var(--gr);
+        }
+        .step-paused .step-num {
+            background: var(--am-d);
+            border-color: var(--am-b);
+            color: var(--am);
         }
 
         .action-badge {
@@ -257,6 +270,9 @@
         .step-failed .step-thumb {
             border-color: var(--rd-b);
             box-shadow: 0 0 12px rgba(239,68,98,.25);
+        }
+        .step-paused .step-thumb {
+            border-color: var(--am-b);
         }
         .step-thumb img {
             width: 100%;
@@ -942,6 +958,7 @@
         if (s === 'PASSED') return 'step-passed';
         if (s === 'FAILED') return 'step-failed';
         if (s === 'RUNNING') return 'step-running';
+        if (s === 'PAUSED') return 'step-paused';
         return '';
     }
 
@@ -1049,6 +1066,15 @@
                         step.screenshotUrl = stepEvent.screenshotUrl;
                     }
 
+                    if (step.executionStatus === 'PAUSED') {
+                        flow.executionStatus = 'PAUSED';
+                        flow.executionMessage = step.executionMessage;
+                        toast(`Flow paused at step ${step.stepOrder}!`, 'warning', 10000);
+                        if (selectedStepOrder !== step.stepOrder) {
+                            selectStep(step.stepOrder);
+                        }
+                    }
+
                     // Update overall hero statistics
                     updateHeroStats();
 
@@ -1138,6 +1164,21 @@
 
     // Clean up on page unload
     window.addEventListener('beforeunload', stopSseStream);
+
+    // ── DEBUG MODE TOGGLE ────────────────────────────────────────────────
+    window.toggleDebugMode = async function(isChecked) {
+        if (!flow) return;
+        try {
+            flow.isDebugEnabled = isChecked;
+            await api.flows.update(flowId, flow);
+            toast('Debug Mode ' + (isChecked ? 'enabled' : 'disabled'), 'success');
+        } catch (e) {
+            toast('Failed to update debug mode: ' + e.message, 'error');
+            const toggle = document.getElementById('debug-mode-toggle');
+            if (toggle) toggle.checked = !isChecked;
+            flow.isDebugEnabled = !isChecked;
+        }
+    };
 
     // ── NAVIGATE TO FIRST FAILED STEP ────────────────────────────────────
     function navigateToFirstFailed() {
@@ -1235,6 +1276,14 @@
                                 <span style="color:var(--tx2);font-weight:600;">🔗 Base URL:</span>
                                 <code style="background:var(--sur1);padding:3px 8px;border-radius:4px;color:var(--blue);font-size:12px;border:1px solid var(--bd);word-break:break-all;">${esc(flow.baseUrl || 'Not overridden (using recorded URLs)')}</code>
                             </div>
+                        </div>
+
+                        <!-- Debug Mode Toggle -->
+                        <div style="margin-top: 16px;">
+                            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="debug-mode-toggle" ${flow.isDebugEnabled ? 'checked' : ''} onchange="toggleDebugMode(this.checked)" ${isRunning ? 'disabled' : ''}>
+                                <span style="font-weight: 600; font-size: 13px;">Debug Mode (Pause on errors)</span>
+                            </label>
                         </div>
                     </div>
                 </div>
@@ -1360,9 +1409,10 @@
         const draft = steps.filter(s => s.executionStatus === 'DRAFT').length;
         console.log("draft count "+draft);
         const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
+        const paused = steps.filter(s => s.executionStatus === 'PAUSED').length;
         const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
         const cancelled = steps.filter(s => s.executionStatus === 'CANCELLED').length;
-        const completedSteps = passed + failed + skipped + cancelled;
+        const completedSteps = passed + failed + skipped + cancelled + paused;
         const progressPct = total > 0 ? Math.round((completedSteps / total) * 100) : 0;
 
         // ── Update rerun and stop buttons ──
@@ -1414,8 +1464,9 @@
                 passed ? `<span class="badge badge-passed">${passed} Passed</span>` : '',
                 failed ? `<span class="badge badge-failed">${failed} Failed</span>` : '',
                 running ? `<span class="badge badge-running">${running} Running</span>` : '',
+                paused ? `<span class="badge badge-paused">${paused} Paused</span>` : '',
                 cancelled ? `<span class="badge badge-cancelled">${cancelled} Cancelled</span>` : '',
-                draft ? `<span class="badge badge-pending">${draft} Pending</span>` : '',
+                draft ? `<span class="badge badge-pending">${draft} DRAFT</span>` : '',
                 skipped ? `<span class="badge badge-pending">${skipped} Skipped</span>` : '',
             ].join('');
         }
@@ -1436,13 +1487,21 @@
         const heroEl = document.querySelector('.flow-hero');
         let existingAlert = heroEl ? heroEl.querySelector('.step-error-alert') : null;
         if (flow.executionMessage && heroEl) {
+            let bgColor = '#e6ffed';
+            let txColor = '#2e7d32';
+            let bdColor = '#b7ebc6';
+            let icon = '✅';
+            
+            if (flow.executionStatus === 'FAILED') {
+                bgColor = '#ffe5e5'; txColor = '#d32f2f'; bdColor = '#f5c2c2'; icon = '⚠️';
+            } else if (flow.executionStatus === 'PAUSED') {
+                bgColor = 'rgba(255, 160, 0, 0.1)'; txColor = '#d87b00'; bdColor = 'var(--am-b)'; icon = '⏸️';
+            }
+            
             const alertHtml = `
                 <div class="step-error-alert"
-                     style="margin-top:16px;
-                            background:${flow.executionStatus === 'FAILED' ? '#ffe5e5' : '#e6ffed'};
-                            color:${flow.executionStatus === 'FAILED' ? '#d32f2f' : '#2e7d32'};
-                            border:1px solid ${flow.executionStatus === 'FAILED' ? '#f5c2c2' : '#b7ebc6'};">
-                    <span class="alert-icon">${flow.executionStatus === 'FAILED' ? '⚠️' : '✅'}</span>
+                     style="margin-top:16px; background:${bgColor}; color:${txColor}; border:1px solid ${bdColor};">
+                    <span class="alert-icon">${icon}</span>
                     <span class="alert-text">${esc(flow.executionMessage)}</span>
                 </div>`;
             if (existingAlert) {
@@ -1664,6 +1723,7 @@
         const isRunning = flow.executionStatus === 'RUNNING';
         const cfg = getActionCfg(step.actionType);
         const isFailed = step.executionStatus === 'FAILED';
+        const isPaused = step.executionStatus === 'PAUSED';
         const sensitive = isSensitive(step);
 
         let calculatedDuration = step.executionTime;
@@ -1749,7 +1809,37 @@
                 </div>
             ` : ''}
 
-            ${(!isFailed && step.executionMessage) ? `
+            ${isPaused && step.executionMessage ? `
+                <div class="step-error-alert" style="background:rgba(255,160,0,0.1);border-color:var(--am);color:var(--am-text, #d87b00);">
+                    <span class="alert-icon">⏸️</span>
+                    <span class="alert-text">${esc(step.executionMessage)}</span>
+                </div>
+            ` : ''}
+
+            ${step.executionStatus === 'PAUSED' ? `
+                <div style="margin-top:16px; padding:16px; background:var(--sur3); border:1px solid var(--am); border-radius:var(--rs);">
+                    <div style="color:var(--am); font-weight:700; margin-bottom:12px;">⏸ Execution Paused (Debug Mode)</div>
+                    
+                    <div style="margin-bottom:12px;">
+                        <label class="step-detail-label">Update Selector</label>
+                        <div style="display:flex; gap:8px;">
+                            <input type="text" id="debug-selector-${step.stepOrder}" class="input" style="flex:1;" value="${esc(step.selector || '')}" placeholder="Selector">
+                            <button class="btn btn-primary" onclick="updateDebugStep(${step.stepOrder})">Save</button>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="step-detail-label">Resume Execution</label>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                            <span style="font-size:12px; color:var(--tx2);">Resume from step:</span>
+                            <input type="number" id="debug-resume-step-${step.stepOrder}" class="input" style="width:80px;" value="${step.stepOrder}">
+                            <button class="btn btn-success" onclick="resumeDebugFlow(${step.stepOrder})">▶ Resume</button>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+
+            ${(!isFailed && !isPaused && step.executionMessage) ? `
                 <div style="margin-top:8px;padding:8px 12px;background:var(--sur3);border-radius:var(--rs);font-size:12px;color:var(--tx2)">
                     <strong>Message:</strong> ${esc(step.executionMessage)}
                 </div>
@@ -2237,6 +2327,51 @@
             );
         } catch (e) {
             toast('Edit flow failed: ' + e.message, 'error');
+        }
+    };
+
+    window.updateDebugStep = async function(stepOrder) {
+        const input = document.getElementById(`debug-selector-${stepOrder}`);
+        if (!input) return;
+        
+        // Find the full step object from flow
+        const step = flow.steps.find(s => s.stepOrder === stepOrder);
+        if (!step) {
+            toast('Step not found in local data', 'error');
+            return;
+        }
+        
+        // Update selector locally
+        step.selector = input.value;
+
+        try {
+            const token = localStorage.getItem('qa_token') || '';
+            const res = await fetch(`${api.BASE}/api/flows/debug/${flowId}/steps/${stepOrder}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify(step)
+            });
+            if (!res.ok) throw new Error(await res.text());
+            toast('Step updated successfully', 'success');
+        } catch (e) {
+            toast('Failed to update step: ' + e.message, 'error');
+        }
+    };
+
+    window.resumeDebugFlow = async function(stepOrder) {
+        const input = document.getElementById(`debug-resume-step-${stepOrder}`);
+        if (!input) return;
+        try {
+            const stepNo = input.value;
+            const token = localStorage.getItem('qa_token') || '';
+            const res = await fetch(`${api.BASE}/api/flows/debug/${flowId}/resume?stepNo=${stepNo}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error(await res.text());
+            toast('Resuming flow...', 'info');
+        } catch (e) {
+            toast('Failed to resume flow: ' + e.message, 'error');
         }
     };
 

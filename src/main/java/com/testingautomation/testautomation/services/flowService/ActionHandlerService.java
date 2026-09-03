@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.services.flowService;
 
+import com.testingautomation.testautomation.dto.FlowExecutionContext;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.VerificationType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
@@ -358,7 +359,7 @@ public class ActionHandlerService {
         }
     }
 
-    public void handleCloseTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
+    public void handleCloseTab(WebDriver driver, FlowStep step, FlowExecutionContext context) {
         logger.info("Closing tab [{}]", step.getTabRef());
         String tabToClose = step.getTabRef() != null ? step.getTabRef() : context.getCurrentTabRef();
         String handle = context.getTabRefToHandle().get(tabToClose);
