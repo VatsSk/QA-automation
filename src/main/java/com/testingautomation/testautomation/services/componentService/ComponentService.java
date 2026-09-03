@@ -38,6 +38,10 @@ public class ComponentService {
         return componentRepository.findByProjectIdAndCompModuleId(projectId, moduleId);
     }
 
+    public Component getComponent(String id) {
+        return componentRepository.findById(id).orElse(null);
+    }
+
     public Component createComponent(Component component) {
         component.setCreatedAt(Instant.now());
         component.setUpdatedAt(Instant.now());
@@ -48,12 +52,23 @@ public class ComponentService {
     }
 
     public Component updateComponent(String id, Component component) {
-        component.setId(id);
-        component.setUpdatedAt(Instant.now());
-        if (component.getSteps() != null) {
-            component.getSteps().forEach(s -> s.setIsComp(true));
+        Component existing = componentRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Component not found with id: " + id));
+        
+        existing.setName(component.getName());
+        existing.setDescription(component.getDescription());
+        existing.setSteps(component.getSteps());
+        
+        if (component.getCompModuleId() != null) {
+            existing.setCompModuleId(component.getCompModuleId());
         }
-        return componentRepository.save(component);
+        
+        existing.setUpdatedAt(Instant.now());
+        if (existing.getSteps() != null) {
+            existing.getSteps().forEach(s -> s.setIsComp(true));
+        }
+        
+        return componentRepository.save(existing);
     }
 
     @Autowired
