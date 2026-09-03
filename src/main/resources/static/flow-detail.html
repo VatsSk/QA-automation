@@ -1253,6 +1253,9 @@
                     onclick="stopFlowExecution()" ${isRunning ? '' : 'style="display:none"'}>
                     ⏹ Stop
                 </button>
+                <button id="create-comp-btn" class="btn btn-primary btn-sm" style="display:none" onclick="openCreateComponentModal()">
+                    🧩 Create Component
+                </button>
             </div>
 
             <!-- Flow summary hero -->
@@ -1692,6 +1695,9 @@
         return `
             <div class="step-card ${statusCls} ${isSelected ? 'selected' : ''}" id="step-card-${step.stepOrder}" data-step-order="${step.stepOrder}">
                 <div class="step-head" onclick="selectStep(${step.stepOrder})">
+                    <div style="padding-right: 8px; display: flex; align-items: center;" onclick="event.stopPropagation()">
+                        <input type="checkbox" class="step-comp-checkbox" data-step-order="${step.stepOrder}" ${selectedStepsForComponent.has(step.stepOrder) ? 'checked' : ''} onchange="toggleComponentStep(this, ${step.stepOrder})" style="accent-color: var(--pri); width: 16px; height: 16px; cursor: pointer;">
+                    </div>
                     <div class="step-num">${step.stepOrder}</div>
                     <div class="step-info">
                         <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
