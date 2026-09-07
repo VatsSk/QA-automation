@@ -36,6 +36,7 @@ public class FlowService {
 
     public Flow saveFlow(Flow flow) {
         if (flow.getId() == null) {
+            flow.setVersion(1);
             flow.setCreatedAt(Instant.now());
         }
         flow.setUpdatedAt(Instant.now());
