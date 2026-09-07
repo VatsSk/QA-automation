@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.dto.FlowExecutionContext;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.enums.flow.VerificationType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
@@ -45,15 +46,36 @@ public class ActionHandlerService {
         }
     }
 
-    public void handleType(WebElement element, FlowStep step) {
+    public void handleType(WebDriver driver, WebElement element, FlowStep step) {
         if (element == null) return;
         logger.info("Typing value [{}] into element", step.getValue());
-        try{
-            element.clear();
-            if (step.getValue() != null) {
-                element.sendKeys(step.getValue());
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        try {
+            // Scroll into view
+            try {
+                ((JavascriptExecutor) driver).executeScript(
+                        "arguments[0].scrollIntoView({block:'center',inline:'center'});",
+                        element);
+                // Wait until clickable to avoid ElementNotInteractableException
+                wait.until(ExpectedConditions.elementToBeClickable(element));
+            } catch (Exception ignored) {
+                logger.warn("Element might not be clickable, proceeding with type attempt anyway");
             }
-        }catch(Exception e){
+
+            try {
+                element.clear();
+                if (step.getValue() != null) {
+                    element.sendKeys(step.getValue());
+                }
+            } catch (ElementNotInteractableException e) {
+                logger.warn("Element not interactable natively, falling back to JavaScript Type");
+                ((JavascriptExecutor) driver).executeScript("arguments[0].value = '';", element);
+                if (step.getValue() != null) {
+                    ((JavascriptExecutor) driver).executeScript("arguments[0].value = arguments[1];", element, step.getValue());
+                    ((JavascriptExecutor) driver).executeScript("arguments[0].dispatchEvent(new Event('input', { bubbles: true })); arguments[0].dispatchEvent(new Event('change', { bubbles: true }));", element);
+                }
+            }
+        } catch (Exception e) {
             throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Type error!","Unable to Type on element with "+step.getSelector()+" selector",e);
         }
     }
@@ -86,9 +108,18 @@ public class ActionHandlerService {
 
         } catch (StaleElementReferenceException e) {
 
-            throw new GlobalExceptionHandler.FlowExecutionException(
-                    step.getStepOrder(), step.getName(), step.getActionType(),
-                    "Click error!", "Element became stale: " + step.getSelector(), e);
+            logger.warn("Element became stale, re-locating and retrying click: {}", step.getSelector());
+            try {
+                WebElement freshElement = driver.findElement(By.xpath(step.getSelector()));
+                wait.until(ExpectedConditions.elementToBeClickable(freshElement));
+                freshElement.click();
+                logger.info("Clicked after stale recovery [{}]", step.getSelector());
+                return;
+            } catch (Exception retryEx) {
+                throw new GlobalExceptionHandler.FlowExecutionException(
+                        step.getStepOrder(), step.getName(), step.getActionType(),
+                        "Click error!", "Element became stale: " + step.getSelector(), retryEx);
+            }
         }
 
         // Fallback 1 - Actions API
@@ -288,13 +319,13 @@ public class ActionHandlerService {
     public void handleSwitchToNewTab(WebDriver driver, FlowStep step, com.testingautomation.testautomation.dto.FlowExecutionContext context) {
         String targetRef = step.getToTabRef() != null ? step.getToTabRef() : (step.getTabRef() != null ? step.getTabRef() : "tab_0");
         logger.info("Switching to new tab [{}]", targetRef);
-        
+
         long timeoutMs = step.getPageReadyTimeoutMs() != null ? step.getPageReadyTimeoutMs() : 30000;
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(timeoutMs));
-        
+
         try {
             wait.until(d -> d.getWindowHandles().size() > context.getTabRefToHandle().size());
-            
+
             String newHandle = null;
             for (String handle : driver.getWindowHandles()) {
                 if (!context.getTabRefToHandle().containsValue(handle)) {
@@ -302,13 +333,13 @@ public class ActionHandlerService {
                     break;
                 }
             }
-            
+
             if (newHandle != null) {
                 driver.switchTo().window(newHandle);
                 context.getTabRefToHandle().put(targetRef, newHandle);
                 context.getWindowStack().push(newHandle);
                 context.setCurrentTabRef(targetRef);
-                
+
                 // wait for page ready
                 wait.until(d -> ((JavascriptExecutor) d).executeScript("return document.readyState").equals("complete"));
             }
@@ -329,7 +360,7 @@ public class ActionHandlerService {
         logger.info("Switching to parent tab [{}]", step.getSourceTabRef());
         String targetRef = step.getSourceTabRef() != null ? step.getSourceTabRef() : "tab_0";
         String handle = context.getTabRefToHandle().get(targetRef);
-        
+
         if (handle != null) {
             driver.switchTo().window(handle);
             context.setCurrentTabRef(targetRef);
@@ -345,7 +376,7 @@ public class ActionHandlerService {
         String targetRef = step.getToTabRef() != null ? step.getToTabRef() : (step.getTabRef() != null ? step.getTabRef() : "tab_0");
         logger.info("Switching tab to [{}]", targetRef);
         String handle = context.getTabRefToHandle().get(targetRef);
-        
+
         if (handle != null) {
             driver.switchTo().window(handle);
             context.setCurrentTabRef(targetRef);
@@ -361,7 +392,7 @@ public class ActionHandlerService {
         logger.info("Closing tab [{}]", step.getTabRef());
         String tabToClose = step.getTabRef() != null ? step.getTabRef() : context.getCurrentTabRef();
         String handle = context.getTabRefToHandle().get(tabToClose);
-        
+
         if (handle != null) {
             String currentHandle = driver.getWindowHandle();
             if (!currentHandle.equals(handle)) {
@@ -370,7 +401,7 @@ public class ActionHandlerService {
             driver.close();
             context.getTabRefToHandle().remove(tabToClose);
             context.getWindowStack().remove(handle);
-            
+
             if (!context.getWindowStack().isEmpty()) {
                 String topHandle = context.getWindowStack().peek();
                 driver.switchTo().window(topHandle);
@@ -569,7 +600,7 @@ public class ActionHandlerService {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TOOLTIP verification failed","TOOLTIP verification failed: element is null. Selector: " + step.getSelector(),null);
                 }
                 String titleAttr = element.getAttribute("title");
-                
+
                 if (titleAttr == null || titleAttr.trim().isEmpty()) {
                     titleAttr = element.getAttribute("data-tooltip");
                 }
@@ -580,7 +611,7 @@ public class ActionHandlerService {
                     titleAttr = element.getAttribute("data-original-title"); // Common for bootstrap
                 }
                 if (titleAttr == null) titleAttr = "";
-                
+
                 String expectedTitle = expected != null ? expected.trim() : "";
 
                 logger.info("TOOLTIP verification. Expected: [{}], Actual: [{}]", expectedTitle, titleAttr);
@@ -617,7 +648,7 @@ public class ActionHandlerService {
                 String actualText = selectedOption != null ? selectedOption.getText() : "";
                 if (actualText == null) actualText = "";
                 String expectedValue = expected != null ? expected.trim() : "";
-                
+
                 if (!actualText.trim().equals(expectedValue)) {
                     String actualValAttr = selectedOption != null ? selectedOption.getAttribute("value") : "";
                     if (actualValAttr == null) actualValAttr = "";
@@ -724,7 +755,7 @@ public class ActionHandlerService {
                 logger.info("COUNT verification passed. Found [{}] element(s).", actualCount);
                 break;
             }
-            
+
             case PAGE_READY: {
                 logger.info("Verifying page ready state");
                 WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
@@ -751,10 +782,54 @@ public class ActionHandlerService {
         }
     }
 
+    public void handleUrlChange(FlowStep step, Flow flow) {
+        long waitTime = resolveUrlChangeWait(step, flow);
+        if (waitTime < 0) {
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(),
+                    step.getName(),
+                    step.getActionType(),
+                    "Validation Error",
+                    "URL_CHANGE wait must be greater than or equal to 0 milliseconds.",
+                    null
+            );
+        }
+
+        logger.info("Handling URL_CHANGE by waiting for {} milliseconds", waitTime);
+
+        if (waitTime == 0) {
+            return;
+        }
+
+        try {
+            Thread.sleep(waitTime);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new GlobalExceptionHandler.FlowExecutionException(
+                    step.getStepOrder(),
+                    step.getName(),
+                    step.getActionType(),
+                    "Execution interrupted",
+                    "Execution interrupted while waiting for URL_CHANGE",
+                    e
+            );
+        }
+    }
+
+    private long resolveUrlChangeWait(FlowStep step, Flow flow) {
+        if (step.getWait() != null) {
+            return step.getWait();
+        }
+        if (flow != null && flow.getUrlChangeWait() != null) {
+            return flow.getUrlChangeWait();
+        }
+        return 2000L;
+    }
+
     private String getElementTextForVerification(WebDriver driver, WebElement element, FlowStep step) {
         String rawActual = element.getText();
         String textSource = step.getTextSource() != null ? step.getTextSource().toLowerCase() : "";
-        
+
         if (rawActual == null || rawActual.isEmpty()) {
             switch (textSource) {
                 case "value":

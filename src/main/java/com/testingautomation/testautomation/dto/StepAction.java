@@ -24,7 +24,9 @@ public class StepAction {
         ASSERT_AI,
         ASSERT_FILTER,
         ASSERT_MANAGE_COLUMN,
-        ASSERT_ROWS_COUNT
+        ASSERT_ROWS_COUNT,
+        URL_CHANGE,
+        url_change
     }
     private ActionType type;
     private String locatorType; // css / xpath / id

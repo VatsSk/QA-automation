@@ -11,6 +11,7 @@ import com.testingautomation.testautomation.services.VerificationService;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
 import com.testingautomation.testautomation.utils.TextExtractor;
 import org.openqa.selenium.By;
+import org.openqa.selenium.InvalidSelectorException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.support.ui.ExpectedConditions;
@@ -18,6 +19,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.file.Files;
@@ -31,23 +33,38 @@ public class FlowExecutionService {
 
     private static final Logger logger = LoggerFactory.getLogger(FlowExecutionService.class);
 
-    @Autowired private ActionHandlerService actionHandlerService;
-    @Autowired private com.testingautomation.testautomation.repositories.flowRepos.FlowRepository flowRepository;
-    @Autowired private ScreenshotService screenshotService;
+    @Autowired
+    private ActionHandlerService actionHandlerService;
+
+    @Autowired
+    private com.testingautomation.testautomation.repositories.flowRepos.FlowRepository flowRepository;
+
+    @Autowired
+    private ScreenshotService screenshotService;
+
     @Autowired private WebDriverRegistry webDriverRegistry;
-    @Autowired private VerificationService verificationService;
-    @Autowired private FlowSseService flowSseService;
+
+
+
 
     private final String resultsBaseDir = "test-results";
+    @Autowired
+    private VerificationService verificationService;
+    @Autowired
+    private FlowSseService flowSseService;
 
-    // ── Public entry point ────────────────────────────────────────────────────
-
-    public void executeStep(FlowExecutionContext context, FlowStep step, Flow flow) {
+    public void executeStep(com.testingautomation.testautomation.dto.FlowExecutionContext context, FlowStep step, Flow flow) {
         WebDriver driver = context.getDriver();
-        try {
-            Thread.sleep(2000); // 🚨 This adds 2 seconds of dead time to EVERY step!
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        // Backward compatibility for old flows (version < 2) that relied on hardcoded delays
+        logger.info("Running flow for version {}",flow.getVersion());
+        if (flow.getVersion() == null ) {
+            logger.info("Running flow for version inside if block {}",flow.getVersion());
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(), step.getName(), step.getActionType(), "Interrupted", "Flow execution interrupted during legacy step wait", e);
+            }
         }
         String stepTabRef = step.getTabRef();
         ActionType initialActionType = step.getActionType();
@@ -96,7 +113,7 @@ public class FlowExecutionService {
                     takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
                 }
 
-                dispatchAction(driver, context,element, step, actionType, waitTime);
+                dispatchAction(driver, context,element, step, actionType, waitTime,flow);
 
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
@@ -195,11 +212,11 @@ public class FlowExecutionService {
      * Dispatches the action to the appropriate handler based on the action type.
      */
     private void dispatchAction(WebDriver driver, FlowExecutionContext context ,WebElement element, FlowStep step,
-                                ActionType actionType, int waitTime) {
+                                ActionType actionType, int waitTime,Flow flow) {
         switch (actionType) {
             case NAVIGATE:    actionHandlerService.handleNavigate(driver, step);          break;
             case WAIT:        actionHandlerService.handleWait(step);                      break;
-            case TYPE:        actionHandlerService.handleType(element, step);             break;
+            case TYPE:        actionHandlerService.handleType(driver,element, step);             break;
             case CLICK:       actionHandlerService.handleClick(driver, element, step);    break;
             case CHECKBOX:    actionHandlerService.handleCheckbox(element, step);         break;
             case RADIO:       actionHandlerService.handleRadio(element, step);            break;
@@ -210,6 +227,7 @@ public class FlowExecutionService {
             case SCROLL:      actionHandlerService.handleScroll(driver, element, step);   break;
             case PRESS_KEY:   actionHandlerService.handlePressKey(element, step);         break;
             case DRAG_DROP:   actionHandlerService.handleDragDrop(driver, element, step); break;
+            case URL_CHANGE: actionHandlerService.handleUrlChange(step, flow); break;
             case VERIFY:      actionHandlerService.handleVerify(driver, element, step, waitTime); break;
             case SWITCH_TO_NEW_TAB: actionHandlerService.handleSwitchToNewTab(driver, step, context); break;
             case SWITCH_TO_PARENT_TAB: actionHandlerService.handleSwitchToParentTab(driver, step, context); break;
