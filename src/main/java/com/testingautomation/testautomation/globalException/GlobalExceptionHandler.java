@@ -2,6 +2,7 @@ package com.testingautomation.testautomation.globalException;
 
 
 import com.testingautomation.testautomation.enums.ScenarioType;
+import com.testingautomation.testautomation.enums.flow.ActionType;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.openqa.selenium.*;
@@ -244,14 +245,14 @@ public class GlobalExceptionHandler {
     public static class FlowExecutionException extends AutomationException {
         private final Integer stepOrder;
         private final String stepName;
-        private final com.testingautomation.testautomation.enums.flow.ActionType actionType;
+        private final ActionType actionType;
         private final String reason;
         private final String userMessage;
 
         public FlowExecutionException(
                 Integer stepOrder,
                 String stepName,
-                com.testingautomation.testautomation.enums.flow.ActionType actionType,
+                ActionType actionType,
                 String reason,
                 String userMessage,
                 Throwable cause
@@ -266,7 +267,7 @@ public class GlobalExceptionHandler {
 
         public Integer getStepOrder() { return stepOrder; }
         public String getStepName() { return stepName; }
-        public com.testingautomation.testautomation.enums.flow.ActionType getActionType() { return actionType; }
+        public ActionType getActionType() { return actionType; }
         public String getReason() { return reason; }
         public String getUserMessage() { return userMessage; }
     }

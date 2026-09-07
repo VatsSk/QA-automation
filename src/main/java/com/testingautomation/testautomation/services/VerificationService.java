@@ -113,20 +113,17 @@ public class VerificationService {
                 return null;
             }
 
-            // 🔹 Step 4: Filter valid
-            List<WebElement> valid = elements.stream()
+            // 🔹 Step 4: Filter valid (Two-Tier Strategy)
+            List<WebElement> strictlyVisible = elements.stream()
                     .filter(el -> {
                         try {
                             boolean displayed = el.isDisplayed();
                             boolean visible = isActuallyVisible(d, el);
 
                             if (!displayed || !visible) {
-                                logger.debug("[Filter] Element status -> displayed: {}, visible: {}", displayed, visible);
+                                logger.debug("[Filter-Strict] Element status -> displayed: {}, visible: {}", displayed, visible);
                             }
 
-                            // If an element is just out of the viewport (e.g. horizontally scrolled table),
-                            // Selenium's isDisplayed() might return false.
-                            // We should return 'visible' (from JS check) so we can find it and scroll to it later.
                             return visible;
                         } catch (Exception e) {
                             return false;
@@ -134,7 +131,26 @@ public class VerificationService {
                     })
                     .collect(Collectors.toList());
 
-            logger.info("[FindElement] Valid elements after filtering: {}", valid.size());
+            List<WebElement> valid;
+            if (!strictlyVisible.isEmpty()) {
+                valid = strictlyVisible;
+                logger.info("[FindElement] Found {} strictly visible elements", valid.size());
+            } else {
+                valid = elements.stream()
+                        .filter(el -> {
+                            try {
+                                boolean potentiallyVisible = isPotentiallyVisible(d, el);
+                                if (!potentiallyVisible) {
+                                    logger.debug("[Filter-Relaxed] Element is not potentially visible");
+                                }
+                                return potentiallyVisible;
+                            } catch (Exception e) {
+                                return false;
+                            }
+                        })
+                        .collect(Collectors.toList());
+                logger.info("[FindElement] No strictly visible elements, falling back to {} potentially visible elements", valid.size());
+            }
 
             if (valid.isEmpty()) {
                 logger.warn("[FindElement] No valid visible elements found for '{}'", cssSelector);
@@ -328,6 +344,22 @@ public boolean isActuallyVisible(WebDriver driver, WebElement element) {
 
     logger.warn("Unexpected JS return format → {}", result);
     return false;
+}
+
+public boolean isPotentiallyVisible(WebDriver driver, WebElement element) {
+    JavascriptExecutor js = (JavascriptExecutor) driver;
+    if (element == null) return false;
+    
+    Object result = js.executeScript("""
+        const el = arguments[0];
+        if (!el) return false;
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || parseFloat(style.opacity) === 0) return false;
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+    """, element);
+    
+    return Boolean.TRUE.equals(result);
 }
     public boolean verifyScenario(
             WebDriver driver,

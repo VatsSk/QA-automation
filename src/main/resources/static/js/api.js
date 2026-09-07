@@ -213,6 +213,7 @@ export const components = {
     listModules: (projectId) => request('GET', `/api/components/modules/${projectId}`),
     createModule: (data) => request('POST', `/api/components/modules`, data),
     listComponents: (projectId, moduleId) => request('GET', `/api/components/${projectId}/${moduleId}`),
+    getComponent: (id) => request('GET', `/api/components/${id}`),
     createComponent: (data) => request('POST', `/api/components`, data),
     updateComponent: (id, data) => request('PUT', `/api/components/${id}`, data),
     getFlowInfo: (id) => request('GET', `/api/components/flow-info/${id}`),

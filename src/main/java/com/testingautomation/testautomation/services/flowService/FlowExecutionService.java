@@ -1,5 +1,7 @@
 package com.testingautomation.testautomation.services.flowService;
 
+import com.testingautomation.testautomation.dto.FlowExecutionContext;
+import com.testingautomation.testautomation.dto.FlowStepEvent;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ActionType;
@@ -40,6 +42,8 @@ public class FlowExecutionService {
     @Autowired
     private ScreenshotService screenshotService;
 
+    @Autowired private WebDriverRegistry webDriverRegistry;
+
 
 
 
@@ -51,17 +55,23 @@ public class FlowExecutionService {
 
     public void executeStep(com.testingautomation.testautomation.dto.FlowExecutionContext context, FlowStep step, Flow flow) {
         WebDriver driver = context.getDriver();
-        try {
-            Thread.sleep(2000); // 🚨 This adds 2 seconds of dead time to EVERY step!
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        // Backward compatibility for old flows (version < 2) that relied on hardcoded delays
+        logger.info("Running flow for version {}",flow.getVersion());
+        if (flow.getVersion() == null ) {
+            logger.info("Running flow for version inside if block {}",flow.getVersion());
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(), step.getName(), step.getActionType(), "Interrupted", "Flow execution interrupted during legacy step wait", e);
+            }
         }
         String stepTabRef = step.getTabRef();
         ActionType initialActionType = step.getActionType();
-        
-        if (stepTabRef != null && !stepTabRef.equals(context.getCurrentTabRef()) && 
-            initialActionType != ActionType.SWITCH_TO_NEW_TAB && 
-            initialActionType != ActionType.SWITCH_TO_PARENT_TAB && 
+
+        if (stepTabRef != null && !stepTabRef.equals(context.getCurrentTabRef()) &&
+            initialActionType != ActionType.SWITCH_TO_NEW_TAB &&
+            initialActionType != ActionType.SWITCH_TO_PARENT_TAB &&
             initialActionType != ActionType.CLOSE_TAB &&
             initialActionType != ActionType.TAB_LOAD_TIMEOUT &&
             initialActionType != ActionType.SWITCH_TAB) {
@@ -76,144 +86,67 @@ public class FlowExecutionService {
             return;
         }
 
-        logger.info("Executing step [{}] of ActionType [{}] with Locator [{}]", step.getName(), actionType,step.getSelector());
+        logger.info("Executing step [{}] of ActionType [{}] with Locator [{}]", step.getName(), actionType, step.getSelector());
         step.setExecutionStartedAt(Instant.now());
         step.setExecutionStatus(ExecutionStatus.RUNNING);
-        flowSseService.sendStepStarted(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
-                flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
-        ));
-//        flowRepository.save(flow); // Immediately persist RUNNING state so UI updates via SSE
+        sendStepEvent(flowSseService::sendStepStarted, flow, step);
 
-        int retries = step.getRetryCount() != null ? step.getRetryCount() : 1;
+        int retries  = step.getRetryCount() != null ? step.getRetryCount() : 1;
         int attempts = 0;
         boolean success = false;
-        String color = "green";
-        if (actionType == ActionType.VERIFY) {
-            color = "#e6b800"; // dark yellow / gold
-        } else if (actionType == ActionType.HOVER) {
-            color = "purple";
-        }
+        String color = resolveStepColor(actionType);
 
-        int waitTime = Boolean.TRUE.equals(step.getOverrideWait()) && step.getWait() != null 
-                ? step.getWait() 
+        int waitTime = Boolean.TRUE.equals(step.getOverrideWait()) && step.getWait() != null
+                ? step.getWait()
                 : (flow.getDefaultWait() != null ? flow.getDefaultWait() : 5000);
-                
+
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofMillis(waitTime));
 
         while (attempts <= retries && !success) {
             attempts++;
             WebElement element = null;
             try {
-
-                // Fetch element if required
-                if(actionType==ActionType.VERIFY){
-                    try{
-                        element=verificationService.findBestElement(driver,step.getSelector(),Duration.ofMillis(waitTime));
-                    }catch(Exception ex){
-                        com.testingautomation.testautomation.enums.flow.VerificationType vType = step.getVerificationType();
-                        if (vType == com.testingautomation.testautomation.enums.flow.VerificationType.NOT_VISIBLE || vType == com.testingautomation.testautomation.enums.flow.VerificationType.NOT_EXISTS) {
-                            element = null;
-                        } else {
-                            throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"Unable to find element in Verify","Unable to find element with "+step.getSelector(),ex);
-                        }
-                    }
-                }
-                else if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL
-                        && actionType != ActionType.SWITCH_TO_NEW_TAB && actionType != ActionType.SWITCH_TO_PARENT_TAB && actionType != ActionType.CLOSE_TAB && actionType != ActionType.TAB_LOAD_TIMEOUT && actionType != ActionType.SWITCH_TAB) {
-                    if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
-                        try {
-                            element = wait.until(ExpectedConditions.presenceOfElementLocated(TextExtractor.resolveLocator(step.getSelector())));
-                        }catch(Exception ex) {
-                            throw new GlobalExceptionHandler.FlowExecutionException(
-                                    step.getStepOrder(),
-                                    step.getName(),
-                                    actionType,
-                                    "Locator is empty but action type requires an element",
-                                    "unable to find element using locator "+step.getSelector(),
-                                    null
-                            );
-                        }
-                    }
-                } else if (actionType == ActionType.SCROLL && step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
-                    element = wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
-                }
+                element = resolveElement(driver, wait, step, actionType, waitTime);
 
                 boolean takePreScreenshot = (actionType == ActionType.CLICK || actionType == ActionType.VERIFY || actionType == ActionType.SELECT);
                 if (takePreScreenshot) {
                     takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
                 }
 
-                switch (actionType) {
-                    case NAVIGATE: actionHandlerService.handleNavigate(driver, step); break;
-                    case WAIT: actionHandlerService.handleWait(step); break;
-                    case TYPE: actionHandlerService.handleType(element, step); break;
-                    case CLICK: actionHandlerService.handleClick(driver, element, step); break;
-                    case CHECKBOX: actionHandlerService.handleCheckbox(element, step); break;
-                    case RADIO: actionHandlerService.handleRadio(element, step); break;
-                    case SELECT: actionHandlerService.handleSelect(element, step); break;
-                    case DATE: actionHandlerService.handleDate(element, step); break;
-                    case FILE_UPLOAD: actionHandlerService.handleFileUpload(element, step); break;
-                    case HOVER: actionHandlerService.handleHover(driver, element, step); break;
-                    case SCROLL: actionHandlerService.handleScroll(driver, element, step); break;
-                    case PRESS_KEY: actionHandlerService.handlePressKey(element, step); break;
-                    case DRAG_DROP: actionHandlerService.handleDragDrop(driver, element, step); break;
-                    case VERIFY: actionHandlerService.handleVerify(driver,element, step,waitTime); break;
-                    case SWITCH_TO_NEW_TAB: actionHandlerService.handleSwitchToNewTab(driver, step, context); break;
-                    case SWITCH_TO_PARENT_TAB: actionHandlerService.handleSwitchToParentTab(driver, step, context); break;
-                    case CLOSE_TAB: actionHandlerService.handleCloseTab(driver, step, context); break;
-                    case TAB_LOAD_TIMEOUT: actionHandlerService.handleTabLoadTimeout(step); break;
-                    case SWITCH_TAB: actionHandlerService.handleSwitchTab(driver, step, context); break;
-                    default: logger.info("ActionType [{}] is not yet fully integrated.", actionType);
-                }
-                
+                dispatchAction(driver, context,element, step, actionType, waitTime,flow);
+
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
                 step.setExecutionMessage("Success");
                 if (!takePreScreenshot) {
                     takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
                 }
-                flowSseService.sendStepUpdated(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
-                        flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
-                ));
-            }catch(GlobalExceptionHandler.FlowExecutionException ex){
-                takeScreenshotIfRequired(driver,element ,step, flow,attempts, "red");
+                sendStepEvent(flowSseService::sendStepUpdated, flow, step);
+
+            } catch (GlobalExceptionHandler.FlowExecutionException ex) {
+                takeScreenshotIfRequired(driver, element, step, flow, attempts, "red");
                 if (attempts > retries) {
-                    step.setExecutionStatus(ExecutionStatus.FAILED);
-                    step.setExecutionMessage(ex.getUserMessage());
-                    logger.error("Step [{}] failed after {} attempts in flowExecutionStatus. Error: {}", step.getName(), attempts, ex.getMessage());
-                    step.setExecutionCompletedAt(Instant.now());
-                    flowSseService.sendStepFailed(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
-                            flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
-                    ));
+                    markStepFailed(flow, step, ex.getUserMessage(), ex.getMessage(), attempts);
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
-                        logger.info("flowExecutionException {}",ex.getMessage());
+                        if (pauseIfDebugEnabled(flow, step, context, "Execution paused due to error: " + ex.getMessage())) return;
+                        logger.info("flowExecutionException {}", ex.getMessage());
                         throw ex;
                     }
                 } else {
                     logger.warn("Step [{}] failed, retrying... Attempt {}/{}", step.getName(), attempts, retries);
                 }
-            }
-            catch (Exception e) {
-                takeScreenshotIfRequired(driver, element,step, flow,attempts, "red");
+
+            } catch (Exception e) {
+                takeScreenshotIfRequired(driver, element, step, flow, attempts, "red");
                 if (attempts > retries) {
-                    step.setExecutionStatus(ExecutionStatus.FAILED);
-                    step.setExecutionMessage("Unexpected error");
-                    logger.error("Step [{}] failed after {} attempts. Error: {}", step.getName(), attempts, e.getMessage());
-                    step.setExecutionCompletedAt(Instant.now());
-                    flowSseService.sendStepFailed(flow.getId(), new com.testingautomation.testautomation.dto.FlowStepEvent(
-                            flow.getId(), step.getId(), step.getStepOrder(), step.getExecutionStatus(), step.getExecutionMessage(), null
-                    ));
-                    
+                    markStepFailed(flow, step, "Unexpected error", e.getMessage(), attempts);
                     if (!Boolean.TRUE.equals(step.getContinueOnFailure())) {
+                        if (pauseIfDebugEnabled(flow, step, context, "Execution paused due to unexpected error: " + e.getMessage())) return;
                         logger.info("changing exception into flowExecutionException");
-                        throw new com.testingautomation.testautomation.globalException.GlobalExceptionHandler.FlowExecutionException(
-                                step.getStepOrder(),
-                                step.getName(),
-                                actionType,
+                        throw new GlobalExceptionHandler.FlowExecutionException(
+                                step.getStepOrder(), step.getName(), actionType,
                                 "Step failed after " + attempts + " attempts. Error: " + e.getMessage(),
-                                "Execution failed for step",
-                                e
-                        );
+                                "Execution failed for step", e);
                     }
                 } else {
                     logger.warn("Step [{}] failed, retrying... Attempt {}/{}", step.getName(), attempts, retries);
@@ -221,9 +154,124 @@ public class FlowExecutionService {
             }
         }
 
+        step.setExecutionCompletedAt(Instant.now());
+    }
 
-            step.setExecutionCompletedAt(Instant.now());
+    // ── Private helpers ───────────────────────────────────────────────────────
 
+    /**
+     * Resolves the screenshot highlight color based on the action type.
+     */
+    private String resolveStepColor(ActionType actionType) {
+        if (actionType == ActionType.VERIFY) return "#e6b800";
+        if (actionType == ActionType.HOVER)  return "purple";
+        return "green";
+    }
+
+    /**
+     * Finds the WebElement needed by the step, or returns null for action types
+     * that do not require one (NAVIGATE, WAIT, etc.).
+     */
+    private WebElement resolveElement(WebDriver driver, WebDriverWait wait, FlowStep step,
+                                      ActionType actionType, int waitTime) {
+        if (actionType == ActionType.VERIFY) {
+            try {
+                return verificationService.findBestElement(driver, step.getSelector(), Duration.ofMillis(waitTime));
+            } catch (Exception ex) {
+                throw new GlobalExceptionHandler.FlowExecutionException(
+                        step.getStepOrder(), step.getName(), actionType,
+                        "Unable to find element in Verify",
+                        "Unable to find element with " + step.getSelector(), ex);
+            }
+        }
+
+        if (actionType != ActionType.NAVIGATE && actionType != ActionType.WAIT && actionType != ActionType.SCROLL
+            && actionType != ActionType.SWITCH_TO_NEW_TAB && actionType != ActionType.SWITCH_TO_PARENT_TAB
+            && actionType != ActionType.CLOSE_TAB && actionType != ActionType.TAB_LOAD_TIMEOUT
+            && actionType != ActionType.SWITCH_TAB) {
+            if (step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
+                try {
+                    return wait.until(ExpectedConditions.presenceOfElementLocated(TextExtractor.resolveLocator(step.getSelector())));
+                } catch (Exception ex) {
+                    throw new GlobalExceptionHandler.FlowExecutionException(
+                            step.getStepOrder(), step.getName(), actionType,
+                            "Locator is empty but action type requires an element",
+                            "unable to find element using locator " + step.getSelector(), null);
+                }
+            }
+        }
+
+        if (actionType == ActionType.SCROLL && step.getSelector() != null && !step.getSelector().trim().isEmpty()) {
+            return wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(step.getSelector())));
+        }
+
+        return null;
+    }
+
+    /**
+     * Dispatches the action to the appropriate handler based on the action type.
+     */
+    private void dispatchAction(WebDriver driver, FlowExecutionContext context ,WebElement element, FlowStep step,
+                                ActionType actionType, int waitTime,Flow flow) {
+        switch (actionType) {
+            case NAVIGATE:    actionHandlerService.handleNavigate(driver, step);          break;
+            case WAIT:        actionHandlerService.handleWait(step);                      break;
+            case TYPE:        actionHandlerService.handleType(driver,element, step);             break;
+            case CLICK:       actionHandlerService.handleClick(driver, element, step);    break;
+            case CHECKBOX:    actionHandlerService.handleCheckbox(element, step);         break;
+            case RADIO:       actionHandlerService.handleRadio(element, step);            break;
+            case SELECT:      actionHandlerService.handleSelect(element, step);           break;
+            case DATE:        actionHandlerService.handleDate(element, step);             break;
+            case FILE_UPLOAD: actionHandlerService.handleFileUpload(element, step);       break;
+            case HOVER:       actionHandlerService.handleHover(driver, element, step);    break;
+            case SCROLL:      actionHandlerService.handleScroll(driver, element, step);   break;
+            case PRESS_KEY:   actionHandlerService.handlePressKey(element, step);         break;
+            case DRAG_DROP:   actionHandlerService.handleDragDrop(driver, element, step); break;
+            case URL_CHANGE: actionHandlerService.handleUrlChange(step, flow); break;
+            case VERIFY:      actionHandlerService.handleVerify(driver, element, step, waitTime); break;
+            case SWITCH_TO_NEW_TAB: actionHandlerService.handleSwitchToNewTab(driver, step, context); break;
+            case SWITCH_TO_PARENT_TAB: actionHandlerService.handleSwitchToParentTab(driver, step, context); break;
+            case CLOSE_TAB: actionHandlerService.handleCloseTab(driver, step, context); break;
+            case TAB_LOAD_TIMEOUT: actionHandlerService.handleTabLoadTimeout(step); break;
+            case SWITCH_TAB: actionHandlerService.handleSwitchTab(driver, step, context); break;
+            default:          logger.info("ActionType [{}] is not yet fully integrated.", actionType);
+        }
+    }
+
+    /**
+     * Marks a step as FAILED, logs the error, and sends an SSE failed event.
+     */
+    private void markStepFailed(Flow flow, FlowStep step, String userMessage, String logMessage, int attempts) {
+        step.setExecutionStatus(ExecutionStatus.FAILED);
+        step.setExecutionMessage(userMessage);
+        step.setExecutionCompletedAt(Instant.now());
+        logger.error("Step [{}] failed after {} attempts. Error: {}", step.getName(), attempts, logMessage);
+        sendStepEvent(flowSseService::sendStepFailed, flow, step);
+    }
+
+    /**
+     * If debug mode is enabled, transitions the step to PAUSED, saves the WebDriver
+     * session, and returns true so the caller can return early.
+     * Returns false if debug mode is off (normal failure path).
+     */
+    private boolean pauseIfDebugEnabled(Flow flow, FlowStep step, FlowExecutionContext context, String pauseMessage) {
+        if (!Boolean.TRUE.equals(flow.getIsDebugEnabled())) return false;
+        step.setExecutionStatus(ExecutionStatus.PAUSED);
+        step.setExecutionMessage(pauseMessage);
+        sendStepEvent(flowSseService::sendStepFailed, flow, step);
+        webDriverRegistry.registerContext(flow.getId(), context);
+        return true;
+    }
+
+    /**
+     * Sends an SSE step event using the given sender function.
+     * Centralises creation of FlowStepEvent so it is never duplicated.
+     */
+    private void sendStepEvent(java.util.function.BiConsumer<String, FlowStepEvent> sender, Flow flow, FlowStep step) {
+        sender.accept(flow.getId(), new FlowStepEvent(
+                flow.getId(), step.getId(), step.getStepOrder(),
+                step.getExecutionStatus(), step.getExecutionMessage(), null
+        ));
     }
 
     private void switchToTab(com.testingautomation.testautomation.dto.FlowExecutionContext context, String tabRef, FlowStep step, Flow flow) {

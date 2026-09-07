@@ -366,8 +366,8 @@
                     
                     <div style="display: flex; flex-direction: column; gap: 8px;">
                         <label style="font-size: 11px; font-weight: 600; color: var(--tx3); text-transform: uppercase; letter-spacing: 0.06em;">Module</label>
-                        <select id="module-dropdown" class="inp comp-search-inp" style="margin-bottom: 0;" onchange="fetchComponentsForModule()">
-                            <option value="">-- Select Module --</option>
+                        <select id="comp-module-select" class="inp comp-search-inp" style="margin-bottom: 0;" onchange="filterComponents()">
+                            <option value="">All Modules</option>
                         </select>
                     </div>
 
@@ -378,7 +378,7 @@
 
                     <div class="comp-list" id="comp-list" style="flex: 1; max-height: none; margin-bottom: 4px;">
                         <div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">
-                            Select a module to view components
+                            Loading components...
                         </div>
                     </div>
                     
@@ -415,6 +415,7 @@
     let compMods = [];
     let currentModuleComponents = [];
     let filteredComponents = [];
+    let allAvailableComponents = [];
 
     // ── Boot ──────────────────────────────────────────────────────────────
     async function boot() {
@@ -441,46 +442,30 @@
     async function loadModules() {
         try {
             compMods = await api.components.listModules(projectId);
-            const select = document.getElementById('module-dropdown');
-            select.innerHTML = '<option value="">-- Select Module --</option>' + 
-                compMods.map(m => `<option value="${m.id || m._id}">${esc(m.name)}</option>`).join('');
+            allAvailableComponents = [];
             
-            // if there is only one module, select it automatically
-            if (compMods.length === 1) {
-                select.selectedIndex = 1;
-                await fetchComponentsForModule();
+            const moduleSelect = document.getElementById('comp-module-select');
+            let moduleOptions = '<option value="">All Modules</option>';
+            
+            for (const cm of compMods) {
+                const cmId = cm.id || cm._id;
+                moduleOptions += `<option value="${cmId}">${esc(cm.name)}</option>`;
+                
+                const comps = await api.components.listComponents(projectId, cmId);
+                for (const c of comps) {
+                    allAvailableComponents.push({ ...c, compModuleName: cm.name, compModuleId: cmId });
+                }
             }
+            
+            moduleSelect.innerHTML = moduleOptions;
+            filteredComponents = [...allAvailableComponents];
+            renderComponentList();
         } catch (e) {
             console.error('Failed to load modules', e);
             document.getElementById('comp-list').innerHTML =
                 `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Failed to load modules</div>`;
         }
     }
-
-    window.fetchComponentsForModule = async function() {
-        const modId = document.getElementById('module-dropdown').value;
-        const list = document.getElementById('comp-list');
-        
-        if (!modId) {
-            currentModuleComponents = [];
-            filteredComponents = [];
-            list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Select a module to view components</div>`;
-            return;
-        }
-
-        list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Loading components…</div>`;
-        try {
-            const comps = await api.components.listComponents(projectId, modId);
-            const selectedMod = compMods.find(m => (m.id || m._id) === modId);
-            currentModuleComponents = comps.map(c => ({ ...c, compModuleName: selectedMod ? selectedMod.name : '' }));
-            filteredComponents = [...currentModuleComponents];
-            document.getElementById('comp-search').value = '';
-            renderComponentList();
-        } catch (e) {
-            console.error('Failed to fetch components', e);
-            list.innerHTML = `<div style="text-align:center;padding:20px;color:var(--tx3);font-size:12px">Failed to load components</div>`;
-        }
-    };
 
     // ── Component List ────────────────────────────────────────────────────
     function renderComponentList() {
@@ -500,16 +485,18 @@
 
     window.filterComponents = function() {
         const q = document.getElementById('comp-search').value.toLowerCase().trim();
-        filteredComponents = !q
-            ? [...currentModuleComponents]
-            : currentModuleComponents.filter(c =>
-                c.name.toLowerCase().includes(q)
-            );
+        const modId = document.getElementById('comp-module-select').value;
+        
+        filteredComponents = allAvailableComponents.filter(c => {
+            if (modId && c.compModuleId !== modId) return false;
+            if (!q) return true;
+            return c.name.toLowerCase().includes(q) || c.compModuleName.toLowerCase().includes(q);
+        });
         renderComponentList();
     };
 
     window.addComponent = function(componentId) {
-        const c = currentModuleComponents.find(x => (x.id || x._id) === componentId);
+        const c = allAvailableComponents.find(x => (x.id || x._id) === componentId);
         if (!c) return;
         builderItems.push({ type: 'COMPONENT', componentId, component: c });
         renderBuilderItems();
