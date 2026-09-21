@@ -6,6 +6,7 @@ import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
+import com.testingautomation.testautomation.enums.flow.VerificationType;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.services.VerificationService;
 import com.testingautomation.testautomation.services.screenShotsService.ScreenshotService;
@@ -175,9 +176,17 @@ public class FlowExecutionService {
     private WebElement resolveElement(WebDriver driver, WebDriverWait wait, FlowStep step,
                                       ActionType actionType, int waitTime) {
         if (actionType == ActionType.VERIFY) {
+            // For NOT_VISIBLE and NOT_EXISTS, a missing element is the expected/correct outcome.
+            // Return null immediately so the handler can evaluate and PASS the step.
+            VerificationType vType = step.getVerificationType();
             try {
                 return verificationService.findBestElement(driver, step.getSelector(), Duration.ofMillis(waitTime));
             } catch (Exception ex) {
+                if (vType == VerificationType.NOT_VISIBLE || vType == VerificationType.NOT_EXISTS) {
+                    logger.info("[resolveElement] Element not found for '{}' verification type '{}' – returning null (expected outcome).",
+                            step.getSelector(), vType);
+                    return null;
+                }
                 throw new GlobalExceptionHandler.FlowExecutionException(
                         step.getStepOrder(), step.getName(), actionType,
                         "Unable to find element in Verify",
