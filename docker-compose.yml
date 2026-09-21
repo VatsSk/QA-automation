@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  selenium:
+    image: selenium/standalone-chromium:latest
+    container_name: selenium
+    ports:
+      - "4444:4444"
+    shm_size: '2g'
+    environment:
+      - SE_NODE_MAX_SESSIONS=8
+      - SE_NODE_OVERRIDE_MAX_SESSIONS=true
+      - SE_NODE_SESSION_TIMEOUT=300
+    restart: unless-stopped
