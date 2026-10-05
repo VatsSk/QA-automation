@@ -2510,7 +2510,7 @@
 
         try {
             const token = localStorage.getItem('qa_token') || '';
-            const res = await fetch(`${api.BASE}/api/flows/debug/${flowId}/steps/${stepOrder}`, {
+            const res = await fetch(`/api/flows/debug/${flowId}/steps/${stepOrder}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(step)
@@ -2528,7 +2528,7 @@
         try {
             const stepNo = input.value;
             const token = localStorage.getItem('qa_token') || '';
-            const res = await fetch(`${api.BASE}/api/flows/debug/${flowId}/resume?stepNo=${stepNo}`, {
+            const res = await fetch(`/api/flows/debug/${flowId}/resume?stepNo=${stepNo}`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
             });
