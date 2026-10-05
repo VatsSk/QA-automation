@@ -599,17 +599,36 @@ public class ActionHandlerService {
                 if (element == null) {
                     throw new GlobalExceptionHandler.FlowExecutionException(step.getStepOrder(),step.getName(),step.getActionType(),"TOOLTIP verification failed","TOOLTIP verification failed: element is null. Selector: " + step.getSelector(),null);
                 }
-                String titleAttr = element.getAttribute("title");
+                String[] tooltipAttrs = {"title", "data-tooltip", "aria-label", "data-original-title"};
+                String titleAttr = ""
+                        ;
+                for (String attr : tooltipAttrs) {
+                    titleAttr = element.getAttribute(attr);
+                    logger.info("TOOLTIP verification. {}: [{}], Actual: [{}]", attr, expected, titleAttr);
+                    if (titleAttr != null && !titleAttr.trim().isEmpty()) {
+                        break;
+                    }
+                }
 
+                // If not found on the element, try its parent
                 if (titleAttr == null || titleAttr.trim().isEmpty()) {
-                    titleAttr = element.getAttribute("data-tooltip");
+                    try {
+                        WebElement parent = element.findElement(org.openqa.selenium.By.xpath(".."));
+                        if (parent != null) {
+                            logger.info("TOOLTIP verification. Checking parent element for tooltip.");
+                            for (String attr : tooltipAttrs) {
+                                titleAttr = parent.getAttribute(attr);
+                                logger.info("TOOLTIP verification parent. {}: [{}], Actual: [{}]", attr, expected, titleAttr);
+                                if (titleAttr != null && !titleAttr.trim().isEmpty()) {
+                                    break;
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        // ignore if parent doesn't exist
+                    }
                 }
-                if (titleAttr == null || titleAttr.trim().isEmpty()) {
-                    titleAttr = element.getAttribute("aria-label");
-                }
-                if (titleAttr == null || titleAttr.trim().isEmpty()) {
-                    titleAttr = element.getAttribute("data-original-title"); // Common for bootstrap
-                }
+
                 if (titleAttr == null) titleAttr = "";
 
                 String expectedTitle = expected != null ? expected.trim() : "";

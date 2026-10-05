@@ -8,8 +8,8 @@
  */
 
 // const BASE = window.QA_API_BASE || 'http://localhost:8088';
- const BASE = window.QA_API_BASE || 'http://3.7.136.248:8088';
-
+// const BASE = window.QA_API_BASE || 'http://13.127.183.130:8088';
+const BASE = '';
 function getToken() {
     return localStorage.getItem('qa_token') || '';
 }

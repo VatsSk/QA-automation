@@ -417,11 +417,25 @@ public class FlowOrchestratorService {
             if (context == null || context.getDriver() == null) {
                 logger.error("No active WebDriver found for flow [{}] to resume.", flowId);
                 flow.setExecutionStatus(ExecutionStatus.FAILED);
-                flow.setExecutionMessage("Cannot resume, no active WebDriver session.");
+                flow.setExecutionMessage("Cannot resume: no active WebDriver session. The browser session may have expired (debug pause timed out). Please re-run the flow.");
                 flowRepository.save(flow);
                 flowSseService.sendFlowFailed(flow);
                 return;
             }
+
+            // Verify the remote driver session is still alive (Selenium Grid may have killed it due to inactivity)
+            try {
+                context.getDriver().getCurrentUrl();
+            } catch (Exception sessionDead) {
+                logger.error("WebDriver session for flow [{}] is no longer alive (Grid session timed out): {}", flowId, sessionDead.getMessage());
+                webDriverRegistry.removeContext(flowId);
+                flow.setExecutionStatus(ExecutionStatus.FAILED);
+                flow.setExecutionMessage("Cannot resume: the browser session expired while paused (Grid inactivity timeout). Please re-run the flow in debug mode.");
+                flowRepository.save(flow);
+                flowSseService.sendFlowFailed(flow);
+                return;
+            }
+
             WebDriver driver = context.getDriver();
 
             activeFlows.put(flow.getId(), flow);

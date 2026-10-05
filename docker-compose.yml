@@ -10,5 +10,5 @@ services:
     environment:
       - SE_NODE_MAX_SESSIONS=8
       - SE_NODE_OVERRIDE_MAX_SESSIONS=true
-      - SE_NODE_SESSION_TIMEOUT=300
+      - SE_NODE_SESSION_TIMEOUT=1800
     restart: unless-stopped
