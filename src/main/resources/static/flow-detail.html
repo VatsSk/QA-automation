@@ -1079,6 +1079,7 @@
         PRESS_KEY:   { icon: '⌨️', label: 'Key Press',   color: 'var(--pu)',   bg: 'var(--pu-d)',   bc: 'var(--pu-b)' },
         DRAG_DROP:   { icon: '↕️', label: 'Drag & Drop', color: 'var(--am)',   bg: 'var(--am-d)',   bc: 'var(--am-b)' },
         VERIFY:      { icon: '✅', label: 'Verify',      color: 'var(--gr)',   bg: 'var(--gr-d)',   bc: 'var(--gr-b)' },
+        INFO:        { icon: 'ⓘ', label: 'Info',        color: '#3b82f6',     bg: 'rgba(59,130,246,0.1)', bc: 'rgba(59,130,246,0.2)' },
     };
 
     function getActionCfg(type) {
@@ -1839,6 +1840,27 @@
     }
 
     function renderStepCard(step) {
+        if (step.actionType === 'INFO') {
+            const isRunning = flow.executionStatus === 'RUNNING';
+            return `
+                <div id="step-card-${step.stepOrder}" data-step-order="${step.stepOrder}" class="info-step-heading" style="background: transparent; border: none; border-bottom: 2px solid var(--sur3); border-radius: 0; padding: 24px 0 8px 0; margin-bottom: 16px; margin-top: 8px; box-shadow: none; cursor: default;">
+                    <div style="display: flex; align-items: center; width: 100%;">
+                        <div style="padding-right: 16px; display: flex; align-items: center;" onclick="event.stopPropagation()">
+                            <input type="checkbox" class="step-comp-checkbox" data-step-order="${step.stepOrder}" ${selectedStepsForComponent.has(step.stepOrder) ? 'checked' : ''} onchange="toggleComponentStep(this, ${step.stepOrder})" style="accent-color: var(--pri); width: 16px; height: 16px; cursor: pointer;">
+                        </div>
+                        <div style="flex:1; display: flex; align-items: center; gap: 8px;">
+                            <h3 style="margin: 0; color: var(--tx); font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; white-space: pre-wrap;">${esc(step.description || '')}</h3>
+                        </div>
+                        <div style="display:flex; gap:8px; margin-left:16px;">
+                            <button onclick="openStepEditor(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="background: transparent; border: 1px solid transparent; color: var(--tx2); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.background='var(--sur3)'; this.style.borderColor='var(--bd2)';" onmouseout="this.style.background='transparent'; this.style.borderColor='transparent';" title="Edit Step">✏️</button>
+                            <button onclick="deleteStep(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="background: transparent; border: 1px solid transparent; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.background='rgba(239, 68, 98, 0.1)'; this.style.borderColor='rgba(239, 68, 98, 0.2)';" onmouseout="this.style.background='transparent'; this.style.borderColor='transparent';" title="Delete Step">🗑️</button>
+                        </div>
+                    </div>
+                    <div class="step-inline-detail" id="detail-panel-${step.stepOrder}" style="display:none;"></div>
+                </div>
+            `;
+        }
+
         const isRunning = flow.executionStatus === 'RUNNING';
         const cfg = getActionCfg(step.actionType);
         const statusCls = stepStatusClass(step.executionStatus);
@@ -1885,6 +1907,12 @@
         if (!panel) return;
 
         const isRunning = flow.executionStatus === 'RUNNING';
+
+        if (step.actionType === 'INFO') {
+            panel.innerHTML = '';
+            return;
+        }
+
         const cfg = getActionCfg(step.actionType);
         const isFailed = step.executionStatus === 'FAILED';
         const isPaused = step.executionStatus === 'PAUSED';
@@ -2554,6 +2582,12 @@
                     <button class="modal-close" onclick="closeModal()">✕</button>
                 </div>
                 <div style="display:flex;flex-direction:column;gap:12px;padding:20px 0">
+                    ${step.actionType === 'INFO' ? `
+                    <div>
+                        <label class="form-label" style="font-size:12px;color:var(--tx2)">Information / Context</label>
+                        <textarea id="edit-step-description" class="inp" style="min-height:80px; resize:vertical" placeholder="Enter information...">${esc(step.description || '')}</textarea>
+                    </div>
+                    ` : `
                     <div>
                         <label class="form-label" style="font-size:12px;color:var(--tx2)">Selector</label>
                         <input id="edit-step-selector" class="inp" value="${esc(step.selector || '')}" placeholder="Selector (e.g. #id, .class)">
@@ -2586,6 +2620,7 @@
                             Capture Screenshot
                         </label>
                     </div>
+                    `}
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
                     <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -2599,18 +2634,22 @@
         const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
         if (!step) return;
 
-        step.selector = document.getElementById('edit-step-selector').value;
-        step.value = document.getElementById('edit-step-value').value;
-        step.expectedValue = document.getElementById('edit-step-expected').value;
+        if (step.actionType === 'INFO') {
+            step.description = document.getElementById('edit-step-description').value;
+        } else {
+            step.selector = document.getElementById('edit-step-selector').value;
+            step.value = document.getElementById('edit-step-value').value;
+            step.expectedValue = document.getElementById('edit-step-expected').value;
 
-        const waitVal = document.getElementById('edit-step-wait').value;
-        step.wait = waitVal ? parseInt(waitVal, 10) : null;
+            const waitVal = document.getElementById('edit-step-wait').value;
+            step.wait = waitVal ? parseInt(waitVal, 10) : null;
 
-        const retryVal = document.getElementById('edit-step-retry').value;
-        step.retryCount = retryVal ? parseInt(retryVal, 10) : 0;
+            const retryVal = document.getElementById('edit-step-retry').value;
+            step.retryCount = retryVal ? parseInt(retryVal, 10) : 0;
 
-        step.continueOnFailure = document.getElementById('edit-step-continue').checked;
-        step.captureScreenshot = document.getElementById('edit-step-capture').checked;
+            step.continueOnFailure = document.getElementById('edit-step-continue').checked;
+            step.captureScreenshot = document.getElementById('edit-step-capture').checked;
+        }
 
         try {
             await api.flows.update(flow.id, flow);

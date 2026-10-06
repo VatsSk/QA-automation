@@ -14,6 +14,9 @@ public class FlowStep extends ExecutionEntity {
 
     private String name;
 
+    private String description;
+
+    @com.fasterxml.jackson.annotation.JsonAlias("stepType")
     private ActionType actionType;
 
     private VerificationType verificationType;

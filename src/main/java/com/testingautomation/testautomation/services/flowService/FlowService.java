@@ -35,6 +35,16 @@ public class FlowService {
     private FlowOrchestratorService flowOrchestratorService;
 
     public Flow saveFlow(Flow flow) {
+        if (flow.getSteps() != null) {
+            for (com.testingautomation.testautomation.entities.flow.FlowStep step : flow.getSteps()) {
+                if (step.getActionType() == com.testingautomation.testautomation.enums.flow.ActionType.INFO) {
+                    if (step.getDescription() == null || step.getDescription().trim().isEmpty()) {
+                        throw new IllegalArgumentException("INFO step must have a non-empty description");
+                    }
+                }
+            }
+        }
+
         if (flow.getId() == null) {
             flow.setVersion(1);
             flow.setCreatedAt(Instant.now());
