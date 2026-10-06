@@ -2,6 +2,8 @@ package com.testingautomation.testautomation.enums.flow;
 
 public enum ActionType {
 
+    INFO,
+
     NAVIGATE,
 
     CLICK,

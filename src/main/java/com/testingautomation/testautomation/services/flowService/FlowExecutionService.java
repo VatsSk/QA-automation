@@ -86,6 +86,11 @@ public class FlowExecutionService {
             step.setExecutionMessage("ActionType is null");
             return;
         }
+        
+        if (actionType == ActionType.INFO) {
+            logger.info("Skipping INFO step [{}] during execution", step.getName());
+            return;
+        }
 
         logger.info("Executing step [{}] of ActionType [{}] with Locator [{}]", step.getName(), actionType, step.getSelector());
         step.setExecutionStartedAt(Instant.now());
