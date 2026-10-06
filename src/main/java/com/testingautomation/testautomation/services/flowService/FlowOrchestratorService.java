@@ -443,6 +443,15 @@ public class FlowOrchestratorService {
 
             flow.setExecutionStatus(ExecutionStatus.RUNNING);
             flow.setExecutionMessage("Resuming execution from step " + stepNo);
+
+            // Reset all steps from the resume point onwards back to DRAFT so the UI
+            // correctly shows them as "pending" before they are re-executed.
+            for (FlowStep step : flow.getSteps()) {
+                if (step.getStepOrder() >= stepNo) {
+                    step.setExecutionStatus(ExecutionStatus.DRAFT);
+                    step.setExecutionMessage(null);
+                }
+            }
             flowRepository.save(flow);
             flowSseService.sendFlowStarted(flow);
 

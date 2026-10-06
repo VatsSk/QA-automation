@@ -2534,6 +2534,15 @@
             });
             if (!res.ok) throw new Error(await res.text());
             toast('Resuming flow...', 'info');
+
+            // Force-close any stale SSE connection and reconnect so the UI
+            // receives live step status updates from the resumed execution.
+            stopSseStream();
+            setTimeout(async () => {
+                flow = await api.flows.get(flowId);
+                renderPage();
+                startSseStream();
+            }, 500);
         } catch (e) {
             toast('Failed to resume flow: ' + e.message, 'error');
         }
