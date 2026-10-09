@@ -94,6 +94,14 @@
             max-width: 1000px;
         }
 
+        /* Component Checkbox Selection Mode */
+        .comp-checkbox-container {
+            display: none !important;
+        }
+        body.comp-mode .comp-checkbox-container {
+            display: flex !important;
+        }
+
         /* Inline detail panel (expands below step card) */
         .step-inline-detail {
             display: none;
@@ -866,6 +874,28 @@
 
     window.selectedStepsForComponent = new Set();
 
+    window.toggleComponentMode = function() {
+        document.body.classList.toggle('comp-mode');
+        const btn = document.getElementById('toggle-comp-mode-btn');
+        if (!btn) return;
+        
+        if (document.body.classList.contains('comp-mode')) {
+            btn.innerHTML = 'Cancel Selection';
+            btn.classList.add('btn-ghost');
+            btn.classList.remove('btn-outline');
+        } else {
+            btn.innerHTML = '🧩 Make Component';
+            btn.classList.remove('btn-ghost');
+            btn.classList.add('btn-outline');
+            
+            // clear selection when exiting mode
+            window.selectedStepsForComponent.clear();
+            document.querySelectorAll('.step-comp-checkbox').forEach(cb => cb.checked = false);
+            const createBtn = document.getElementById('create-comp-btn');
+            if (createBtn) createBtn.style.display = 'none';
+        }
+    };
+
     window.toggleComponentStep = function(cb, stepOrder) {
         if (cb.checked) {
             window.selectedStepsForComponent.add(stepOrder);
@@ -1012,10 +1042,14 @@
             await api.components.createComponent(payload);
             toast('Component created successfully!', 'success');
             closeModal();
-            window.selectedStepsForComponent.clear();
-            const btn = document.getElementById('create-comp-btn');
-            if (btn) btn.style.display = 'none';
-            document.querySelectorAll('.step-comp-checkbox').forEach(cb => cb.checked = false);
+            if (document.body.classList.contains('comp-mode')) {
+                toggleComponentMode();
+            } else {
+                window.selectedStepsForComponent.clear();
+                const btn = document.getElementById('create-comp-btn');
+                if (btn) btn.style.display = 'none';
+                document.querySelectorAll('.step-comp-checkbox').forEach(cb => cb.checked = false);
+            }
         } catch (e) {
             toast('Failed to create component: ' + e.message, 'error');
             if (saveBtn) saveBtn.disabled = false;
@@ -1382,13 +1416,14 @@
         const isRunning = flow.executionStatus === 'RUNNING';
 
         // Counts
-        const total = steps.length;
-        const passed = steps.filter(s => s.executionStatus === 'PASSED').length;
-        const failed = steps.filter(s => s.executionStatus === 'FAILED').length;
-        const draft = steps.filter(s => !s.executionStatus || s.executionStatus === 'DRAFT').length;
-        const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
-        const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
-        const cancelled = steps.filter(s => s.executionStatus === 'CANCELLED').length;
+        const execSteps = steps.filter(s => s.actionType !== 'INFO');
+        const total = execSteps.length;
+        const passed = execSteps.filter(s => s.executionStatus === 'PASSED').length;
+        const failed = execSteps.filter(s => s.executionStatus === 'FAILED').length;
+        const draft = execSteps.filter(s => !s.executionStatus || s.executionStatus === 'DRAFT').length;
+        const running = execSteps.filter(s => s.executionStatus === 'RUNNING').length;
+        const skipped = execSteps.filter(s => s.executionStatus === 'SKIPPED').length;
+        const cancelled = execSteps.filter(s => s.executionStatus === 'CANCELLED').length;
         let flowCalculatedDuration = flow.executionTime;
         if (flow.executionCompletedAt && flow.executionStartedAt) {
             flowCalculatedDuration = new Date(flow.executionCompletedAt) - new Date(flow.executionStartedAt);
@@ -1411,6 +1446,9 @@
                 <button id="stop-btn" class="btn btn-danger btn-sm"
                     onclick="stopFlowExecution()" ${isRunning ? '' : 'style="display:none"'}>
                     ⏹ Stop
+                </button>
+                <button id="toggle-comp-mode-btn" class="btn btn-outline btn-sm" onclick="toggleComponentMode()" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
+                    🧩 Make Component
                 </button>
                 <button id="create-comp-btn" class="btn btn-primary btn-sm" style="display:none" onclick="openCreateComponentModal()">
                     🧩 Create Component
@@ -1565,15 +1603,15 @@
     function updateHeroStats() {
         const steps = flow.steps || [];
         const isRunning = flow.executionStatus === 'RUNNING';
-        const total = steps.length;
-        const passed = steps.filter(s => s.executionStatus === 'PASSED').length;
-        const failed = steps.filter(s => s.executionStatus === 'FAILED').length;
-        const draft = steps.filter(s => s.executionStatus === 'DRAFT').length;
-        console.log("draft count "+draft);
-        const running = steps.filter(s => s.executionStatus === 'RUNNING').length;
-        const paused = steps.filter(s => s.executionStatus === 'PAUSED').length;
-        const skipped = steps.filter(s => s.executionStatus === 'SKIPPED').length;
-        const cancelled = steps.filter(s => s.executionStatus === 'CANCELLED').length;
+        const execSteps = steps.filter(s => s.actionType !== 'INFO');
+        const total = execSteps.length;
+        const passed = execSteps.filter(s => s.executionStatus === 'PASSED').length;
+        const failed = execSteps.filter(s => s.executionStatus === 'FAILED').length;
+        const draft = execSteps.filter(s => !s.executionStatus || s.executionStatus === 'DRAFT').length;
+        const running = execSteps.filter(s => s.executionStatus === 'RUNNING').length;
+        const paused = execSteps.filter(s => s.executionStatus === 'PAUSED').length;
+        const skipped = execSteps.filter(s => s.executionStatus === 'SKIPPED').length;
+        const cancelled = execSteps.filter(s => s.executionStatus === 'CANCELLED').length;
         const completedSteps = passed + failed + skipped + cancelled + paused;
         const progressPct = total > 0 ? Math.round((completedSteps / total) * 100) : 0;
 
@@ -1790,7 +1828,8 @@
         // Update count label
         const label = document.getElementById('step-count-label');
         if (label) {
-            label.textContent = `${start + 1}–${Math.min(start + stepsPerPage, total)} of ${total} steps (${steps.length} total)`;
+            const execCount = steps.filter(s => s.actionType !== 'INFO').length;
+            label.textContent = `${start + 1}–${Math.min(start + stepsPerPage, total)} of ${total} items (${execCount} steps total)`;
         }
 
         rebuildDomMap();
@@ -1845,7 +1884,7 @@
             return `
                 <div id="step-card-${step.stepOrder}" data-step-order="${step.stepOrder}" class="info-step-heading" style="background: transparent; border: none; border-bottom: 2px solid var(--sur3); border-radius: 0; padding: 24px 0 8px 0; margin-bottom: 16px; margin-top: 8px; box-shadow: none; cursor: default;">
                     <div style="display: flex; align-items: center; width: 100%;">
-                        <div style="padding-right: 16px; display: flex; align-items: center;" onclick="event.stopPropagation()">
+                        <div class="comp-checkbox-container" style="padding-right: 16px; display: flex; align-items: center;" onclick="event.stopPropagation()">
                             <input type="checkbox" class="step-comp-checkbox" data-step-order="${step.stepOrder}" ${selectedStepsForComponent.has(step.stepOrder) ? 'checked' : ''} onchange="toggleComponentStep(this, ${step.stepOrder})" style="accent-color: var(--pri); width: 16px; height: 16px; cursor: pointer;">
                         </div>
                         <div style="flex:1; display: flex; align-items: center; gap: 8px;">
@@ -1875,7 +1914,7 @@
         return `
             <div class="step-card ${statusCls} ${isSelected ? 'selected' : ''}" id="step-card-${step.stepOrder}" data-step-order="${step.stepOrder}">
                 <div class="step-head" onclick="selectStep(${step.stepOrder})">
-                    <div style="padding-right: 8px; display: flex; align-items: center;" onclick="event.stopPropagation()">
+                    <div class="comp-checkbox-container" style="padding-right: 8px; display: flex; align-items: center;" onclick="event.stopPropagation()">
                         <input type="checkbox" class="step-comp-checkbox" data-step-order="${step.stepOrder}" ${selectedStepsForComponent.has(step.stepOrder) ? 'checked' : ''} onchange="toggleComponentStep(this, ${step.stepOrder})" style="accent-color: var(--pri); width: 16px; height: 16px; cursor: pointer;">
                     </div>
                     <div class="step-num">${step.stepOrder}</div>
