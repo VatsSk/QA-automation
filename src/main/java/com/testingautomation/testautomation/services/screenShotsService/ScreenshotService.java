@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 
 @Service
@@ -48,6 +49,15 @@ public class ScreenshotService {
 
             String url = s3StorageService.uploadFile(localPath, s3Key);
             logger.info("Screenshot uploaded to S3: {}", url);
+
+            // Delete local image file after successful S3 upload
+            try {
+                Files.deleteIfExists(localPath);
+                logger.info("Deleted local screenshot file: {}", localPath);
+            } catch (Exception deleteEx) {
+                logger.warn("Failed to delete local screenshot file [{}]: {}", localPath, deleteEx.getMessage());
+            }
+
             return url;
         } catch (Exception ex) {
             logger.error("Failed to take screenshot: {}", ex.getMessage(), ex);
@@ -82,6 +92,15 @@ public class ScreenshotService {
             // 🔄 restore after capture
             utilServices.restoreElement(driver1, element);
             logger.info("Screenshot uploaded to S3: {}", url);
+
+            // Delete local image file after successful S3 upload
+            try {
+                Files.deleteIfExists(localPath);
+                logger.info("Deleted local screenshot file: {}", localPath);
+            } catch (Exception deleteEx) {
+                logger.warn("Failed to delete local screenshot file [{}]: {}", localPath, deleteEx.getMessage());
+            }
+
             return url;
         } catch (Exception ex) {
             logger.error("Failed to take screenshot: {}", ex.getMessage(), ex);

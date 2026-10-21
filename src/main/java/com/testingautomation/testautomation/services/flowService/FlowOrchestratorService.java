@@ -24,6 +24,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -49,6 +53,7 @@ public class FlowOrchestratorService {
     private final Set<String> cancelledModuleIds = ConcurrentHashMap.newKeySet();
     private final Set<String> cancelledProjectIds = ConcurrentHashMap.newKeySet();
     private volatile boolean cancelAll = false;
+    private static final String LOCAL_RESULTS_BASE_DIR = "test-results";
     private final ExecutorService executor = Executors.newCachedThreadPool();
 
     public Optional<Flow> getActiveFlow(String id) {
@@ -402,6 +407,8 @@ public class FlowOrchestratorService {
                         driver.quit();
                     } catch (Exception ignored) {}
                 }
+                // Delete local flow directory after flow execution completes
+                deleteLocalFlowDirectory(flow);
             } else {
                 flow.setUpdatedAt(Instant.now());
                 flowRepository.save(flow);
@@ -524,12 +531,35 @@ public class FlowOrchestratorService {
                         logger.info("Quitting WebDriver for flow: {}", flow.getName());
                         driver.quit();
                     } catch (Exception ignored) {}
+                    // Delete local flow directory after flow execution completes
+                    deleteLocalFlowDirectory(flow);
                 } else {
                     flow.setUpdatedAt(Instant.now());
                     flowRepository.save(flow);
                 }
             }
         }, executor);
+    }
+
+    /**
+     * Deletes the local flow directory (under test-results/) that was used to temporarily
+     * store screenshots during execution. Screenshots are already uploaded to S3 by the
+     * time this is called, so the local directory is safe to remove.
+     */
+    private void deleteLocalFlowDirectory(Flow flow) {
+        try {
+            if (flow.getFlowBasePath() == null || flow.getFlowBasePath().isBlank()) return;
+            Path flowDir = Paths.get(LOCAL_RESULTS_BASE_DIR, flow.getFlowBasePath());
+            if (Files.exists(flowDir)) {
+                Files.walk(flowDir)
+                        .sorted(java.util.Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(java.io.File::delete);
+                logger.info("Deleted local flow directory: {}", flowDir);
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to delete local flow directory for flow [{}]: {}", flow.getId(), e.getMessage());
+        }
     }
 
 }

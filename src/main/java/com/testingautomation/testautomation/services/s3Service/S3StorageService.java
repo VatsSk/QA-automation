@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Object;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.core.sync.RequestBody;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -66,6 +67,29 @@ public class S3StorageService {
         // NOTE:
         // This returns a plain S3 URL (not signed).
         // Fine for logging/storage reference, but NOT enough for private bucket viewing.
+        return s3Client.utilities()
+                .getUrl(builder -> builder.bucket(bucket).key(key))
+                .toExternalForm();
+    }
+
+    /**
+     * Uploads raw bytes directly to S3 without writing to local disk.
+     *
+     * @param bytes       the file content as a byte array
+     * @param key         the S3 object key
+     * @param contentType MIME type (e.g. "image/png")
+     * @return the plain S3 URL of the uploaded object
+     */
+    public String uploadBytes(byte[] bytes, String key, String contentType) {
+        PutObjectRequest request = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(contentType)
+                .contentLength((long) bytes.length)
+                .build();
+
+        s3Client.putObject(request, RequestBody.fromBytes(bytes));
+
         return s3Client.utilities()
                 .getUrl(builder -> builder.bucket(bucket).key(key))
                 .toExternalForm();
