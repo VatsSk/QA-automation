@@ -23,9 +23,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -47,8 +44,6 @@ public class FlowExecutionService {
 
 
 
-
-    private final String resultsBaseDir = "test-results";
     @Autowired
     private VerificationService verificationService;
     @Autowired
@@ -308,26 +303,19 @@ public class FlowExecutionService {
     private void takeScreenshotIfRequired(WebDriver driver, FlowStep step, Flow flow, int attempt) {
         if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
             try {
-                String stepId = ""+ step.getStepOrder();
-                
-                Path scenarioDir = Paths.get(resultsBaseDir, flow.getFlowBasePath());
-                Files.createDirectories(scenarioDir);
-                
-                screenshotService.takeScreenshot(driver, stepId, stepId+"_"+attempt + "_screenshot", scenarioDir, flow.getFlowBasePath());
+                String stepId = "" + step.getStepOrder();
+                screenshotService.takeScreenshot(driver, stepId, stepId + "_" + attempt + "_screenshot", flow.getFlowBasePath());
             } catch (Exception e) {
                 logger.error("Failed to capture screenshot for step [{}]", step.getName(), e);
             }
         }
     }
-    private void takeScreenshotIfRequired(WebDriver driver,WebElement element ,FlowStep step, Flow flow,int attempt, String color) {
+
+    private void takeScreenshotIfRequired(WebDriver driver, WebElement element, FlowStep step, Flow flow, int attempt, String color) {
         if (Boolean.TRUE.equals(step.getCaptureScreenshot())) {
             try {
-                String stepId = ""+ step.getStepOrder();
-
-                Path scenarioDir = Paths.get(resultsBaseDir, flow.getFlowBasePath());
-                Files.createDirectories(scenarioDir);
-
-                screenshotService.takeScreenshot(driver,element,stepId, stepId+"_"+attempt + "_screenshot", scenarioDir, flow.getFlowBasePath(), color);
+                String stepId = "" + step.getStepOrder();
+                screenshotService.takeScreenshot(driver, element, stepId, stepId + "_" + attempt + "_screenshot", flow.getFlowBasePath(), color);
             } catch (Exception e) {
                 logger.error("Failed to capture screenshot for step [{}]", step.getName(), e);
             }
