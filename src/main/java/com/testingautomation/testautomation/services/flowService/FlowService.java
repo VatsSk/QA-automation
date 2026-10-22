@@ -97,33 +97,36 @@ public class FlowService {
         clone.setUpdatedAt(Instant.now());
         
         // Deep copy the steps to avoid sharing object references or database IDs
-        List<com.testingautomation.testautomation.entities.flow.FlowStep> clonedSteps = new java.util.ArrayList<>();
+        List<FlowStep> clonedSteps = new ArrayList<>();
         if (original.getSteps() != null) {
-            for (com.testingautomation.testautomation.entities.flow.FlowStep step : original.getSteps()) {
-                com.testingautomation.testautomation.entities.flow.FlowStep stepClone = new com.testingautomation.testautomation.entities.flow.FlowStep();
-                stepClone.setStepOrder(step.getStepOrder());
-                stepClone.setName(step.getName());
-                stepClone.setActionType(step.getActionType());
-                stepClone.setVerificationType(step.getVerificationType());
-                stepClone.setSelector(step.getSelector());
-                stepClone.setValue(step.getValue());
-                stepClone.setUrl(step.getUrl());
-                stepClone.setExpectedValue(step.getExpectedValue());
-                stepClone.setAttribute(step.getAttribute());
-                stepClone.setTextSource(step.getTextSource());
-                stepClone.setOverrideWait(step.getOverrideWait());
-                stepClone.setWait(step.getWait());
-                stepClone.setRetryCount(step.getRetryCount());
-                stepClone.setContinueOnFailure(step.getContinueOnFailure());
-                stepClone.setCaptureScreenshot(step.getCaptureScreenshot());
-//                stepClone.setEnabled(step.getEnabled());
-//                stepClone.setRemarks(step.getRemarks());
-                clonedSteps.add(stepClone);
+            for (FlowStep step : original.getSteps()) {
+                clonedSteps.add(getFlowStep(step));
             }
         }
         clone.setSteps(clonedSteps);
 
         return flowRepository.save(clone);
+    }
+
+    private FlowStep getFlowStep(FlowStep step) {
+        FlowStep stepClone = new FlowStep();
+        stepClone.setDescription(step.getDescription());
+        stepClone.setStepOrder(step.getStepOrder());
+        stepClone.setName(step.getName());
+        stepClone.setActionType(step.getActionType());
+        stepClone.setVerificationType(step.getVerificationType());
+        stepClone.setSelector(step.getSelector());
+        stepClone.setValue(step.getValue());
+        stepClone.setUrl(step.getUrl());
+        stepClone.setExpectedValue(step.getExpectedValue());
+        stepClone.setAttribute(step.getAttribute());
+        stepClone.setTextSource(step.getTextSource());
+        stepClone.setOverrideWait(step.getOverrideWait());
+        stepClone.setWait(step.getWait());
+        stepClone.setRetryCount(step.getRetryCount());
+        stepClone.setContinueOnFailure(step.getContinueOnFailure());
+        stepClone.setCaptureScreenshot(step.getCaptureScreenshot());
+        return stepClone;
     }
 
     public void executeAllFlows(List<String> flowIds) {

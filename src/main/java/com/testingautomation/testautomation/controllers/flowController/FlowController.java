@@ -103,7 +103,9 @@ public class FlowController {
         }
 
         Flow flow = flowOptional.get();
-        
+        if(flow.getCreatedAt() == null){
+            flow.setCreatedAt(flow.getUpdatedAt());
+        }
         // If it's a component flow that is already materialized in Flow collection, it still needs to be run from FlowInfo to get fresh dynamic component changes
         if (flow.isPartComp()) {
           Optional<FlowInfo> flowInfoOpt = flowInfoService.getFlowInfoById(flow.getId());
