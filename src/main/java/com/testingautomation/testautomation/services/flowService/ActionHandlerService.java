@@ -803,6 +803,7 @@ public class ActionHandlerService {
 
     public void handleUrlChange(FlowStep step, Flow flow) {
         long waitTime = resolveUrlChangeWait(step, flow);
+        flow.setVersion(1);
         if (waitTime < 0) {
             throw new GlobalExceptionHandler.FlowExecutionException(
                     step.getStepOrder(),

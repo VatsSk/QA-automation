@@ -39,7 +39,7 @@ public class ComponentFlowExecutionService {
         flow.setName(flowInfo.getName());
         flow.setDescription(flowInfo.getDescription());
         flow.setPartComp(true);
-        flow.setCreatedAt(Instant.now());
+        flow.setCreatedAt(flowInfo.getCreatedAt());
         flow.setUpdatedAt(Instant.now());
 
         List<FlowStep> runtimeSteps = buildRuntimeSteps(flowInfo);
@@ -51,6 +51,7 @@ public class ComponentFlowExecutionService {
 
     public void executeComponentFlow(FlowInfo flowInfo, String environmentId) {
         Flow flow = materializeFlow(flowInfo);
+        flow.setVersion(1);
         flowOrchestratorService.executeFlow(flow, environmentId);
     }
 

@@ -3,6 +3,8 @@ package com.testingautomation.testautomation.services.flowService;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.entities.Run;
 import com.testingautomation.testautomation.entities.flow.Flow;
+import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
@@ -40,6 +42,9 @@ public class FlowService {
             flow.setCreatedAt(Instant.now());
         }
         flow.setUpdatedAt(Instant.now());
+        if(flow.getCreatedAt() == null){
+            flow.setCreatedAt(flow.getUpdatedAt());
+        }
         return flowRepository.save(flow);
     }
 
