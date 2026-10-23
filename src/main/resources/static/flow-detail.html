@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
@@ -790,6 +790,70 @@
                 flex-wrap: wrap;
             }
         }
+
+        /* Component Step Group (Collapsible) */
+        .comp-step-group {
+            background: rgba(59, 130, 246, 0.02);
+            border: 1.5px solid rgba(59, 130, 246, 0.25);
+            border-radius: var(--r);
+            margin-bottom: 14px;
+            overflow: hidden;
+            transition: all 0.2s ease;
+        }
+        .comp-step-group:hover {
+            border-color: rgba(59, 130, 246, 0.45);
+        }
+        .comp-step-group-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 14px;
+            background: rgba(59, 130, 246, 0.08);
+            cursor: pointer;
+            user-select: none;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.15);
+            transition: background 0.15s ease;
+        }
+        .comp-step-group-header:hover {
+            background: rgba(59, 130, 246, 0.14);
+        }
+        .comp-step-group-title {
+            font-weight: 600;
+            font-size: 13.5px;
+            color: var(--tx1);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .comp-step-group-badge {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--blue);
+            background: rgba(59, 130, 246, 0.12);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .comp-step-group-body {
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .comp-step-group.collapsed .comp-step-group-body {
+            display: none !important;
+        }
+        .comp-step-group.collapsed .comp-step-group-header {
+            border-bottom: none;
+        }
+        .comp-step-group-chevron {
+            font-size: 11px;
+            color: var(--tx2);
+            transition: transform 0.2s ease;
+            margin-left: 6px;
+        }
+        .comp-step-group.collapsed .comp-step-group-chevron {
+            transform: rotate(-90deg);
+        }
     </style>
 </head>
 <body>
@@ -897,6 +961,13 @@
     };
 
     window.toggleComponentStep = function(cb, stepOrder) {
+        const step = stepById.get(stepOrder);
+        if (cb.checked && step && step.isComp) {
+            toast('This step is already part of a component. You can only select standalone steps to create a new component.', 'warning');
+            cb.checked = false;
+            return;
+        }
+
         if (cb.checked) {
             window.selectedStepsForComponent.add(stepOrder);
         } else {
@@ -916,6 +987,17 @@
             return;
         }
 
+        // Check contiguity of selected steps
+        const sortedSelected = Array.from(window.selectedStepsForComponent).sort((a, b) => a - b);
+        let isContiguous = true;
+        for (let i = 1; i < sortedSelected.length; i++) {
+            if (sortedSelected[i] !== sortedSelected[i - 1] + 1) {
+                isContiguous = false;
+                break;
+            }
+        }
+        window._selectedStepsContiguous = isContiguous;
+
         try {
             window.componentModules = await api.components.listModules(flow.projectId || projectId) || [];
         } catch(e) {
@@ -926,11 +1008,32 @@
         let moduleOptions = window.componentModules.map(m => `<option value="${m.id || m._id}">${esc(m.name)}</option>`).join('');
         moduleOptions += `<option value="NEW">+ Create New Module</option>`;
 
+        const replaceSection = isContiguous ? `
+                    <div style="margin-top:4px; padding:12px 14px; background:var(--sur2); border:1px solid var(--bd); border-radius:8px;">
+                        <label style="display:flex; align-items:flex-start; gap:10px; cursor:pointer; font-size:13px; color:var(--tx1);">
+                            <input type="checkbox" id="replace-steps-checkbox" style="margin-top:2px; accent-color:var(--blue);">
+                            <div>
+                                <div style="font-weight:600;">Replace selected steps with this component in the flow</div>
+                                <div style="font-size:11.5px; color:var(--tx3); margin-top:3px;">
+                                    The ${sortedSelected.length} selected step(s) will be replaced by a single component reference.
+                                    The flow will be converted to a Component Flow and can be edited in the Flow Builder.
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+        ` : `
+                    <div style="margin-top:4px; padding:10px 14px; background:rgba(234,179,8,0.08); border:1px solid rgba(234,179,8,0.25); border-radius:8px; font-size:12px; color:var(--tx2);">
+                        <span style="font-weight:600; color:#b45309;">&#9888; Non-consecutive steps selected.</span>
+                        The selected steps are not adjacent (e.g. steps 2, 5, 8). To replace steps in the flow with a component, please select consecutive steps only.
+                        The component will still be created in the library for future use.
+                    </div>
+        `;
+
         openModal(`
-            <div class="modal" style="width:500px">
+            <div class="modal" style="width:520px">
                 <div class="modal-head">
-                    <h2>🧩 Create Component</h2>
-                    <button class="modal-close" onclick="closeModal()">✕</button>
+                    <h2>&#129513; Create Component</h2>
+                    <button class="modal-close" onclick="closeModal()">&#10005;</button>
                 </div>
                 <div style="padding: 20px 0; display:flex; flex-direction:column; gap:12px;">
                     <div style="font-size:13px; color:var(--tx2); margin-bottom:4px;">
@@ -957,6 +1060,8 @@
                         <label class="lbl">Description</label>
                         <input id="new-comp-desc" class="inp" placeholder="Optional description">
                     </div>
+
+                    ${replaceSection}
                 </div>
                 <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
                     <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
@@ -983,8 +1088,17 @@
         const moduleSelect = document.getElementById('comp-module-select').value;
         const newModuleName = document.getElementById('new-module-name').value.trim();
 
+        const replaceCheckbox = document.getElementById('replace-steps-checkbox');
+        const shouldReplace = replaceCheckbox && replaceCheckbox.checked;
+
         if (!name) {
             toast('Component Name is required', 'warning');
+            return;
+        }
+
+        // Double-check contiguity if replace is requested
+        if (shouldReplace && !window._selectedStepsContiguous) {
+            toast('Cannot replace: selected steps must be consecutive', 'error');
             return;
         }
 
@@ -1009,7 +1123,10 @@
         }
 
         const saveBtn = document.getElementById('save-comp-btn');
-        if (saveBtn) saveBtn.disabled = true;
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving\u2026';
+        }
 
         const selectedArray = Array.from(window.selectedStepsForComponent).sort((a, b) => a - b);
         const stepsToSave = [];
@@ -1039,8 +1156,124 @@
         };
         
         try {
-            await api.components.createComponent(payload);
+            const savedComponent = await api.components.createComponent(payload);
+            const savedCompId = savedComponent.id || savedComponent._id;
             toast('Component created successfully!', 'success');
+
+            // -- Replace selected steps with the component in the flow --
+            if (shouldReplace) {
+                try {
+                    const pid = flow.projectId || projectId;
+                    const mid = flow.moduleId || moduleId;
+                    const allSteps = flow.steps || [];
+                    const selectedSet = new Set(selectedArray);
+
+                    // Fetch existing FlowInfo if this flow is already a component flow
+                    let existingFlowInfo = null;
+                    try {
+                        existingFlowInfo = await api.components.getFlowInfo(flow.id || flowId);
+                    } catch(e) {}
+
+                    // Collect existing component IDs in order so we preserve them
+                    const existingCompIds = [];
+                    if (existingFlowInfo && Array.isArray(existingFlowInfo.flowItems)) {
+                        for (const it of existingFlowInfo.flowItems) {
+                            if (it.type === 'COMPONENT' && it.componentId) {
+                                existingCompIds.push(it.componentId);
+                            }
+                        }
+                    }
+
+                    const flowItems = [];
+                    let orderCounter = 1;
+                    let componentInserted = false;
+                    let currentCompName = null;
+                    let compIdIndex = 0;
+
+                    for (const step of allSteps) {
+                        // Check if this step already belongs to an existing component
+                        if (step.isComp) {
+                            const compName = getStepComponentName(step);
+                            if (currentCompName !== compName) {
+                                currentCompName = compName;
+                                const compId = (compIdIndex < existingCompIds.length) ? existingCompIds[compIdIndex++] : null;
+                                if (compId) {
+                                    flowItems.push({
+                                        order: orderCounter++,
+                                        type: 'COMPONENT',
+                                        componentId: compId
+                                    });
+                                }
+                            }
+                            // Skip inner steps of existing component (already represented by COMPONENT item)
+                            continue;
+                        }
+
+                        // Reset comp name tracking for standalone steps
+                        currentCompName = null;
+
+                        if (selectedSet.has(step.stepOrder)) {
+                            // Insert the newly created component reference once at this position
+                            if (!componentInserted) {
+                                flowItems.push({
+                                    order: orderCounter++,
+                                    type: 'COMPONENT',
+                                    componentId: savedCompId
+                                });
+                                componentInserted = true;
+                            }
+                            // Skip: this step is now part of the new component
+                        } else {
+                            // Keep as a standalone step
+                            const cleanStep = { ...step };
+                            delete cleanStep.executionStatus;
+                            delete cleanStep.executionMessage;
+                            delete cleanStep.executionStartedAt;
+                            delete cleanStep.executionCompletedAt;
+                            delete cleanStep.executionTime;
+                            delete cleanStep.screenshotUrl;
+                            cleanStep.stepOrder = orderCounter;
+                            flowItems.push({
+                                order: orderCounter++,
+                                type: 'STEP',
+                                step: cleanStep
+                            });
+                        }
+                    }
+
+                    const flowInfoPayload = {
+                        name: flow.name,
+                        description: flow.description,
+                        projectId: pid,
+                        moduleId: mid,
+                        containsComp: true,
+                        flowItems: flowItems
+                    };
+
+                    // Save as FlowInfo with the same ID as the current flow
+                    // This will also auto-materialize the flow via the backend
+                    await api.components.saveFlowInfo(flow.id || flowId, flowInfoPayload);
+                    toast('Flow converted to Component Flow!', 'success');
+
+                    closeModal();
+                    // Redirect to the flows list with component tab active
+                    setTimeout(() => {
+                        window.location.href = `/flows.html?projectId=${pid}&moduleId=${mid}&flowTab=component`;
+                    }, 800);
+                    return;
+
+                } catch(replaceErr) {
+                    console.error('Failed to replace steps in flow:', replaceErr);
+                    toast('Component was created but failed to replace steps in flow: ' + replaceErr.message, 'error');
+                    if (saveBtn) {
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Save Component';
+                    }
+                    return;
+                }
+            }
+
+            // -- Normal mode: just create the component, don't modify the flow --
             closeModal();
             if (document.body.classList.contains('comp-mode')) {
                 toggleComponentMode();
@@ -1052,7 +1285,10 @@
             }
         } catch (e) {
             toast('Failed to create component: ' + e.message, 'error');
-            if (saveBtn) saveBtn.disabled = false;
+            if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Component';
+            }
         }
     };
 
@@ -1455,6 +1691,23 @@
                 </button>
             </div>
 
+
+
+            ${flow.partComp ? `
+            <!-- Component Flow Banner -->
+            <div style="display:flex; align-items:center; gap:12px; padding:12px 16px; margin-bottom:16px; background:rgba(59,130,246,0.06); border:1px solid rgba(59,130,246,0.2); border-radius:8px;">
+                <span style="font-size:22px;">&#129513;</span>
+                <div style="flex:1;">
+                    <div style="font-weight:600; font-size:13.5px; color:var(--tx1);">This is a Component Flow</div>
+                    <div style="font-size:12px; color:var(--tx3); margin-top:2px;">This flow is composed of reusable components. Edit its structure in the Flow Builder.</div>
+                </div>
+                <a href="/flow-builder.html?projectId=${pid}&moduleId=${mid}&flowInfoId=${flow.id || flowId}"
+                   class="btn btn-primary btn-sm" style="white-space:nowrap;">
+                    &#129513; Edit in Flow Builder &#8594;
+                </a>
+            </div>
+            ` : ''}
+
             <!-- Flow summary hero -->
             <div class="flow-hero">
                 <div class="flow-hero-top">
@@ -1716,6 +1969,98 @@
         }
     }
 
+    // ── COMPONENT GROUPING HELPERS ─────────────────────────────────────
+    window.collapsedCompGroups = new Set();
+    window.toggleCompGroup = function(groupId) {
+        const el = document.getElementById(groupId);
+        if (!el) return;
+        el.classList.toggle('collapsed');
+        if (el.classList.contains('collapsed')) {
+            window.collapsedCompGroups.add(groupId);
+        } else {
+            window.collapsedCompGroups.delete(groupId);
+        }
+    };
+
+    function getStepComponentName(step) {
+        if (!step || !step.isComp) return null;
+        if (step.name && step.name.includes(' - ')) {
+            return step.name.split(' - ')[0].trim();
+        }
+        return 'Component';
+    }
+
+    function renderGroupedStepsHTML(items) {
+        if (!items || !items.length) return '';
+
+        const hasAnyComp = items.some(s => s.isComp);
+        if (!hasAnyComp) {
+            return items.map(step => renderStepCard(step)).join('');
+        }
+
+        let html = '';
+        let currentCompName = null;
+        let currentCompSteps = [];
+
+        function flushGroup() {
+            if (!currentCompSteps.length) return;
+            const groupId = 'comp-group-' + encodeURIComponent(currentCompName).replace(/[^a-zA-Z0-9_-]/g, '_');
+            
+            // Auto-expand if any step failed, otherwise respect user collapse
+            const anyFailed = currentCompSteps.some(s => s.executionStatus === 'FAILED');
+            const anyRunning = currentCompSteps.some(s => s.executionStatus === 'RUNNING');
+            const anyPaused = currentCompSteps.some(s => s.executionStatus === 'PAUSED');
+            const anyDraft = currentCompSteps.some(s => !s.executionStatus || s.executionStatus === 'DRAFT' || s.executionStatus === 'NOT_STARTED');
+
+            let overallStatus = 'PASSED';
+            if (anyFailed) overallStatus = 'FAILED';
+            else if (anyRunning) overallStatus = 'RUNNING';
+            else if (anyPaused) overallStatus = 'PAUSED';
+            else if (anyDraft) overallStatus = 'DRAFT';
+
+            const isCollapsed = window.collapsedCompGroups.has(groupId) && !anyFailed;
+
+            html += `
+                <div class="comp-step-group ${isCollapsed ? 'collapsed' : ''}" id="${groupId}">
+                    <div class="comp-step-group-header" onclick="toggleCompGroup('${groupId}')" title="Click to collapse / expand component steps">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <span style="font-size:16px;">🧩</span>
+                            <div class="comp-step-group-title">
+                                <span>${esc(currentCompName)}</span>
+                                <span class="comp-step-group-badge">Component · ${currentCompSteps.length} step${currentCompSteps.length !== 1 ? 's' : ''}</span>
+                            </div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            ${statusBadge(overallStatus)}
+                            <span class="comp-step-group-chevron" id="chevron-${groupId}">▼</span>
+                        </div>
+                    </div>
+                    <div class="comp-step-group-body" id="body-${groupId}">
+                        ${currentCompSteps.map(step => renderStepCard(step)).join('')}
+                    </div>
+                </div>
+            `;
+            currentCompSteps = [];
+            currentCompName = null;
+        }
+
+        for (const step of items) {
+            const compName = getStepComponentName(step);
+            if (compName) {
+                if (currentCompName && currentCompName !== compName) {
+                    flushGroup();
+                }
+                currentCompName = compName;
+                currentCompSteps.push(step);
+            } else {
+                flushGroup();
+                html += renderStepCard(step);
+            }
+        }
+        flushGroup();
+        return html;
+    }
+
     // ── RENDER STEPS ────────────────────────────────────────────────────
     function renderSteps() {
         const steps = flow.steps || [];
@@ -1820,7 +2165,7 @@
         const start = stepPage * stepsPerPage;
         const pageItems = filtered.slice(start, start + stepsPerPage);
 
-        listEl.innerHTML = pageItems.map(step => renderStepCard(step)).join('');
+        listEl.innerHTML = renderGroupedStepsHTML(pageItems);
         if (pagEl) {
             pagEl.innerHTML = totalPages > 1 ? paginationHTML(stepPage, totalPages, 'goStepPage') : '';
         }
@@ -1890,9 +2235,13 @@
                         <div style="flex:1; display: flex; align-items: center; gap: 8px;">
                             <h3 style="margin: 0; color: var(--tx); font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; white-space: pre-wrap;">${esc(step.description || '')}</h3>
                         </div>
-                        <div style="display:flex; gap:8px; margin-left:16px;">
-                            <button onclick="openStepEditor(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="background: transparent; border: 1px solid transparent; color: var(--tx2); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.background='var(--sur3)'; this.style.borderColor='var(--bd2)';" onmouseout="this.style.background='transparent'; this.style.borderColor='transparent';" title="Edit Step">✏️</button>
-                            <button onclick="deleteStep(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="background: transparent; border: 1px solid transparent; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.background='rgba(239, 68, 98, 0.1)'; this.style.borderColor='rgba(239, 68, 98, 0.2)';" onmouseout="this.style.background='transparent'; this.style.borderColor='transparent';" title="Delete Step">🗑️</button>
+                        <div style="display:flex; gap:8px; margin-left:16px; align-items:center;">
+                            ${step.isComp ? `
+                                <span class="badge" style="background:rgba(59,130,246,0.12); color:var(--blue); font-size:11px; padding:2px 8px; border:1px solid rgba(59,130,246,0.25);" title="Component step — edit in Component Editor">🔒 Component Step</span>
+                            ` : `
+                                <button onclick="openStepEditor(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="background: transparent; border: 1px solid transparent; color: var(--tx2); font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.background='var(--sur3)'; this.style.borderColor='var(--bd2)';" onmouseout="this.style.background='transparent'; this.style.borderColor='transparent';" title="Edit Step">✏️</button>
+                                <button onclick="deleteStep(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="background: transparent; border: 1px solid transparent; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; transition: all 0.15s;" onmouseover="this.style.background='rgba(239, 68, 98, 0.1)'; this.style.borderColor='rgba(239, 68, 98, 0.2)';" onmouseout="this.style.background='transparent'; this.style.borderColor='transparent';" title="Delete Step">🗑️</button>
+                            `}
                         </div>
                     </div>
                     <div class="step-inline-detail" id="detail-panel-${step.stepOrder}" style="display:none;"></div>
@@ -1919,8 +2268,9 @@
                     </div>
                     <div class="step-num">${step.stepOrder}</div>
                     <div class="step-info">
-                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
                             <span class="action-badge" style="background:${cfg.bg};color:${cfg.color};border-color:${cfg.bc};font-size:10px;padding:1px 6px;">${cfg.icon} ${cfg.label}</span>
+                            ${step.isComp ? `<span class="badge" style="background:rgba(59,130,246,0.12);color:var(--blue);border:1px solid rgba(59,130,246,0.25);font-size:10px;padding:1px 6px;">🧩 COMPONENT</span>` : ''}
                             ${durationStr && durationStr !== '—' ? `<span style="font-size:11px; font-weight:600; font-family:var(--mono); color:var(--tx2); background:var(--sur3); padding:1px 7px; border-radius:var(--rx);">⏱ ${durationStr}</span>` : ''}
                             <span style="font-size:11px; color:var(--tx3);" id="ss-count-${step.stepOrder}"></span>
                         </div>
@@ -1995,11 +2345,17 @@
                     </div>
                 ` : ''}
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:20px; border-bottom:1px solid var(--bd); padding-bottom:4px; margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:20px; border-bottom:1px solid var(--bd); padding-bottom:8px; margin-bottom:12px;">
                 <div class="step-detail-label" style="margin:0; border:none; padding:0;">Execution & Settings</div>
-                <div style="display:flex; gap:8px;">
-                    <button class="btn btn-ghost btn-xs" onclick="openStepEditor(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;" title="Cannot edit while running"' : ''}>✏️ Edit Step</button>
-                    <button class="btn btn-outline btn-xs" style="color:#d32f2f; border-color:#d32f2f; ${isRunning ? 'opacity:0.5;cursor:not-allowed;' : ''}" onclick="deleteStep(${step.stepOrder})" ${isRunning ? 'disabled title="Cannot delete while running"' : ''}>🗑️ Delete</button>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    ${step.isComp ? `
+                        <span style="font-size:11.5px; color:var(--tx2); display:inline-flex; align-items:center; gap:6px; background:rgba(59,130,246,0.08); padding:4px 10px; border-radius:5px; border:1px solid rgba(59,130,246,0.25);">
+                            🔒 Part of Component &mdash; cannot be edited directly in flow
+                        </span>
+                    ` : `
+                        <button class="btn btn-ghost btn-xs" onclick="openStepEditor(${step.stepOrder})" ${isRunning ? 'disabled style="opacity:0.5;cursor:not-allowed;" title="Cannot edit while running"' : ''}>✏️ Edit Step</button>
+                        <button class="btn btn-outline btn-xs" style="color:#d32f2f; border-color:#d32f2f; ${isRunning ? 'opacity:0.5;cursor:not-allowed;' : ''}" onclick="deleteStep(${step.stepOrder})" ${isRunning ? 'disabled title="Cannot delete while running"' : ''}>🗑️ Delete</button>
+                    `}
                 </div>
             </div>
             <div class="step-detail-grid">
@@ -2051,6 +2407,11 @@
                 <div style="margin-top:16px; padding:16px; background:var(--sur3); border:1px solid var(--am); border-radius:var(--rs);">
                     <div style="color:var(--am); font-weight:700; margin-bottom:12px;">⏸ Execution Paused (Debug Mode)</div>
                     
+                    ${step.isComp ? `
+                    <div style="margin-bottom:12px; font-size:12px; color:var(--tx3);">
+                        🔒 This step is part of a component. Selectors for component steps cannot be updated here.
+                    </div>
+                    ` : `
                     <div style="margin-bottom:12px;">
                         <label class="step-detail-label">Update Selector</label>
                         <div style="display:flex; gap:8px;">
@@ -2058,6 +2419,7 @@
                             <button class="btn btn-primary" onclick="updateDebugStep(${step.stepOrder})">Save</button>
                         </div>
                     </div>
+                    `}
                     
                     <div>
                         <label class="step-detail-label">Resume Execution</label>
@@ -2571,6 +2933,10 @@
             toast('Step not found in local data', 'error');
             return;
         }
+        if (step.isComp) {
+            toast('Component steps cannot be modified directly in the flow.', 'warning');
+            return;
+        }
         
         // Update selector locally
         step.selector = input.value;
@@ -2622,6 +2988,11 @@
         }
         const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
         if (!step) return;
+
+        if (step.isComp) {
+            toast('This step is part of a component and cannot be edited in the flow. Please edit it in the Component Editor.', 'warning', 5000);
+            return;
+        }
 
         openModal(`
             <div class="modal">
@@ -2728,6 +3099,11 @@
     window.deleteStep = function (stepOrder) {
         if (flow.executionStatus === 'RUNNING') {
             toast('Cannot delete step while flow is running!', 'warning');
+            return;
+        }
+        const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
+        if (step && step.isComp) {
+            toast('This step is part of a component and cannot be deleted from the flow. Please edit the component or flow structure.', 'warning', 5000);
             return;
         }
         openModal(`

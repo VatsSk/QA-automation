@@ -124,8 +124,6 @@
         <button class="btn btn-ghost btn-xs"
           data-project='${pj}'
           onclick="event.stopPropagation();showEditModal(JSON.parse(this.dataset.project))">⚙</button>
-        <button class="btn btn-danger btn-xs"
-          onclick="event.stopPropagation();deleteProject('${pid}')">✕</button>
       </div>
       <div class="proj-card-icon">📁</div>
       <h3>${esc(p.name)}</h3>

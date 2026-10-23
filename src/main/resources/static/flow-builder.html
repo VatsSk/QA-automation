@@ -97,8 +97,8 @@
 
         .step-item {
             display: flex;
-            align-items: flex-start;
-            gap: 10px;
+            flex-direction: column;
+            gap: 8px;
             padding: 12px 14px;
             background: var(--sur);
             border: 1px solid var(--bd);
@@ -106,6 +106,13 @@
             margin-bottom: 8px;
             transition: border-color 0.15s, box-shadow 0.15s;
             position: relative;
+        }
+
+        .step-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
         }
 
         .step-item:hover {
@@ -343,9 +350,12 @@
 
         <!-- Left: Steps sequence -->
         <div class="steps-panel">
-            <div class="steps-panel-header">
-                <span>Flow Execution Sequence</span>
-                <span id="step-count-badge" class="badge badge-blue" style="display:none"></span>
+            <div class="steps-panel-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <span>Flow Execution Sequence</span>
+                    <span id="step-count-badge" class="badge badge-blue" style="display:none"></span>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="openAddManualStepModal()">+ Add Manual Step</button>
             </div>
             <div class="steps-list" id="builder-items-list">
                 <div class="step-empty">
@@ -404,6 +414,7 @@
     const params    = new URLSearchParams(location.search);
     const projectId = params.get('projectId');
     const moduleId  = params.get('moduleId');
+    const flowInfoId = params.get('flowInfoId');
 
     if (!projectId || !moduleId) {
         window.location.href = '/projects.html';
@@ -416,14 +427,20 @@
     let currentModuleComponents = [];
     let filteredComponents = [];
     let allAvailableComponents = [];
+    let editingFlowInfo = null;
 
     // ── Boot ──────────────────────────────────────────────────────────────
     async function boot() {
         try {
             document.title = 'Component Flow Builder — QA Studio';
 
-            // Load modules for dropdown
+            // Load modules and components for sidebar
             await loadModules();
+
+            // If editing an existing FlowInfo, load and populate it
+            if (flowInfoId) {
+                await loadExistingFlowInfo(flowInfoId);
+            }
 
             // Show the app
             document.getElementById('builder-loading').style.display = 'none';
@@ -468,6 +485,53 @@
     }
 
     // ── Component List ────────────────────────────────────────────────────
+    async function loadExistingFlowInfo(id) {
+        try {
+            editingFlowInfo = await api.components.getFlowInfo(id);
+            if (!editingFlowInfo) {
+                toast('Could not load Flow Info for editing', 'error');
+                return;
+            }
+
+            // Populate name and description fields
+            document.getElementById('cb-name').value = editingFlowInfo.name || '';
+            document.getElementById('cb-desc').value = editingFlowInfo.description || '';
+
+            // Update title and save button to indicate edit mode
+            document.title = 'Edit Component Flow — QA Studio';
+            document.querySelector('.builder-title').textContent = '🧩 Edit Component Flow';
+            document.getElementById('btn-save').innerHTML = '💾 Update Flow';
+
+            // Reconstruct builderItems from flowItems
+            builderItems = [];
+            const sorted = [...(editingFlowInfo.flowItems || [])].sort((a, b) => a.order - b.order);
+            for (const item of sorted) {
+                if (item.type === 'COMPONENT' && item.componentId) {
+                    let comp = allAvailableComponents.find(c => (c.id || c._id) === item.componentId);
+                    if (!comp) {
+                        try {
+                            comp = await api.components.getComponent(item.componentId);
+                        } catch(e) {}
+                    }
+                    builderItems.push({
+                        type: 'COMPONENT',
+                        componentId: item.componentId,
+                        component: comp || { name: 'Unknown Component', steps: [], compModuleName: '' }
+                    });
+                } else if (item.type === 'STEP' && item.step) {
+                    builderItems.push({
+                        type: 'STEP',
+                        step: item.step
+                    });
+                }
+            }
+            renderBuilderItems();
+        } catch(e) {
+            console.error('Failed to load existing FlowInfo:', e);
+            toast('Failed to load Component Flow for editing: ' + e.message, 'error');
+        }
+    }
+
     function renderComponentList() {
         const list = document.getElementById('comp-list');
         if (!filteredComponents.length) {
@@ -508,37 +572,196 @@
         const list = document.getElementById('builder-items-list');
         const badge = document.getElementById('step-count-badge');
 
-        badge.textContent = `${builderItems.length} step${builderItems.length !== 1 ? 's' : ''}`;
+        badge.textContent = `${builderItems.length} item${builderItems.length !== 1 ? 's' : ''}`;
         badge.style.display = builderItems.length ? '' : 'none';
 
         if (!builderItems.length) {
             list.innerHTML = `
                 <div class="step-empty">
                     <div class="ei">🧩</div>
-                    <p>No components added yet.</p>
-                    <p style="margin-top:4px">Use the panel on the right to add components.</p>
+                    <p>No items added yet.</p>
+                    <p style="margin-top:4px">Use the panel on the right to add components, or click "+ Add Manual Step" above.</p>
                 </div>`;
             return;
         }
 
         list.innerHTML = builderItems.map((item, index) => {
-            const c = item.component;
-            const cName = c ? c.name : 'Unknown Component';
-            const stepCount = c && c.steps ? c.steps.length : 0;
-            return `
-            <div class="step-item is-component">
-                <div class="step-num">${index + 1}</div>
-                <div class="step-info">
-                    <div class="step-label">🧩 ${esc(cName)}</div>
-                    <div class="step-sub">Component · expands to ${stepCount} step${stepCount !== 1 ? 's' : ''} at runtime${c ? ' · ' + esc(c.compModuleName) : ''}</div>
+            if (item.type === 'STEP') {
+                const s = item.step || {};
+                const actionLabel = s.actionType || 'STEP';
+                return `
+            <div class="step-item" style="border-left:3px solid var(--gr);" id="builder-item-${index}">
+                <div style="display:flex; align-items:center; gap:10px; width:100%;">
+                    <div class="step-num">${index + 1}</div>
+                    <div class="step-info">
+                        <div class="step-label" style="color:var(--gr);">&#9889; ${esc(s.name || 'Unnamed Step')}</div>
+                        <div class="step-sub" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:2px;">
+                            <span class="badge" style="font-size:10px; padding:1px 6px; background:rgba(16,185,129,0.12); color:var(--gr);">${esc(actionLabel)}</span>
+                            ${s.selector ? `<span style="font-family:var(--mono); color:var(--tx2);">&middot; ${esc(s.selector.length > 40 ? s.selector.substring(0, 40) + '...' : s.selector)}</span>` : ''}
+                            ${s.value ? `<span style="font-family:var(--mono); color:var(--tx3);">&middot; ${esc(s.value.length > 30 ? s.value.substring(0, 30) + '...' : s.value)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div class="step-actions">
+                        <button class="btn btn-ghost btn-xs" onclick="moveBuilderItem(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Move Up">▲</button>
+                        <button class="btn btn-ghost btn-xs" onclick="moveBuilderItem(${index}, 1)" ${index === builderItems.length - 1 ? 'disabled' : ''} title="Move Down">▼</button>
+                        <button class="btn btn-secondary btn-xs" onclick="openEditStepModal(${index})" title="Edit Step">✏️ Edit Step</button>
+                        <button class="btn btn-danger btn-xs" onclick="removeBuilderItem(${index})" title="Remove from flow">✕</button>
+                    </div>
                 </div>
-                <button class="btn btn-danger btn-xs step-remove" onclick="removeBuilderItem(${index})" title="Remove">✕</button>
             </div>`;
+            } else {
+                const c = item.component;
+                const cName = c ? c.name : 'Unknown Component';
+                const compSteps = (c && c.steps) ? c.steps : [];
+                const stepCount = compSteps.length;
+                const compModName = c ? (c.compModuleName || '') : '';
+
+                const innerStepsHtml = compSteps.length ? compSteps.map((cs, cIdx) => `
+                    <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
+                        <span style="font-family:var(--mono); color:var(--tx3); font-size:11px; width:22px;">${cIdx + 1}.</span>
+                        <span class="badge" style="font-size:10px; padding:1px 6px; background:rgba(59,130,246,0.15); color:#3b82f6;">${esc(cs.actionType || 'STEP')}</span>
+                        <span style="font-weight:500; color:var(--tx1);">${esc(cs.name || '')}</span>
+                        ${cs.selector ? `<span style="font-family:var(--mono); font-size:11px; color:var(--tx3); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(cs.selector)}">&middot; ${esc(cs.selector)}</span>` : ''}
+                        ${cs.value ? `<span style="font-family:var(--mono); font-size:11px; color:var(--tx3); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(cs.value)}">&middot; ${esc(cs.value)}</span>` : ''}
+                    </div>
+                `).join('') : '<div style="color:var(--tx3); font-size:12px; padding:4px 0;">No steps defined in this component.</div>';
+
+                return `
+            <div class="step-item is-component" id="builder-item-${index}">
+                <div style="display:flex; align-items:center; gap:10px; width:100%;">
+                    <div class="step-num">${index + 1}</div>
+                    <div class="step-info">
+                        <div class="step-label">🧩 ${esc(cName)}</div>
+                        <div class="step-sub">Component &middot; expands to ${stepCount} step${stepCount !== 1 ? 's' : ''} at runtime${compModName ? ' &middot; ' + esc(compModName) : ''}</div>
+                    </div>
+                    <div class="step-actions">
+                        ${stepCount > 0 ? `<button class="btn btn-ghost btn-xs" id="comp-toggle-btn-${index}" onclick="toggleCompItemSteps(${index})" title="View steps inside this component">👁️ Steps (${stepCount})</button>` : ''}
+                        <button class="btn btn-ghost btn-xs" onclick="moveBuilderItem(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Move Up">▲</button>
+                        <button class="btn btn-ghost btn-xs" onclick="moveBuilderItem(${index}, 1)" ${index === builderItems.length - 1 ? 'disabled' : ''} title="Move Down">▼</button>
+                        <a href="/component.html?projectId=${projectId}&compId=${item.componentId}&moduleId=${c?.compModuleId || ''}" target="_blank" class="btn btn-secondary btn-xs" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;" title="Edit Component in component editor (opens in new tab)">✏️ Edit Comp ↗</a>
+                        <button class="btn btn-danger btn-xs" onclick="removeBuilderItem(${index})" title="Remove from flow">✕</button>
+                    </div>
+                </div>
+                <div class="comp-inner-steps" id="comp-inner-${index}" style="display:none; width:100%; margin-top:8px; padding:8px 12px; background:rgba(0,0,0,0.14); border-radius:6px; border-left:3px solid #3b82f6;">
+                    <div style="font-size:11px; font-weight:600; color:var(--tx3); text-transform:uppercase; margin-bottom:6px; letter-spacing:0.05em;">Component Steps (${stepCount}):</div>
+                    ${innerStepsHtml}
+                </div>
+            </div>`;
+            }
         }).join('');
     }
 
+    window.toggleCompItemSteps = function(index) {
+        const el = document.getElementById(`comp-inner-${index}`);
+        const btn = document.getElementById(`comp-toggle-btn-${index}`);
+        if (!el || !btn) return;
+        const isHidden = el.style.display === 'none';
+        el.style.display = isHidden ? 'block' : 'none';
+        const count = (builderItems[index]?.component?.steps || []).length;
+        btn.innerHTML = isHidden ? '▲ Hide Steps' : `👁️ Steps (${count})`;
+    };
+
+    window.moveBuilderItem = function(index, delta) {
+        const newIndex = index + delta;
+        if (newIndex < 0 || newIndex >= builderItems.length) return;
+        const item = builderItems.splice(index, 1)[0];
+        builderItems.splice(newIndex, 0, item);
+        renderBuilderItems();
+    };
+
     window.removeBuilderItem = function(index) {
         builderItems.splice(index, 1);
+        renderBuilderItems();
+    };
+
+    // ── Manual Step Modals (Add / Edit) ──
+    window.openAddManualStepModal = function() {
+        showStepModal(null, -1);
+    };
+
+    window.openEditStepModal = function(index) {
+        const item = builderItems[index];
+        if (!item || item.type !== 'STEP') return;
+        showStepModal(item.step, index);
+    };
+
+    function showStepModal(step, index) {
+        const isEdit = index >= 0;
+        const s = step || {};
+        const actionType = s.actionType || 'CLICK';
+
+        openModal(`
+            <div class="modal" style="width:540px">
+                <div class="modal-head">
+                    <h2>${isEdit ? '✏️ Edit Step' : '➕ Add Manual Step'}</h2>
+                    <button class="modal-close" onclick="closeModal()">✕</button>
+                </div>
+                <div style="padding: 20px 0; display:flex; flex-direction:column; gap:12px;">
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Step Name *</label>
+                        <input id="ms-name" class="inp" placeholder="e.g. Click Submit Button" value="${esc(s.name || '')}">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Action Type *</label>
+                        <select id="ms-action" class="inp">
+                            <option value="NAVIGATE" ${actionType === 'NAVIGATE' ? 'selected' : ''}>NAVIGATE</option>
+                            <option value="CLICK" ${actionType === 'CLICK' ? 'selected' : ''}>CLICK</option>
+                            <option value="TYPE" ${actionType === 'TYPE' ? 'selected' : ''}>TYPE</option>
+                            <option value="SELECT" ${actionType === 'SELECT' ? 'selected' : ''}>SELECT</option>
+                            <option value="VERIFY" ${actionType === 'VERIFY' ? 'selected' : ''}>VERIFY</option>
+                            <option value="WAIT" ${actionType === 'WAIT' ? 'selected' : ''}>WAIT</option>
+                            <option value="HOVER" ${actionType === 'HOVER' ? 'selected' : ''}>HOVER</option>
+                            <option value="PRESS_KEY" ${actionType === 'PRESS_KEY' ? 'selected' : ''}>PRESS_KEY</option>
+                            <option value="SCROLL" ${actionType === 'SCROLL' ? 'selected' : ''}>SCROLL</option>
+                        </select>
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Selector (CSS / XPath)</label>
+                        <input id="ms-selector" class="inp" placeholder="#btn-submit or //button[@id='submit']" value="${esc(s.selector || '')}">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Value / Input Text / URL</label>
+                        <input id="ms-value" class="inp" placeholder="https://... or username" value="${esc(s.value || '')}">
+                    </div>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
+                    <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+                    <button class="btn btn-primary" onclick="saveManualStep(${index})">${isEdit ? 'Save Changes' : 'Add Step'}</button>
+                </div>
+            </div>
+        `);
+    }
+
+    window.saveManualStep = function(index) {
+        const name = document.getElementById('ms-name').value.trim();
+        const actionType = document.getElementById('ms-action').value;
+        const selector = document.getElementById('ms-selector').value.trim();
+        const value = document.getElementById('ms-value').value.trim();
+
+        if (!name) {
+            toast('Step Name is required', 'warning');
+            return;
+        }
+
+        const stepData = {
+            name,
+            actionType,
+            selector,
+            value
+        };
+
+        if (index >= 0) {
+            builderItems[index].step = { ...builderItems[index].step, ...stepData };
+            toast('Step updated!', 'success');
+        } else {
+            builderItems.push({
+                type: 'STEP',
+                step: stepData
+            });
+            toast('Manual step added!', 'success');
+        }
+
+        closeModal();
         renderBuilderItems();
     };
 
@@ -573,16 +796,22 @@
                 flowItems: flowItems
             };
 
-            await api.components.createFlowInfo(flowInfoData);
+            // Use PUT (update) if editing an existing FlowInfo, POST (create) for new
+            if (editingFlowInfo) {
+                await api.components.saveFlowInfo(editingFlowInfo.id || flowInfoId, flowInfoData);
+                toast('Component Flow updated successfully!', 'success');
+            } else {
+                await api.components.createFlowInfo(flowInfoData);
+                toast('Component Flow saved successfully!', 'success');
+            }
 
-            toast('Component Flow saved successfully!', 'success');
             setTimeout(() => {
                 window.location.href = `/flows.html?projectId=${projectId}&moduleId=${moduleId}&flowTab=component`;
             }, 800);
         } catch (e) {
             toast('Failed to save flow: ' + e.message, 'error');
             btn.disabled = false;
-            btn.innerHTML = '💾 Save Flow';
+            btn.innerHTML = editingFlowInfo ? '💾 Update Flow' : '💾 Save Flow';
         }
     };
 
