@@ -184,87 +184,178 @@
         if (steps.length === 0) {
             container.innerHTML = `
                 <div class="empty" style="padding:40px;text-align:center;color:var(--tx3);border:1px dashed var(--bd);border-radius:var(--r);margin-top:16px">
-                    No steps added yet. Add a manual step.
+                    No steps added yet. Add a manual step or record via extension.
                 </div>`;
             return;
         }
 
-        container.innerHTML = steps.map((step, index) => `
-            <div class="step-item">
-                <div class="step-order">${index + 1}</div>
-                <div class="step-info">
-                    <div class="step-title">${esc(step.name || step.actionType)}</div>
-                    <div class="step-details">${esc(step.actionType)} | Selector: ${esc(step.selector || 'N/A')} | Value: ${esc(step.value || 'N/A')}</div>
+        container.innerHTML = steps.map((step, index) => {
+            const extraDetails = [];
+            if (step.selector) extraDetails.push(`Selector: <code>${esc(step.selector)}</code>`);
+            if (step.value) extraDetails.push(`Value: <code>${esc(step.value)}</code>`);
+            if (step.expectedValue) extraDetails.push(`Expected: <code>${esc(step.expectedValue)}</code>`);
+            if (step.wait) extraDetails.push(`Wait: ${step.wait}ms`);
+            
+            return `
+            <div class="step-item" style="display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--sur2); border:1px solid var(--bd); border-radius:var(--r);">
+                <div class="step-order" style="font-weight:bold; color:var(--tx3); width:28px; text-align:center;">${index + 1}</div>
+                <div class="step-info" style="flex:1;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span class="step-title" style="font-weight:600; font-size:14px;">${esc(step.name || step.actionType)}</span>
+                        <span class="badge badge-blue" style="font-size:10.5px; padding:1px 6px;">${esc(step.actionType || 'STEP')}</span>
+                    </div>
+                    <div class="step-details" style="font-size:11.5px; color:var(--tx3); margin-top:4px; font-family:'JetBrains Mono', monospace; display:flex; flex-wrap:wrap; gap:10px;">
+                        ${extraDetails.length > 0 ? extraDetails.join(' | ') : '<span>No selector / value</span>'}
+                    </div>
                 </div>
-                <div class="step-actions">
-                    <button class="btn btn-danger btn-xs" onclick="removeStep(${index})">✕</button>
+                <div class="step-actions" style="display:flex; gap:6px; align-items:center;">
+                    <button class="btn btn-ghost btn-xs" onclick="moveStep(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Move Up">▲</button>
+                    <button class="btn btn-ghost btn-xs" onclick="moveStep(${index}, 1)" ${index === steps.length - 1 ? 'disabled' : ''} title="Move Down">▼</button>
+                    <button class="btn btn-secondary btn-xs" onclick="openEditStepModal(${index})" title="Edit Step">✏️ Edit</button>
+                    <button class="btn btn-danger btn-xs" onclick="removeStep(${index})" title="Delete Step">✕</button>
                 </div>
             </div>
-        `).join('');
+            `;
+        }).join('');
     }
 
     window.removeStep = function(index) {
         steps.splice(index, 1);
+        steps.forEach((s, idx) => s.stepOrder = idx + 1);
         renderSteps();
     };
 
+    window.moveStep = function(index, dir) {
+        const target = index + dir;
+        if (target < 0 || target >= steps.length) return;
+        const temp = steps[index];
+        steps[index] = steps[target];
+        steps[target] = temp;
+        steps.forEach((s, idx) => s.stepOrder = idx + 1);
+        renderSteps();
+    };
+
+    window.openEditStepModal = function(index) {
+        showStepModal(steps[index], index);
+    };
+
     window.showAddStepModal = function() {
+        showStepModal(null, -1);
+    };
+
+    function showStepModal(step, index) {
+        const isEdit = index >= 0;
+        const s = step || {};
+        const actionType = s.actionType || 'CLICK';
+
         openModal(`
         <div class="modal" style="width:600px">
             <div class="modal-head">
-                <h2>Add Manual Step</h2>
+                <h2>${isEdit ? `✏️ Edit Step #${index + 1}: ${esc(s.name || actionType)}` : '➕ Add Manual Step'}</h2>
                 <button class="modal-close" onclick="closeModal()">✕</button>
             </div>
             <div style="padding:20px 0; display:flex; flex-direction:column; gap:12px">
                 <div class="field" style="margin:0">
                     <label class="lbl">Step Name *</label>
-                    <input id="ms-name" class="inp" placeholder="e.g. Click Login Button">
+                    <input id="ms-name" class="inp" placeholder="e.g. Click Login Button" value="${esc(s.name || '')}">
                 </div>
                 <div class="field" style="margin:0">
                     <label class="lbl">Action Type</label>
                     <select id="ms-action" class="inp">
-                        <option value="NAVIGATE">NAVIGATE</option>
-                        <option value="CLICK">CLICK</option>
-                        <option value="TYPE">TYPE</option>
-                        <option value="VERIFY">VERIFY</option>
-                        <option value="WAIT">WAIT</option>
+                        <option value="NAVIGATE" ${actionType === 'NAVIGATE' ? 'selected' : ''}>NAVIGATE</option>
+                        <option value="CLICK" ${actionType === 'CLICK' ? 'selected' : ''}>CLICK</option>
+                        <option value="TYPE" ${actionType === 'TYPE' ? 'selected' : ''}>TYPE</option>
+                        <option value="SELECT" ${actionType === 'SELECT' ? 'selected' : ''}>SELECT</option>
+                        <option value="VERIFY" ${actionType === 'VERIFY' ? 'selected' : ''}>VERIFY</option>
+                        <option value="WAIT" ${actionType === 'WAIT' ? 'selected' : ''}>WAIT</option>
+                        <option value="HOVER" ${actionType === 'HOVER' ? 'selected' : ''}>HOVER</option>
+                        <option value="PRESS_KEY" ${actionType === 'PRESS_KEY' ? 'selected' : ''}>PRESS_KEY</option>
+                        <option value="SCROLL" ${actionType === 'SCROLL' ? 'selected' : ''}>SCROLL</option>
                     </select>
                 </div>
                 <div class="field" style="margin:0">
-                    <label class="lbl">Selector (CSS/XPath)</label>
-                    <input id="ms-selector" class="inp" placeholder="#btn-login">
+                    <label class="lbl">Selector (CSS / XPath)</label>
+                    <input id="ms-selector" class="inp" placeholder="#btn-login or //button[@id='login']" value="${esc(s.selector || '')}">
                 </div>
                 <div class="field" style="margin:0">
-                    <label class="lbl">Value</label>
-                    <input id="ms-value" class="inp" placeholder="https://... or JohnDoe">
+                    <label class="lbl">Value / Input Text / URL</label>
+                    <input id="ms-value" class="inp" placeholder="https://... or username" value="${esc(s.value || '')}">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Expected Value</label>
+                        <input id="ms-expected" class="inp" placeholder="Expected value (for verify)" value="${esc(s.expectedValue || '')}">
+                    </div>
+                    <div class="field" style="margin:0">
+                        <label class="lbl">Wait (ms)</label>
+                        <input id="ms-wait" type="number" class="inp" placeholder="e.g. 2000" value="${s.wait || ''}">
+                    </div>
+                </div>
+                <div style="display:flex; gap:20px; margin-top:4px;">
+                    <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--tx2); cursor:pointer;">
+                        <input type="checkbox" id="ms-continue" ${s.continueOnFailure ? 'checked' : ''}>
+                        Continue On Failure
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--tx2); cursor:pointer;">
+                        <input type="checkbox" id="ms-capture" ${s.captureScreenshot !== false ? 'checked' : ''}>
+                        Capture Screenshot
+                    </label>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
                     <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
-                    <button class="btn btn-primary" onclick="addStep()">Add Step</button>
+                    <button class="btn btn-primary" onclick="saveStepModal(${index})">${isEdit ? 'Save Changes' : 'Add Step'}</button>
                 </div>
             </div>
         </div>`);
-    };
+    }
 
-    window.addStep = function() {
+    window.saveStepModal = function(index) {
         const name = document.getElementById('ms-name').value.trim();
         const actionType = document.getElementById('ms-action').value;
         const selector = document.getElementById('ms-selector').value.trim();
         const value = document.getElementById('ms-value').value.trim();
+        const expectedValue = document.getElementById('ms-expected').value.trim();
+        const waitVal = document.getElementById('ms-wait').value.trim();
+        const continueOnFailure = document.getElementById('ms-continue').checked;
+        const captureScreenshot = document.getElementById('ms-capture').checked;
 
         if (!name) { toast('Step Name is required', 'warning'); return; }
 
-        steps.push({
-            name,
-            actionType,
-            selector,
-            value,
-            stepOrder: steps.length + 1,
-            isComp: true
-        });
+        if (index >= 0) {
+            const s = steps[index];
+            s.name = name;
+            s.actionType = actionType;
+            s.selector = selector;
+            s.value = value;
+            s.expectedValue = expectedValue;
+            s.wait = waitVal ? parseInt(waitVal, 10) : null;
+            s.continueOnFailure = continueOnFailure;
+            s.captureScreenshot = captureScreenshot;
+            s.isComp = true;
+            toast('Step updated', 'success');
+        } else {
+            steps.push({
+                name,
+                actionType,
+                selector,
+                value,
+                expectedValue,
+                wait: waitVal ? parseInt(waitVal, 10) : null,
+                continueOnFailure,
+                captureScreenshot,
+                stepOrder: steps.length + 1,
+                isComp: true
+            });
+            toast('Step added', 'success');
+        }
 
+        steps.forEach((s, idx) => s.stepOrder = idx + 1);
         closeModal();
         renderSteps();
+    };
+
+    window.addStep = function() {
+        saveStepModal(-1);
     };
 
     window.saveComponent = async function() {

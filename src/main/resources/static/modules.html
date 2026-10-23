@@ -309,7 +309,6 @@
       <div class="mod-meta">
         <button class="btn btn-primary btn-xs" onclick="event.stopPropagation();executeModuleFlows('${mid}')" ${isRunning ? 'style="display:none"' : ''}>▶ Run All Flows</button>
         <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();stopModuleFlows('${mid}')" title="Stop running flows in this module" ${isRunning ? '' : 'style="display:none"'}>⏹ Stop</button>
-        <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteModule('${mid}')">✕</button>
         <span class="badge badge-blue">View →</span>
       </div>
     </div>`;
