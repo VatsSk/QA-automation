@@ -3,6 +3,9 @@ package com.testingautomation.testautomation.services.flowService;
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.entities.Run;
 import com.testingautomation.testautomation.entities.flow.Flow;
+import com.testingautomation.testautomation.entities.flow.FlowVariableDefinition;
+import java.util.HashMap;
+import java.util.Map;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
@@ -36,11 +39,25 @@ public class FlowService {
     @Autowired
     private FlowOrchestratorService flowOrchestratorService;
 
+    @Autowired
+    private FlowVariableService flowVariableService;
+
     public Flow saveFlow(Flow flow) {
         if (flow.getId() == null) {
             flow.setVersion(1);
             flow.setCreatedAt(Instant.now());
+        } else {
+            // Prevent accidental loss of variables during updates if request did not specify variables
+            Optional<Flow> existingOpt = flowRepository.findById(flow.getId());
+            if (existingOpt.isPresent()) {
+                Flow existing = existingOpt.get();
+                if (flow.getVariables() == null && existing.getVariables() != null) {
+                    flow.setVariables(existing.getVariables());
+                }
+            }
         }
+        // Validate variable definitions before persisting
+        flowVariableService.validateDefinitions(flow.getVariables());
         flow.setUpdatedAt(Instant.now());
         if(flow.getCreatedAt() == null){
             flow.setCreatedAt(flow.getUpdatedAt());
@@ -104,6 +121,24 @@ public class FlowService {
             }
         }
         clone.setSteps(clonedSteps);
+
+        // Deep copy variable definitions
+        if (original.getVariables() != null) {
+            Map<String, FlowVariableDefinition> clonedVars = new HashMap<>();
+            for (Map.Entry<String, FlowVariableDefinition> entry : original.getVariables().entrySet()) {
+                FlowVariableDefinition def = entry.getValue();
+                if (def != null) {
+                    clonedVars.put(entry.getKey(), new FlowVariableDefinition(
+                            def.getType(),
+                            def.getLength(),
+                            def.getCharset(),
+                            def.getPrefix(),
+                            def.getSuffix()
+                    ));
+                }
+            }
+            clone.setVariables(clonedVars);
+        }
 
         return flowRepository.save(clone);
     }

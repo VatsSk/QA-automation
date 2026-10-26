@@ -20,11 +20,12 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Map;
 
 @Service
 public class FlowExecutionService {
@@ -35,26 +36,29 @@ public class FlowExecutionService {
     private ActionHandlerService actionHandlerService;
 
     @Autowired
+    private FlowVariableService flowVariableService;
+
+    @Autowired
     private com.testingautomation.testautomation.repositories.flowRepos.FlowRepository flowRepository;
 
     @Autowired
     private ScreenshotService screenshotService;
 
-    @Autowired private WebDriverRegistry webDriverRegistry;
-
-
+    @Autowired
+    private WebDriverRegistry webDriverRegistry;
 
     @Autowired
     private VerificationService verificationService;
+
     @Autowired
     private FlowSseService flowSseService;
 
     public void executeStep(com.testingautomation.testautomation.dto.FlowExecutionContext context, FlowStep step, Flow flow) {
         WebDriver driver = context.getDriver();
         // Backward compatibility for old flows (version < 2) that relied on hardcoded delays
-        logger.info("Running flow for version {}",flow.getVersion());
-        if (flow.getVersion() == null ) {
-            logger.info("Running flow for version inside if block {}",flow.getVersion());
+        logger.info("Running flow for version {}", flow.getVersion());
+        if (flow.getVersion() == null) {
+            logger.info("Running flow for version inside if block {}", flow.getVersion());
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
@@ -64,6 +68,20 @@ public class FlowExecutionService {
         }
         String stepTabRef = step.getTabRef();
         ActionType initialActionType = step.getActionType();
+
+        // ── Variable resolution ─────────────────────────────────────────────────────
+        // Validate variable references and build an execution copy of the step.
+        // Selector/locator fields are intentionally excluded.
+        // The original step object is NOT modified so saved flow definitions remain unchanged.
+        Map<String, String> runtimeVars = context.getRuntimeVariables();
+//        if (runtimeVars != null && !runtimeVars.isEmpty() && flow.getVariables() != null) {
+//            flowVariableService.validateStepReferences(
+//                    Arrays.asList(step.getValue(), step.getExpectedValue(),
+//                            step.getUrl(), step.getMessage()),
+//                    flow.getVariables(), step.getName(), step.getStepOrder(), flow.getId()
+//            );
+//        }
+        FlowStep stepToExecute = copyForExecution(step, runtimeVars);
 
         if (stepTabRef != null && !stepTabRef.equals(context.getCurrentTabRef()) &&
             initialActionType != ActionType.SWITCH_TO_NEW_TAB &&
@@ -81,7 +99,7 @@ public class FlowExecutionService {
             step.setExecutionMessage("ActionType is null");
             return;
         }
-        
+
         if (actionType == ActionType.INFO) {
             logger.info("Skipping INFO step [{}] during execution", step.getName());
             return;
@@ -92,7 +110,7 @@ public class FlowExecutionService {
         step.setExecutionStatus(ExecutionStatus.RUNNING);
         sendStepEvent(flowSseService::sendStepStarted, flow, step);
 
-        int retries  = step.getRetryCount() != null ? step.getRetryCount() : 1;
+        int retries = step.getRetryCount() != null ? step.getRetryCount() : 1;
         int attempts = 0;
         boolean success = false;
         String color = resolveStepColor(actionType);
@@ -107,14 +125,14 @@ public class FlowExecutionService {
             attempts++;
             WebElement element = null;
             try {
-                element = resolveElement(driver, wait, step, actionType, waitTime);
+                element = resolveElement(driver, wait, stepToExecute, actionType, waitTime);
 
                 boolean takePreScreenshot = (actionType == ActionType.CLICK || actionType == ActionType.VERIFY || actionType == ActionType.SELECT);
                 if (takePreScreenshot) {
                     takeScreenshotIfRequired(driver, element, step, flow, attempts, color);
                 }
 
-                dispatchAction(driver, context,element, step, actionType, waitTime,flow);
+                dispatchAction(driver, context, element, stepToExecute, actionType, waitTime, flow);
 
                 success = true;
                 step.setExecutionStatus(ExecutionStatus.PASSED);
@@ -161,11 +179,55 @@ public class FlowExecutionService {
     // ── Private helpers ───────────────────────────────────────────────────────
 
     /**
+     * Creates a transient execution copy of a FlowStep with data-bearing fields resolved.
+     * The original step remains untouched so MongoDB does not persist generated values.
+     * Locator (selector) is NEVER resolved.
+     */
+    private FlowStep copyForExecution(FlowStep original, Map<String, String> runtimeVars) {
+        FlowStep copy = new FlowStep();
+        copy.setId(original.getId());
+        copy.setStepOrder(original.getStepOrder());
+        copy.setName(original.getName());
+        copy.setDescription(original.getDescription());
+        copy.setActionType(original.getActionType());
+        copy.setVerificationType(original.getVerificationType());
+        copy.setSelector(original.getSelector()); // NEVER resolved
+        copy.setAttribute(original.getAttribute());
+        copy.setTextSource(original.getTextSource());
+        copy.setOverrideWait(original.getOverrideWait());
+        copy.setWait(original.getWait());
+        copy.setRetryCount(original.getRetryCount());
+        copy.setContinueOnFailure(original.getContinueOnFailure());
+        copy.setCaptureScreenshot(original.getCaptureScreenshot());
+        copy.setIsComp(original.getIsComp());
+        copy.setTabRef(original.getTabRef());
+        copy.setSourceTabRef(original.getSourceTabRef());
+        copy.setFromTabRef(original.getFromTabRef());
+        copy.setToTabRef(original.getToTabRef());
+        copy.setTriggeringElement(original.getTriggeringElement());
+        copy.setPageReadyTimeoutMs(original.getPageReadyTimeoutMs());
+
+        // Resolve data-bearing fields only
+        if (runtimeVars != null && !runtimeVars.isEmpty()) {
+            copy.setValue(flowVariableService.resolveValue(original.getValue(), runtimeVars));
+            copy.setExpectedValue(flowVariableService.resolveValue(original.getExpectedValue(), runtimeVars));
+            copy.setUrl(flowVariableService.resolveValue(original.getUrl(), runtimeVars));
+            copy.setMessage(flowVariableService.resolveValue(original.getMessage(), runtimeVars));
+        } else {
+            copy.setValue(original.getValue());
+            copy.setExpectedValue(original.getExpectedValue());
+            copy.setUrl(original.getUrl());
+            copy.setMessage(original.getMessage());
+        }
+        return copy;
+    }
+
+    /**
      * Resolves the screenshot highlight color based on the action type.
      */
     private String resolveStepColor(ActionType actionType) {
         if (actionType == ActionType.VERIFY) return "#e6b800";
-        if (actionType == ActionType.HOVER)  return "purple";
+        if (actionType == ActionType.HOVER) return "purple";
         return "green";
     }
 
@@ -183,7 +245,7 @@ public class FlowExecutionService {
                 return verificationService.findBestElement(driver, step.getSelector(), Duration.ofMillis(waitTime));
             } catch (Exception ex) {
                 if (vType == VerificationType.NOT_VISIBLE || vType == VerificationType.NOT_EXISTS) {
-                    logger.info("[resolveElement] Element not found for '{}' verification type '{}' – returning null (expected outcome).",
+                    logger.info("[resolveElement] Element not found for '{}' verification type '{}' - returning null (expected outcome).",
                             step.getSelector(), vType);
                     return null;
                 }
@@ -220,30 +282,30 @@ public class FlowExecutionService {
     /**
      * Dispatches the action to the appropriate handler based on the action type.
      */
-    private void dispatchAction(WebDriver driver, FlowExecutionContext context ,WebElement element, FlowStep step,
-                                ActionType actionType, int waitTime,Flow flow) {
+    private void dispatchAction(WebDriver driver, FlowExecutionContext context, WebElement element, FlowStep step,
+                                ActionType actionType, int waitTime, Flow flow) {
         switch (actionType) {
-            case NAVIGATE:    actionHandlerService.handleNavigate(driver, step);          break;
-            case WAIT:        actionHandlerService.handleWait(step);                      break;
-            case TYPE:        actionHandlerService.handleType(driver,element, step);             break;
-            case CLICK:       actionHandlerService.handleClick(driver, element, step);    break;
-            case CHECKBOX:    actionHandlerService.handleCheckbox(element, step);         break;
-            case RADIO:       actionHandlerService.handleRadio(element, step);            break;
-            case SELECT:      actionHandlerService.handleSelect(element, step);           break;
-            case DATE:        actionHandlerService.handleDate(element, step);             break;
-            case FILE_UPLOAD: actionHandlerService.handleFileUpload(element, step);       break;
-            case HOVER:       actionHandlerService.handleHover(driver, element, step);    break;
-            case SCROLL:      actionHandlerService.handleScroll(driver, element, step);   break;
-            case PRESS_KEY:   actionHandlerService.handlePressKey(element, step);         break;
-            case DRAG_DROP:   actionHandlerService.handleDragDrop(driver, element, step); break;
+            case NAVIGATE: actionHandlerService.handleNavigate(driver, step); break;
+            case WAIT: actionHandlerService.handleWait(step); break;
+            case TYPE: actionHandlerService.handleType(driver, element, step); break;
+            case CLICK: actionHandlerService.handleClick(driver, element, step); break;
+            case CHECKBOX: actionHandlerService.handleCheckbox(element, step); break;
+            case RADIO: actionHandlerService.handleRadio(element, step); break;
+            case SELECT: actionHandlerService.handleSelect(element, step); break;
+            case DATE: actionHandlerService.handleDate(element, step); break;
+            case FILE_UPLOAD: actionHandlerService.handleFileUpload(element, step); break;
+            case HOVER: actionHandlerService.handleHover(driver, element, step); break;
+            case SCROLL: actionHandlerService.handleScroll(driver, element, step); break;
+            case PRESS_KEY: actionHandlerService.handlePressKey(element, step); break;
+            case DRAG_DROP: actionHandlerService.handleDragDrop(driver, element, step); break;
             case URL_CHANGE: actionHandlerService.handleUrlChange(step, flow); break;
-            case VERIFY:      actionHandlerService.handleVerify(driver, element, step, waitTime); break;
+            case VERIFY: actionHandlerService.handleVerify(driver, element, step, waitTime); break;
             case SWITCH_TO_NEW_TAB: actionHandlerService.handleSwitchToNewTab(driver, step, context); break;
             case SWITCH_TO_PARENT_TAB: actionHandlerService.handleSwitchToParentTab(driver, step, context); break;
             case CLOSE_TAB: actionHandlerService.handleCloseTab(driver, step, context); break;
             case TAB_LOAD_TIMEOUT: actionHandlerService.handleTabLoadTimeout(step); break;
             case SWITCH_TAB: actionHandlerService.handleSwitchTab(driver, step, context); break;
-            default:          logger.info("ActionType [{}] is not yet fully integrated.", actionType);
+            default: logger.info("ActionType [{}] is not yet fully integrated.", actionType);
         }
     }
 

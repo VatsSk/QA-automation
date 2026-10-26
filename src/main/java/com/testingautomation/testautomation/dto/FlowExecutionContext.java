@@ -2,16 +2,31 @@ package com.testingautomation.testautomation.dto;
 
 import org.openqa.selenium.WebDriver;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Holds all state for a single flow execution.
+ *
+ * <p>One instance is created per execution and never shared between concurrent runs
+ * of the same flow. The {@link #runtimeVariables} map is populated once before
+ * any step executes and is then read-only throughout the execution.</p>
+ */
 public class FlowExecutionContext {
     private WebDriver driver;
     private Map<String, String> tabRefToHandle = new HashMap<>();
     private Deque<String> windowStack = new ArrayDeque<>();
     private String currentTabRef;
     private String flowId;
+
+    /**
+     * Runtime variable values for this execution, keyed by canonical variable name.
+     * Initialized once in the orchestrator before step execution begins.
+     * Must be treated as read-only by all consumers.
+     */
+    private Map<String, String> runtimeVariables = Collections.emptyMap();
 
     public FlowExecutionContext(WebDriver driver, String flowId) {
         this.driver = driver;
@@ -56,5 +71,21 @@ public class FlowExecutionContext {
 
     public void setCurrentTabRef(String currentTabRef) {
         this.currentTabRef = currentTabRef;
+    }
+
+    /**
+     * Returns the runtime variable values for this execution.
+     * This map is unmodifiable after initialization.
+     */
+    public Map<String, String> getRuntimeVariables() {
+        return runtimeVariables;
+    }
+
+    /**
+     * Sets the runtime variable map. Should be called exactly once by the
+     * orchestrator before step execution begins.
+     */
+    public void setRuntimeVariables(Map<String, String> runtimeVariables) {
+        this.runtimeVariables = runtimeVariables != null ? runtimeVariables : Collections.emptyMap();
     }
 }
