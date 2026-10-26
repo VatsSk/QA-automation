@@ -1,6 +1,7 @@
 package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.config.WebDriverConfig.WebDriverFactory;
+import com.testingautomation.testautomation.dto.FlowExecutionContext;
 import com.testingautomation.testautomation.entities.ProjectEnvironment;
 import com.testingautomation.testautomation.entities.component.Component;
 import com.testingautomation.testautomation.entities.component.FlowInfo;
@@ -15,6 +16,7 @@ import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
 import com.testingautomation.testautomation.services.ProjectEnvironmentService;
+import com.testingautomation.testautomation.services.flowService.FlowVariableService;
 import com.testingautomation.testautomation.services.s3Service.StorageService;
 import com.testingautomation.testautomation.utils.NavigationUrlResolver;
 import org.openqa.selenium.WebDriver;
@@ -29,14 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -92,6 +87,9 @@ public class FlowOrchestratorService {
 
     @Autowired
     private ProjectEnvironmentService environmentService;
+
+    @Autowired
+    private FlowVariableService flowVariableService;
 
     private boolean isCancelled(Flow flow) {
         return cancelAll ||
@@ -197,7 +195,7 @@ public class FlowOrchestratorService {
 
     /**
      * Executes a flow using the recorded URLs as-is.
-     * Backward compatible — all existing callers use this.
+     * Backward compatible â€” all existing callers use this.
      */
     public void executeFlow(Flow flow) {
         executeFlow(flow, null);
@@ -246,7 +244,7 @@ public class FlowOrchestratorService {
         activeFlows.put(flow.getId(), flow);
         WebDriver driver = null;
         try {
-            // ── Step 1: Override NAVIGATE URLs BEFORE marking the flow as RUNNING ──
+            // â”€â”€ Step 1: Override NAVIGATE URLs BEFORE marking the flow as RUNNING â”€â”€
             // Resolve all NAVIGATE step URLs upfront using the selected environment.
             // This happens before any status change or DB write, so if resolution
             // fails for any reason the flow never enters the RUNNING state.
@@ -265,7 +263,7 @@ public class FlowOrchestratorService {
                 }
             }
 
-            // ── Step 2: Mark flow as RUNNING and persist ──
+            //Step 2: Mark flow as RUNNING and persist
             flow.setExecutionStartedAt(Instant.now());
             flow.setExecutionCompletedAt(null);
             flow.setExecutionStatus(ExecutionStatus.RUNNING);
@@ -288,8 +286,38 @@ public class FlowOrchestratorService {
             // SSE: notify clients that flow execution has started
             flowSseService.sendFlowStarted(flow);
 
+            // ── Step 2.5: Upfront step variable reference validation ──
+            // Validate all #var references before launching WebDriver so invalid references
+            // fail immediately without launching browser resources.
+//            if (flow.getSteps() != null && flow.getVariables() != null && !flow.getVariables().isEmpty()) {
+//                for (FlowStep step : flow.getSteps()) {
+//                    flowVariableService.validateStepReferences(
+//                           Arrays.asList(step.getValue(), step.getExpectedValue(), step.getUrl(), step.getMessage()),
+//                            flow.getVariables(),
+//                            step.getName(),
+//                            step.getStepOrder(),
+//                            flow.getId()
+//                    );
+//                }
+//            }
+
+            // ── Step 2.5: Upfront step variable reference validation ──
+            // Validate all #var references before launching WebDriver so invalid references
+            // fail immediately without launching browser resources.
+//            if (flow.getSteps() != null && flow.getVariables() != null && !flow.getVariables().isEmpty()) {
+//                for (FlowStep step : flow.getSteps()) {
+//                    flowVariableService.validateStepReferences(
+//                            java.util.Arrays.asList(step.getValue(), step.getExpectedValue(), step.getUrl(), step.getMessage()),
+//                            flow.getVariables(),
+//                            step.getName(),
+//                            step.getStepOrder(),
+//                            flow.getId()
+//                    );
+//                }
+//            }
+
             // Cleanup any existing paused driver for this flow before starting a fresh run
-            com.testingautomation.testautomation.dto.FlowExecutionContext existingContext = webDriverRegistry.getContext(flow.getId());
+            FlowExecutionContext existingContext = webDriverRegistry.getContext(flow.getId());
             if (existingContext != null && existingContext.getDriver() != null) {
                 logger.info("Cleaning up existing paused WebDriver for flow [{}] before starting a new run", flow.getId());
                 try {
@@ -301,7 +329,7 @@ public class FlowOrchestratorService {
             logger.info("Initializing WebDriver for flow: {}", flow.getName());
 
             driver = webDriverFactory.createDriver();
-            com.testingautomation.testautomation.dto.FlowExecutionContext context = null;
+            FlowExecutionContext context = null;
             if (driver != null) {
                 activeDrivers.put(flow.getId(), driver);
                 context = new com.testingautomation.testautomation.dto.FlowExecutionContext(driver, flow.getId());
@@ -309,6 +337,14 @@ public class FlowOrchestratorService {
                 context.getTabRefToHandle().put("tab_0", initialHandle);
                 context.getWindowStack().push(initialHandle);
                 context.setCurrentTabRef("tab_0");
+                // ── Variable generation ──────────────────────────────────────────────────────
+                // Generate one value per configured variable for this execution.
+                // The map is initialized here and then treated as read-only across all steps.
+                Map<String, String> runtimeVars = flowVariableService.generateRuntimeValues(
+                        flow.getVariables(), flow.getId());
+                context.setRuntimeVariables(runtimeVars);
+                logger.info("Flow [{}]: initialized runtime variable context with [{}] variable(s).",
+                        flow.getName(), runtimeVars.size());
             }
             if (isCancelled(flow)) {
                 logger.info("Flow [{}] execution cancelled after driver creation.", flow.getName());
@@ -328,7 +364,7 @@ public class FlowOrchestratorService {
                 return;
             }
 
-            // ── Step 3: Execute steps — URLs are already resolved, no env logic here ──
+            // Step 3: Execute steps: URLs are already resolved, no env logic here
             for (FlowStep step : flow.getSteps()) {
                 if (isCancelled(flow)) {
                     logger.info("Flow [{}] cancelled before step [{}].", flow.getName(), step.getName());
