@@ -45,4 +45,15 @@ public class FlowVariableDefinition {
      * Optional fixed suffix appended to the generated portion.
      */
     private String suffix;
+
+    @Override
+    public String toString() {
+        return "FlowVariableDefinition{" +
+                "type=" + type +
+                ", length=" + length +
+                ", charset=" + charset +
+                ", prefix='" + prefix + '\'' +
+                ", suffix='" + suffix + '\'' +
+                '}';
+    }
 }

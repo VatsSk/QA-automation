@@ -2,6 +2,8 @@ package com.testingautomation.testautomation.services.flowService;
 
 import com.testingautomation.testautomation.dto.responseDto.RunResponse;
 import com.testingautomation.testautomation.entities.Run;
+import com.testingautomation.testautomation.entities.component.FlowInfo;
+import com.testingautomation.testautomation.entities.component.FlowItem;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowVariableDefinition;
 import java.util.HashMap;
@@ -12,6 +14,8 @@ import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
 import com.testingautomation.testautomation.globalException.GlobalExceptionHandler;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
 import com.testingautomation.testautomation.services.s3Service.StorageService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -23,6 +27,7 @@ import java.util.Optional;
 
 @Service
 public class FlowService {
+    private static final Logger logger = LoggerFactory.getLogger(FlowService.class);
     @Value("${S3_BUCKET}")
     private String bucketName;
     @Value("${S3_BASE_PREFIX}")
@@ -108,11 +113,11 @@ public class FlowService {
         Flow original = optionalFlow.get();
 
         // 1. If this is a Component Flow, clone its FlowInfo definition and re-materialize
-        Optional<com.testingautomation.testautomation.entities.component.FlowInfo> flowInfoOpt = flowInfoRepository.findById(id);
+        Optional<FlowInfo> flowInfoOpt = flowInfoRepository.findById(id);
         if (flowInfoOpt.isPresent() || original.isPartComp()) {
             if (flowInfoOpt.isPresent()) {
-                com.testingautomation.testautomation.entities.component.FlowInfo originalInfo = flowInfoOpt.get();
-                com.testingautomation.testautomation.entities.component.FlowInfo cloneInfo = new com.testingautomation.testautomation.entities.component.FlowInfo();
+                FlowInfo originalInfo = flowInfoOpt.get();
+                FlowInfo cloneInfo = new FlowInfo();
 
                 cloneInfo.setName(original.getName() + " - Copy");
                 cloneInfo.setDescription(original.getDescription());
@@ -122,10 +127,10 @@ public class FlowService {
                 cloneInfo.setCreatedAt(Instant.now());
                 cloneInfo.setUpdatedAt(Instant.now());
 
-                List<com.testingautomation.testautomation.entities.component.FlowItem> clonedItems = new ArrayList<>();
+                List<FlowItem> clonedItems = new ArrayList<>();
                 if (originalInfo.getFlowItems() != null) {
-                    for (com.testingautomation.testautomation.entities.component.FlowItem item : originalInfo.getFlowItems()) {
-                        com.testingautomation.testautomation.entities.component.FlowItem itemClone = new com.testingautomation.testautomation.entities.component.FlowItem();
+                    for (FlowItem item : originalInfo.getFlowItems()) {
+                        FlowItem itemClone = new FlowItem();
                         itemClone.setOrder(item.getOrder());
                         itemClone.setType(item.getType());
                         itemClone.setComponentId(item.getComponentId());
@@ -140,7 +145,7 @@ public class FlowService {
                 cloneInfo.setFlowItems(clonedItems);
 
                 // Save FlowInfo first so it generates its own unique ID
-                com.testingautomation.testautomation.entities.component.FlowInfo savedInfo = flowInfoRepository.save(cloneInfo);
+                FlowInfo savedInfo = flowInfoRepository.save(cloneInfo);
                 savedInfo.setFlowId(savedInfo.getId());
                 savedInfo = flowInfoRepository.save(savedInfo);
 
@@ -178,6 +183,7 @@ public class FlowService {
         clone.setSteps(clonedSteps);
 
         // Deep copy variable definitions
+        logger.info("Cloning the flow with variables {}",original.getVariables());
         if (original.getVariables() != null) {
             Map<String, FlowVariableDefinition> clonedVars = new HashMap<>();
             for (Map.Entry<String, FlowVariableDefinition> entry : original.getVariables().entrySet()) {
@@ -192,9 +198,9 @@ public class FlowService {
                     ));
                 }
             }
+            logger.info("Cloned variables {}",clonedVars);
             clone.setVariables(clonedVars);
         }
-
         return flowRepository.save(clone);
     }
 
