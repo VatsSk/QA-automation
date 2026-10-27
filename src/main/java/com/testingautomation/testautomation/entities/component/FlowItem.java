@@ -12,4 +12,6 @@ public class FlowItem {
     private FlowItemType type;
     private FlowStep step;
     private String componentId;
+    private String componentName;
+    private String moduleName;
 }

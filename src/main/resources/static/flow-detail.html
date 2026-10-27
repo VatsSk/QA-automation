@@ -846,6 +846,7 @@
             border-bottom: none;
         }
         .comp-step-group-chevron {
+            display: inline-block;
             font-size: 11px;
             color: var(--tx2);
             transition: transform 0.2s ease;
@@ -1174,14 +1175,23 @@
                         existingFlowInfo = await api.components.getFlowInfo(flow.id || flowId);
                     } catch(e) {}
 
-                    // Collect existing component IDs in order so we preserve them
-                    const existingCompIds = [];
+                    // Collect existing component items so we preserve their IDs, names, and module names
+                    const existingCompItems = [];
                     if (existingFlowInfo && Array.isArray(existingFlowInfo.flowItems)) {
                         for (const it of existingFlowInfo.flowItems) {
                             if (it.type === 'COMPONENT' && it.componentId) {
-                                existingCompIds.push(it.componentId);
+                                existingCompItems.push(it);
                             }
                         }
+                    }
+
+                    // Resolve module name for the newly created component
+                    let newCompModuleName = '';
+                    if (moduleSelect === 'NEW') {
+                        newCompModuleName = newModuleName;
+                    } else {
+                        const mObj = (window.componentModules || []).find(m => (m.id || m._id) === moduleSelect);
+                        newCompModuleName = mObj ? mObj.name : '';
                     }
 
                     const flowItems = [];
@@ -1196,12 +1206,14 @@
                             const compName = getStepComponentName(step);
                             if (currentCompName !== compName) {
                                 currentCompName = compName;
-                                const compId = (compIdIndex < existingCompIds.length) ? existingCompIds[compIdIndex++] : null;
-                                if (compId) {
+                                const existingComp = (compIdIndex < existingCompItems.length) ? existingCompItems[compIdIndex++] : null;
+                                if (existingComp) {
                                     flowItems.push({
                                         order: orderCounter++,
                                         type: 'COMPONENT',
-                                        componentId: compId
+                                        componentId: existingComp.componentId,
+                                        componentName: existingComp.componentName || currentCompName || 'Component',
+                                        moduleName: existingComp.moduleName || ''
                                     });
                                 }
                             }
@@ -1218,7 +1230,9 @@
                                 flowItems.push({
                                     order: orderCounter++,
                                     type: 'COMPONENT',
-                                    componentId: savedCompId
+                                    componentId: savedCompId,
+                                    componentName: name,
+                                    moduleName: newCompModuleName
                                 });
                                 componentInserted = true;
                             }
@@ -1971,7 +1985,10 @@
 
     // ── COMPONENT GROUPING HELPERS ─────────────────────────────────────
     window.collapsedCompGroups = new Set();
-    window.toggleCompGroup = function(groupId) {
+    window.toggleCompGroup = function(groupId, event) {
+        if (event) {
+            event.stopPropagation();
+        }
         const el = document.getElementById(groupId);
         if (!el) return;
         el.classList.toggle('collapsed');
@@ -1982,12 +1999,15 @@
         }
     };
 
-    function getStepComponentName(step) {
+    function getStepComponentInfo(step) {
         if (!step || !step.isComp) return null;
-        if (step.name && step.name.includes(' - ')) {
-            return step.name.split(' - ')[0].trim();
+        let name = step.componentName;
+        if (!name && step.name && step.name.includes(' - ')) {
+            name = step.name.split(' - ')[0].trim();
         }
-        return 'Component';
+        if (!name) name = 'Component';
+        const id = step.componentId || name;
+        return { name, id };
     }
 
     function renderGroupedStepsHTML(items) {
@@ -1999,12 +2019,15 @@
         }
 
         let html = '';
+        let currentCompId = null;
         let currentCompName = null;
         let currentCompSteps = [];
 
         function flushGroup() {
             if (!currentCompSteps.length) return;
-            const groupId = 'comp-group-' + encodeURIComponent(currentCompName).replace(/[^a-zA-Z0-9_-]/g, '_');
+            // Guaranteed unique group ID per occurrence based on the first step order
+            const firstStepOrder = (currentCompSteps[0].stepOrder != null) ? currentCompSteps[0].stepOrder : Math.floor(Math.random() * 100000);
+            const groupId = 'comp-group-' + firstStepOrder;
             
             // Auto-expand if any step failed, otherwise respect user collapse
             const anyFailed = currentCompSteps.some(s => s.executionStatus === 'FAILED');
@@ -2021,8 +2044,8 @@
             const isCollapsed = window.collapsedCompGroups.has(groupId) && !anyFailed;
 
             html += `
-                <div class="comp-step-group ${isCollapsed ? 'collapsed' : ''}" id="${groupId}">
-                    <div class="comp-step-group-header" onclick="toggleCompGroup('${groupId}')" title="Click to collapse / expand component steps">
+                <div class="comp-step-group ${isCollapsed ? 'collapsed' : ''}" id="${groupId}" data-comp-group-id="${groupId}">
+                    <div class="comp-step-group-header" onclick="toggleCompGroup('${groupId}', event)" title="Click to collapse / expand component steps">
                         <div style="display:flex; align-items:center; gap:8px;">
                             <span style="font-size:16px;">🧩</span>
                             <div class="comp-step-group-title">
@@ -2042,15 +2065,18 @@
             `;
             currentCompSteps = [];
             currentCompName = null;
+            currentCompId = null;
         }
 
         for (const step of items) {
-            const compName = getStepComponentName(step);
-            if (compName) {
-                if (currentCompName && currentCompName !== compName) {
+            const compInfo = getStepComponentInfo(step);
+            if (compInfo) {
+                // If a new component begins (different ID or different name), flush previous group
+                if (currentCompId && (currentCompId !== compInfo.id || currentCompName !== compInfo.name)) {
                     flushGroup();
                 }
-                currentCompName = compName;
+                currentCompId = compInfo.id;
+                currentCompName = compInfo.name;
                 currentCompSteps.push(step);
             } else {
                 flushGroup();
@@ -2564,6 +2590,11 @@
 
         const card = document.getElementById(`step-card-${stepOrder}`);
         if (card) {
+            const parentGroup = card.closest('.comp-step-group');
+            if (parentGroup && parentGroup.classList.contains('collapsed')) {
+                parentGroup.classList.remove('collapsed');
+                window.collapsedCompGroups.delete(parentGroup.id);
+            }
             card.classList.add('selected');
         }
 

@@ -70,6 +70,10 @@ public class FlowStep extends ExecutionEntity {
 
     private Boolean isComp;
 
+    private String componentId;
+
+    private String componentName;
+
     private String tabRef;
 
     private String sourceTabRef;

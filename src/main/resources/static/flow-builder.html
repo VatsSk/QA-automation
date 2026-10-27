@@ -502,21 +502,25 @@
             document.querySelector('.builder-title').textContent = '🧩 Edit Component Flow';
             document.getElementById('btn-save').innerHTML = '💾 Update Flow';
 
-            // Reconstruct builderItems from flowItems
+            // Reconstruct builderItems from flowItems without blocking on extra API calls
             builderItems = [];
             const sorted = [...(editingFlowInfo.flowItems || [])].sort((a, b) => a.order - b.order);
             for (const item of sorted) {
                 if (item.type === 'COMPONENT' && item.componentId) {
-                    let comp = allAvailableComponents.find(c => (c.id || c._id) === item.componentId);
-                    if (!comp) {
-                        try {
-                            comp = await api.components.getComponent(item.componentId);
-                        } catch(e) {}
-                    }
+                    const cached = allAvailableComponents.find(c => (c.id || c._id) === item.componentId);
+                    const compName = item.componentName || cached?.name || 'Component';
+                    const compMod = item.moduleName || cached?.compModuleName || '';
                     builderItems.push({
                         type: 'COMPONENT',
                         componentId: item.componentId,
-                        component: comp || { name: 'Unknown Component', steps: [], compModuleName: '' }
+                        componentName: compName,
+                        moduleName: compMod,
+                        component: cached || {
+                            id: item.componentId,
+                            name: compName,
+                            compModuleName: compMod,
+                            steps: []
+                        }
                     });
                 } else if (item.type === 'STEP' && item.step) {
                     builderItems.push({
@@ -562,7 +566,13 @@
     window.addComponent = function(componentId) {
         const c = allAvailableComponents.find(x => (x.id || x._id) === componentId);
         if (!c) return;
-        builderItems.push({ type: 'COMPONENT', componentId, component: c });
+        builderItems.push({
+            type: 'COMPONENT',
+            componentId,
+            componentName: c.name,
+            moduleName: c.compModuleName || '',
+            component: c
+        });
         renderBuilderItems();
         toast(`Added component: ${c.name}`, 'success');
     };
@@ -611,10 +621,10 @@
             </div>`;
             } else {
                 const c = item.component;
-                const cName = c ? c.name : 'Unknown Component';
+                const cName = item.componentName || c?.name || 'Unknown Component';
                 const compSteps = (c && c.steps) ? c.steps : [];
                 const stepCount = compSteps.length;
-                const compModName = c ? (c.compModuleName || '') : '';
+                const compModName = item.moduleName || c?.compModuleName || '';
 
                 const innerStepsHtml = compSteps.length ? compSteps.map((cs, cIdx) => `
                     <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
@@ -624,7 +634,7 @@
                         ${cs.selector ? `<span style="font-family:var(--mono); font-size:11px; color:var(--tx3); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(cs.selector)}">&middot; ${esc(cs.selector)}</span>` : ''}
                         ${cs.value ? `<span style="font-family:var(--mono); font-size:11px; color:var(--tx3); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(cs.value)}">&middot; ${esc(cs.value)}</span>` : ''}
                     </div>
-                `).join('') : '<div style="color:var(--tx3); font-size:12px; padding:4px 0;">No steps defined in this component.</div>';
+                `).join('') : '<div style="color:var(--tx3); font-size:12px; padding:4px 0;">No steps loaded or defined. Click 👁️ Steps to load.</div>';
 
                 return `
             <div class="step-item is-component" id="builder-item-${index}">
@@ -632,10 +642,10 @@
                     <div class="step-num">${index + 1}</div>
                     <div class="step-info">
                         <div class="step-label">🧩 ${esc(cName)}</div>
-                        <div class="step-sub">Component &middot; expands to ${stepCount} step${stepCount !== 1 ? 's' : ''} at runtime${compModName ? ' &middot; ' + esc(compModName) : ''}</div>
+                        <div class="step-sub">Component${stepCount > 0 ? ` &middot; expands to ${stepCount} step${stepCount !== 1 ? 's' : ''} at runtime` : ''}${compModName ? ' &middot; ' + esc(compModName) : ''}</div>
                     </div>
                     <div class="step-actions">
-                        ${stepCount > 0 ? `<button class="btn btn-ghost btn-xs" id="comp-toggle-btn-${index}" onclick="toggleCompItemSteps(${index})" title="View steps inside this component">👁️ Steps (${stepCount})</button>` : ''}
+                        <button class="btn btn-ghost btn-xs" id="comp-toggle-btn-${index}" onclick="toggleCompItemSteps(${index})" title="View steps inside this component">👁️ Steps ${stepCount > 0 ? `(${stepCount})` : ''}</button>
                         <button class="btn btn-ghost btn-xs" onclick="moveBuilderItem(${index}, -1)" ${index === 0 ? 'disabled' : ''} title="Move Up">▲</button>
                         <button class="btn btn-ghost btn-xs" onclick="moveBuilderItem(${index}, 1)" ${index === builderItems.length - 1 ? 'disabled' : ''} title="Move Down">▼</button>
                         <a href="/component.html?projectId=${projectId}&compId=${item.componentId}&moduleId=${c?.compModuleId || ''}" target="_blank" class="btn btn-secondary btn-xs" style="text-decoration:none; display:inline-flex; align-items:center; gap:4px;" title="Edit Component in component editor (opens in new tab)">✏️ Edit Comp ↗</a>
@@ -651,10 +661,34 @@
         }).join('');
     }
 
-    window.toggleCompItemSteps = function(index) {
+    window.toggleCompItemSteps = async function(index) {
+        const item = builderItems[index];
+        if (!item) return;
         const el = document.getElementById(`comp-inner-${index}`);
         const btn = document.getElementById(`comp-toggle-btn-${index}`);
         if (!el || !btn) return;
+
+        // Lazily fetch component steps on demand if not already loaded
+        if ((!item.component || !item.component.steps || !item.component.steps.length) && item.componentId) {
+            btn.innerHTML = '⏳ Loading...';
+            try {
+                const comp = await api.components.getComponent(item.componentId);
+                if (comp) {
+                    item.component = { ...item.component, ...comp };
+                    renderBuilderItems();
+                    const updatedEl = document.getElementById(`comp-inner-${index}`);
+                    const updatedBtn = document.getElementById(`comp-toggle-btn-${index}`);
+                    if (updatedEl) updatedEl.style.display = 'block';
+                    if (updatedBtn) updatedBtn.innerHTML = '▲ Hide Steps';
+                    return;
+                }
+            } catch(e) {
+                toast('Failed to load steps: ' + e.message, 'error');
+                btn.innerHTML = '👁️ Steps';
+                return;
+            }
+        }
+
         const isHidden = el.style.display === 'none';
         el.style.display = isHidden ? 'block' : 'none';
         const count = (builderItems[index]?.component?.steps || []).length;
@@ -783,7 +817,14 @@
                     item.step.stepOrder = idx + 1;
                     return { order: idx + 1, type: 'STEP', step: item.step };
                 } else {
-                    return { order: idx + 1, type: 'COMPONENT', componentId: item.componentId };
+                    const c = item.component;
+                    return {
+                        order: idx + 1,
+                        type: 'COMPONENT',
+                        componentId: item.componentId,
+                        componentName: item.componentName || c?.name || 'Component',
+                        moduleName: item.moduleName || c?.compModuleName || ''
+                    };
                 }
             });
 

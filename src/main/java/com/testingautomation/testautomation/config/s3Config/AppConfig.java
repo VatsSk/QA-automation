@@ -12,6 +12,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -33,7 +34,8 @@ public class AppConfig {
     @Bean
     public S3Client s3Client() {
         var builder = S3Client.builder()
-                .region(Region.of(storageProperties.getRegion()));
+                .region(Region.of(storageProperties.getRegion()))
+                .httpClientBuilder(UrlConnectionHttpClient.builder());
 
         if (StringUtils.hasText(storageProperties.getAccessKey())
                 && StringUtils.hasText(storageProperties.getSecretKey())) {

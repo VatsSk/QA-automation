@@ -71,10 +71,16 @@ public class ComponentFlowExecutionService {
             } else if (item.getType() == FlowItemType.COMPONENT) {
                 Optional<Component> compOpt = componentRepository.findById(item.getComponentId());
                 if (compOpt.isPresent() && compOpt.get().getSteps() != null) {
+                    String prefixName = (item.getComponentName() != null && !item.getComponentName().isBlank())
+                            ? item.getComponentName()
+                            : compOpt.get().getName();
                     for (FlowStep compStep : compOpt.get().getSteps()) {
                         FlowStep runtimeStep = cloneStep(compStep);
                         runtimeStep.setId(UUID.randomUUID().toString());
-                        runtimeStep.setName(compOpt.get().getName() + " - " + compStep.getName());
+                        runtimeStep.setName(prefixName + " - " + compStep.getName());
+                        runtimeStep.setIsComp(true);
+                        runtimeStep.setComponentId(item.getComponentId());
+                        runtimeStep.setComponentName(prefixName);
                         runtimeSteps.add(runtimeStep);
                     }
                 }
@@ -106,6 +112,8 @@ public class ComponentFlowExecutionService {
         clone.setContinueOnFailure(original.getContinueOnFailure());
         clone.setCaptureScreenshot(original.getCaptureScreenshot());
         clone.setIsComp(original.getIsComp());
+        clone.setComponentId(original.getComponentId());
+        clone.setComponentName(original.getComponentName());
         return clone;
     }
 }

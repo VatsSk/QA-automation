@@ -1385,9 +1385,15 @@
         const select = document.getElementById('cb-comp-select');
         if (!select.value) { toast('Please select a component', 'warning'); return; }
         
+        const c = allAvailableComponents.find(x => (x.id || x._id) === select.value);
+        const modSelect = document.getElementById('cb-module-select');
+        const modName = c?.compModuleName || (modSelect && modSelect.selectedIndex >= 0 ? modSelect.options[modSelect.selectedIndex].text : '');
+
         builderItems.push({
             type: 'COMPONENT',
-            componentId: select.value
+            componentId: select.value,
+            componentName: c?.name || select.options[select.selectedIndex]?.text || 'Component',
+            moduleName: modName
         });
         
         renderBuilderModal(moduleId);
@@ -1465,7 +1471,13 @@
                     item.step.stepOrder = idx + 1;
                     return { order: idx + 1, type: 'STEP', step: item.step };
                 } else {
-                    return { order: idx + 1, type: 'COMPONENT', componentId: item.componentId };
+                    return {
+                        order: idx + 1,
+                        type: 'COMPONENT',
+                        componentId: item.componentId,
+                        componentName: item.componentName || 'Component',
+                        moduleName: item.moduleName || ''
+                    };
                 }
             });
 

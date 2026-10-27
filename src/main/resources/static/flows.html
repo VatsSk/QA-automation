@@ -542,8 +542,14 @@
         standardFlowsCache = null;
         componentFlowsCache = null;
         compFlowsLoaded = false;
-        await ensureStandardFlowsLoaded(true);
-        renderFilteredFlows();
+        const isCompTab = document.getElementById('flow-tab-component')?.classList.contains('active');
+        if (isCompTab) {
+            await ensureComponentFlowsLoaded(true);
+            await loadComponentFlows();
+        } else {
+            await ensureStandardFlowsLoaded(true);
+            renderFilteredFlows();
+        }
     }
 
     window.cloneFlow = async function (id) {

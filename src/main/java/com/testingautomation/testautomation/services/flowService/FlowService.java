@@ -31,6 +31,9 @@ public class FlowService {
     @Autowired
     private com.testingautomation.testautomation.repositories.flowRepos.FlowInfoRepository flowInfoRepository;
     @Autowired
+    private ComponentFlowExecutionService componentFlowExecutionService;
+
+    @Autowired
     private StorageService storageService;
 
     @Autowired
@@ -74,6 +77,9 @@ public class FlowService {
             storageService.deleteFolder(bucketName,basePrefix);
         }
         flowRepository.deleteById(id);
+        try {
+            flowInfoRepository.deleteById(id);
+        } catch (Exception ignored) {}
     }
 
     public Flow cloneFlow(String id) {
@@ -83,8 +89,56 @@ public class FlowService {
         }
 
         Flow original = optionalFlow.get();
+
+        // 1. If this is a Component Flow, clone its FlowInfo definition and re-materialize
+        Optional<com.testingautomation.testautomation.entities.component.FlowInfo> flowInfoOpt = flowInfoRepository.findById(id);
+        if (flowInfoOpt.isPresent() || original.isPartComp()) {
+            if (flowInfoOpt.isPresent()) {
+                com.testingautomation.testautomation.entities.component.FlowInfo originalInfo = flowInfoOpt.get();
+                com.testingautomation.testautomation.entities.component.FlowInfo cloneInfo = new com.testingautomation.testautomation.entities.component.FlowInfo();
+
+                cloneInfo.setName(original.getName() + " - Copy");
+                cloneInfo.setDescription(original.getDescription());
+                cloneInfo.setProjectId(original.getProjectId());
+                cloneInfo.setModuleId(original.getModuleId());
+                cloneInfo.setContainsComp(true);
+                cloneInfo.setCreatedAt(Instant.now());
+                cloneInfo.setUpdatedAt(Instant.now());
+
+                List<com.testingautomation.testautomation.entities.component.FlowItem> clonedItems = new ArrayList<>();
+                if (originalInfo.getFlowItems() != null) {
+                    for (com.testingautomation.testautomation.entities.component.FlowItem item : originalInfo.getFlowItems()) {
+                        com.testingautomation.testautomation.entities.component.FlowItem itemClone = new com.testingautomation.testautomation.entities.component.FlowItem();
+                        itemClone.setOrder(item.getOrder());
+                        itemClone.setType(item.getType());
+                        itemClone.setComponentId(item.getComponentId());
+                        itemClone.setComponentName(item.getComponentName());
+                        itemClone.setModuleName(item.getModuleName());
+                        if (item.getStep() != null) {
+                            itemClone.setStep(getFlowStep(item.getStep()));
+                        }
+                        clonedItems.add(itemClone);
+                    }
+                }
+                cloneInfo.setFlowItems(clonedItems);
+
+                // Save FlowInfo first so it generates its own unique ID
+                com.testingautomation.testautomation.entities.component.FlowInfo savedInfo = flowInfoRepository.save(cloneInfo);
+                savedInfo.setFlowId(savedInfo.getId());
+                savedInfo = flowInfoRepository.save(savedInfo);
+
+                // Materialize the runtime Flow with matching ID, runtime steps, and isPartComp = true
+                Flow materializedFlow = componentFlowExecutionService.materializeFlow(savedInfo);
+                materializedFlow.setExecutionStatus(ExecutionStatus.DRAFT);
+                materializedFlow.setDefaultWait(original.getDefaultWait());
+                materializedFlow.setUrlChangeWait(original.getUrlChangeWait());
+                materializedFlow.setVersion(original.getVersion());
+                return flowRepository.save(materializedFlow);
+            }
+        }
+
+        // 2. Standard Flow cloning
         Flow clone = new Flow();
-        
         clone.setProjectId(original.getProjectId());
         clone.setModuleId(original.getModuleId());
         clone.setName(original.getName() + " - Copy");
@@ -92,10 +146,11 @@ public class FlowService {
         clone.setVersion(original.getVersion());
         clone.setDefaultWait(original.getDefaultWait());
         clone.setUrlChangeWait(original.getUrlChangeWait());
+        clone.setPartComp(false);
         clone.setExecutionStatus(ExecutionStatus.DRAFT);
         clone.setCreatedAt(Instant.now());
         clone.setUpdatedAt(Instant.now());
-        
+
         // Deep copy the steps to avoid sharing object references or database IDs
         List<FlowStep> clonedSteps = new ArrayList<>();
         if (original.getSteps() != null) {
@@ -126,6 +181,9 @@ public class FlowService {
         stepClone.setRetryCount(step.getRetryCount());
         stepClone.setContinueOnFailure(step.getContinueOnFailure());
         stepClone.setCaptureScreenshot(step.getCaptureScreenshot());
+        stepClone.setIsComp(step.getIsComp());
+        stepClone.setComponentId(step.getComponentId());
+        stepClone.setComponentName(step.getComponentName());
         return stepClone;
     }
 
