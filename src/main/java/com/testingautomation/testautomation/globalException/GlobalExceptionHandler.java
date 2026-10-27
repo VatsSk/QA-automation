@@ -416,6 +416,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(body);
     }
 
+    @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
+    public ResponseEntity<Map<String, Object>> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        String message = (cause != null && cause.getMessage() != null) ? cause.getMessage() : ex.getMessage();
+        Map<String, Object> body = new HashMap<>();
+        body.put("message", message);
+        body.put("status", "FAILED");
+        return ResponseEntity.badRequest().body(body);
+    }
+
     @ExceptionHandler(RunnerIntegrationException.class)
     public ResponseEntity<Map<String, Object>> handleRunnerIntegration(RunnerIntegrationException ex) {
         Map<String, Object> body = new HashMap<>();

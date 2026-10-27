@@ -44,6 +44,9 @@ public class FlowController {
     @PutMapping("/{id}")
     public ResponseEntity<Flow> createOrUpdateFlow(@PathVariable String id,@RequestBody Flow flow) {
         System.out.println("Updating Id");
+        if (flow.getId() == null || flow.getId().trim().isEmpty()) {
+            flow.setId(id);
+        }
         Flow savedFlow = flowService.saveFlow(flow);
         return ResponseEntity.ok(savedFlow);
     }
