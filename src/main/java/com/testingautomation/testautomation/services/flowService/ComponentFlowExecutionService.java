@@ -5,6 +5,7 @@ import com.testingautomation.testautomation.entities.component.FlowInfo;
 import com.testingautomation.testautomation.entities.component.FlowItem;
 import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
+import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.FlowItemType;
 import com.testingautomation.testautomation.repositories.flowRepos.ComponentRepository;
 import com.testingautomation.testautomation.repositories.flowRepos.FlowRepository;
@@ -31,7 +32,7 @@ public class ComponentFlowExecutionService {
     private FlowOrchestratorService flowOrchestratorService;
 
     public Flow materializeFlow(FlowInfo flowInfo) {
-        Flow flow = new Flow();
+        Flow flow = flowRepository.findById(flowInfo.getId()).orElse(new Flow());
         // Link to FlowInfo ID so it overwrites on subsequent runs
         flow.setId(flowInfo.getId());
         flow.setProjectId(flowInfo.getProjectId());
@@ -39,7 +40,9 @@ public class ComponentFlowExecutionService {
         flow.setName(flowInfo.getName());
         flow.setDescription(flowInfo.getDescription());
         flow.setPartComp(true);
-        flow.setCreatedAt(flowInfo.getCreatedAt());
+        if (flow.getCreatedAt() == null) {
+            flow.setCreatedAt(flowInfo.getCreatedAt() != null ? flowInfo.getCreatedAt() : Instant.now());
+        }
         flow.setUpdatedAt(Instant.now());
 
         List<FlowStep> runtimeSteps = buildRuntimeSteps(flowInfo);
@@ -65,8 +68,18 @@ public class ComponentFlowExecutionService {
 
         for (FlowItem item : flowInfo.getFlowItems()) {
             if (item.getType() == FlowItemType.STEP && item.getStep() != null) {
+                if (item.getStep().getId() == null || item.getStep().getId().isBlank()) {
+                    item.getStep().setId(UUID.randomUUID().toString());
+                }
                 FlowStep runtimeStep = cloneStep(item.getStep());
-                runtimeStep.setId(UUID.randomUUID().toString());
+                runtimeStep.setId(item.getStep().getId());
+                if (runtimeStep.getActionType() == ActionType.INFO) {
+                    if (runtimeStep.getDescription() == null || runtimeStep.getDescription().isBlank()) {
+                        runtimeStep.setDescription(runtimeStep.getName());
+                    } else if (runtimeStep.getName() == null || runtimeStep.getName().isBlank()) {
+                        runtimeStep.setName(runtimeStep.getDescription());
+                    }
+                }
                 runtimeSteps.add(runtimeStep);
             } else if (item.getType() == FlowItemType.COMPONENT) {
                 Optional<Component> compOpt = componentRepository.findById(item.getComponentId());
@@ -77,7 +90,15 @@ public class ComponentFlowExecutionService {
                     for (FlowStep compStep : compOpt.get().getSteps()) {
                         FlowStep runtimeStep = cloneStep(compStep);
                         runtimeStep.setId(UUID.randomUUID().toString());
-                        runtimeStep.setName(prefixName + " - " + compStep.getName());
+                        if (compStep.getActionType() == ActionType.INFO) {
+                            String infoText = (compStep.getDescription() != null && !compStep.getDescription().isBlank())
+                                    ? compStep.getDescription()
+                                    : compStep.getName();
+                            runtimeStep.setDescription(infoText);
+                            runtimeStep.setName(infoText != null && !infoText.isBlank() ? infoText : "Instruction");
+                        } else {
+                            runtimeStep.setName(prefixName + " - " + compStep.getName());
+                        }
                         runtimeStep.setIsComp(true);
                         runtimeStep.setComponentId(item.getComponentId());
                         runtimeStep.setComponentName(prefixName);
@@ -99,10 +120,12 @@ public class ComponentFlowExecutionService {
     private FlowStep cloneStep(FlowStep original) {
         FlowStep clone = new FlowStep();
         clone.setName(original.getName());
+        clone.setDescription(original.getDescription());
         clone.setActionType(original.getActionType());
         clone.setVerificationType(original.getVerificationType());
         clone.setSelector(original.getSelector());
         clone.setValue(original.getValue());
+        clone.setUrl(original.getUrl());
         clone.setExpectedValue(original.getExpectedValue());
         clone.setAttribute(original.getAttribute());
         clone.setTextSource(original.getTextSource());
@@ -114,6 +137,13 @@ public class ComponentFlowExecutionService {
         clone.setIsComp(original.getIsComp());
         clone.setComponentId(original.getComponentId());
         clone.setComponentName(original.getComponentName());
+        clone.setTabRef(original.getTabRef());
+        clone.setSourceTabRef(original.getSourceTabRef());
+        clone.setFromTabRef(original.getFromTabRef());
+        clone.setToTabRef(original.getToTabRef());
+        clone.setMessage(original.getMessage());
+        clone.setTriggeringElement(original.getTriggeringElement());
+        clone.setPageReadyTimeoutMs(original.getPageReadyTimeoutMs());
         return clone;
     }
 }

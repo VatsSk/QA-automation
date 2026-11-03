@@ -599,16 +599,21 @@
             if (item.type === 'STEP') {
                 const s = item.step || {};
                 const actionLabel = s.actionType || 'STEP';
+                const sTitle = s.actionType === 'INFO'
+                    ? (s.description || s.name || s.value || 'Instruction')
+                    : (s.name || 'Unnamed Step');
                 return `
             <div class="step-item" style="border-left:3px solid var(--gr);" id="builder-item-${index}">
                 <div style="display:flex; align-items:center; gap:10px; width:100%;">
                     <div class="step-num">${index + 1}</div>
                     <div class="step-info">
-                        <div class="step-label" style="color:var(--gr);">&#9889; ${esc(s.name || 'Unnamed Step')}</div>
+                        <div class="step-label" style="color:var(--gr);">&#9889; ${esc(sTitle)}</div>
                         <div class="step-sub" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-top:2px;">
                             <span class="badge" style="font-size:10px; padding:1px 6px; background:rgba(16,185,129,0.12); color:var(--gr);">${esc(actionLabel)}</span>
                             ${s.selector ? `<span style="font-family:var(--mono); color:var(--tx2);">&middot; ${esc(s.selector.length > 40 ? s.selector.substring(0, 40) + '...' : s.selector)}</span>` : ''}
                             ${s.value ? `<span style="font-family:var(--mono); color:var(--tx3);">&middot; ${esc(s.value.length > 30 ? s.value.substring(0, 30) + '...' : s.value)}</span>` : ''}
+                            ${s.wait ? `<span style="font-family:var(--mono); font-size:10px; color:var(--tx3);">&middot; ${s.wait}ms</span>` : ''}
+                            ${s.continueOnFailure ? `<span class="badge" style="font-size:10px; padding:1px 6px; background:rgba(245,158,11,0.15); color:#f59e0b; border:1px solid rgba(245,158,11,0.25);">⚠️ Continue on Failure</span>` : ''}
                         </div>
                     </div>
                     <div class="step-actions">
@@ -626,15 +631,20 @@
                 const stepCount = compSteps.length;
                 const compModName = item.moduleName || c?.compModuleName || '';
 
-                const innerStepsHtml = compSteps.length ? compSteps.map((cs, cIdx) => `
+                const innerStepsHtml = compSteps.length ? compSteps.map((cs, cIdx) => {
+                    const csTitle = cs.actionType === 'INFO'
+                        ? (cs.description || cs.name || cs.value || 'Instruction')
+                        : (cs.name || '');
+                    return `
                     <div style="display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);">
                         <span style="font-family:var(--mono); color:var(--tx3); font-size:11px; width:22px;">${cIdx + 1}.</span>
                         <span class="badge" style="font-size:10px; padding:1px 6px; background:rgba(59,130,246,0.15); color:#3b82f6;">${esc(cs.actionType || 'STEP')}</span>
-                        <span style="font-weight:500; color:var(--tx1);">${esc(cs.name || '')}</span>
+                        <span style="font-weight:500; color:var(--tx1);">${esc(csTitle)}</span>
                         ${cs.selector ? `<span style="font-family:var(--mono); font-size:11px; color:var(--tx3); max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(cs.selector)}">&middot; ${esc(cs.selector)}</span>` : ''}
                         ${cs.value ? `<span style="font-family:var(--mono); font-size:11px; color:var(--tx3); max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${esc(cs.value)}">&middot; ${esc(cs.value)}</span>` : ''}
+                        ${cs.continueOnFailure ? `<span class="badge" style="font-size:9.5px; padding:1px 5px; background:rgba(245,158,11,0.15); color:#f59e0b;">⚠️ Continue</span>` : ''}
                     </div>
-                `).join('') : '<div style="color:var(--tx3); font-size:12px; padding:4px 0;">No steps loaded or defined. Click 👁️ Steps to load.</div>';
+                `;}).join('') : '<div style="color:var(--tx3); font-size:12px; padding:4px 0;">No steps loaded or defined. Click 👁️ Steps to load.</div>';
 
                 return `
             <div class="step-item is-component" id="builder-item-${index}">
@@ -738,6 +748,7 @@
                     <div class="field" style="margin:0">
                         <label class="lbl">Action Type *</label>
                         <select id="ms-action" class="inp">
+                            <option value="INFO" ${actionType === 'INFO' ? 'selected' : ''}>INFO / INSTRUCTION</option>
                             <option value="NAVIGATE" ${actionType === 'NAVIGATE' ? 'selected' : ''}>NAVIGATE</option>
                             <option value="CLICK" ${actionType === 'CLICK' ? 'selected' : ''}>CLICK</option>
                             <option value="TYPE" ${actionType === 'TYPE' ? 'selected' : ''}>TYPE</option>
@@ -750,12 +761,36 @@
                         </select>
                     </div>
                     <div class="field" style="margin:0">
+                        <label class="lbl">Instruction / Description</label>
+                        <textarea id="ms-desc" class="inp" style="min-height:60px; resize:vertical" placeholder="Enter instruction or description...">${esc(s.description || '')}</textarea>
+                    </div>
+                    <div class="field" style="margin:0">
                         <label class="lbl">Selector (CSS / XPath)</label>
                         <input id="ms-selector" class="inp" placeholder="#btn-submit or //button[@id='submit']" value="${esc(s.selector || '')}">
                     </div>
                     <div class="field" style="margin:0">
                         <label class="lbl">Value / Input Text / URL</label>
                         <input id="ms-value" class="inp" placeholder="https://... or username" value="${esc(s.value || '')}">
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                        <div class="field" style="margin:0">
+                            <label class="lbl">Expected Value</label>
+                            <input id="ms-expected" class="inp" placeholder="Expected value (for verify)" value="${esc(s.expectedValue || '')}">
+                        </div>
+                        <div class="field" style="margin:0">
+                            <label class="lbl">Wait (ms)</label>
+                            <input id="ms-wait" type="number" class="inp" placeholder="e.g. 2000" value="${s.wait || ''}">
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:20px; margin-top:4px;">
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--tx2); cursor:pointer;">
+                            <input type="checkbox" id="ms-continue" ${s.continueOnFailure ? 'checked' : ''}>
+                            Continue On Failure
+                        </label>
+                        <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--tx2); cursor:pointer;">
+                            <input type="checkbox" id="ms-capture" ${s.captureScreenshot !== false ? 'checked' : ''}>
+                            Capture Screenshot
+                        </label>
                     </div>
                 </div>
                 <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
@@ -769,19 +804,36 @@
     window.saveManualStep = function(index) {
         const name = document.getElementById('ms-name').value.trim();
         const actionType = document.getElementById('ms-action').value;
+        const desc = document.getElementById('ms-desc') ? document.getElementById('ms-desc').value.trim() : (builderItems[index]?.step?.description || '');
         const selector = document.getElementById('ms-selector').value.trim();
         const value = document.getElementById('ms-value').value.trim();
+        const expectedValue = document.getElementById('ms-expected') ? document.getElementById('ms-expected').value.trim() : '';
+        const waitVal = document.getElementById('ms-wait') ? document.getElementById('ms-wait').value.trim() : '';
+        const continueOnFailure = document.getElementById('ms-continue') ? document.getElementById('ms-continue').checked : false;
+        const captureScreenshot = document.getElementById('ms-capture') ? document.getElementById('ms-capture').checked : true;
 
-        if (!name) {
-            toast('Step Name is required', 'warning');
+        let finalName = name;
+        let finalDesc = desc;
+        if (actionType === 'INFO') {
+            if (!finalName && finalDesc) finalName = finalDesc;
+            if (finalName && !finalDesc) finalDesc = finalName;
+        }
+
+        if (!finalName && !finalDesc) {
+            toast('Step Name or Instruction is required', 'warning');
             return;
         }
 
         const stepData = {
-            name,
+            name: finalName,
+            description: finalDesc,
             actionType,
             selector,
-            value
+            value,
+            expectedValue,
+            wait: waitVal ? parseInt(waitVal, 10) : null,
+            continueOnFailure,
+            captureScreenshot
         };
 
         if (index >= 0) {
@@ -790,7 +842,11 @@
         } else {
             builderItems.push({
                 type: 'STEP',
-                step: stepData
+                step: {
+                    ...stepData,
+                    stepOrder: builderItems.length + 1,
+                    isComp: false
+                }
             });
             toast('Manual step added!', 'success');
         }

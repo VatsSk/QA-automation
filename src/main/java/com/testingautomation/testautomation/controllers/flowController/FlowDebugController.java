@@ -20,6 +20,9 @@ public class FlowDebugController {
     @Autowired
     private FlowRepository flowRepository;
 
+    @Autowired
+    private com.testingautomation.testautomation.services.flowService.FlowService flowService;
+
     @PutMapping("/{flowId}/steps/{stepOrder}")
     public ResponseEntity<?> editStep(@PathVariable String flowId, @PathVariable int stepOrder, @RequestBody FlowStep updatedStep) {
         Flow flow = flowRepository.findById(flowId).orElse(null);
@@ -43,7 +46,7 @@ public class FlowDebugController {
             return ResponseEntity.notFound().build();
         }
 
-        flowRepository.save(flow);
+        flowService.saveFlow(flow);
         return ResponseEntity.ok("Step updated successfully");
     }
 

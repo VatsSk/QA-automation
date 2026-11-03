@@ -8,6 +8,8 @@ import com.testingautomation.testautomation.entities.flow.Flow;
 import com.testingautomation.testautomation.entities.flow.FlowVariableDefinition;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Comparator;
+import com.testingautomation.testautomation.enums.flow.FlowItemType;
 import com.testingautomation.testautomation.entities.flow.FlowStep;
 import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.ExecutionStatus;
@@ -70,7 +72,96 @@ public class FlowService {
         if(flow.getCreatedAt() == null){
             flow.setCreatedAt(flow.getUpdatedAt());
         }
-        return flowRepository.save(flow);
+        Flow savedFlow = flowRepository.save(flow);
+        syncFlowInfoIfComponentFlow(savedFlow);
+        return savedFlow;
+    }
+
+    private void syncFlowInfoIfComponentFlow(Flow flow) {
+        if (flow == null || flow.getId() == null || !flow.isPartComp()) {
+            return;
+        }
+        try {
+            Optional<FlowInfo> flowInfoOpt = flowInfoRepository.findById(flow.getId());
+            if (flowInfoOpt.isPresent()) {
+                FlowInfo flowInfo = flowInfoOpt.get();
+                if (flowInfo.getFlowItems() != null && flow.getSteps() != null) {
+                    List<FlowStep> standaloneSteps = flow.getSteps().stream()
+                            .filter(s -> !Boolean.TRUE.equals(s.getIsComp()))
+                            .sorted(Comparator.comparingInt(s -> s.getStepOrder() != null ? s.getStepOrder() : 0))
+                            .toList();
+
+                    List<FlowItem> stepItems = flowInfo.getFlowItems().stream()
+                            .filter(it -> it.getType() == FlowItemType.STEP)
+                            .sorted(Comparator.comparingInt(it -> it.getOrder() != null ? it.getOrder() : 0))
+                            .toList();
+
+                    if (standaloneSteps.size() == stepItems.size()) {
+                        for (int i = 0; i < stepItems.size(); i++) {
+                            FlowItem item = stepItems.get(i);
+                            FlowStep updated = standaloneSteps.get(i);
+                            FlowStep existingStep = item.getStep();
+                            if (existingStep == null) {
+                                existingStep = new FlowStep();
+                                item.setStep(existingStep);
+                            }
+                            copyStepProperties(updated, existingStep);
+                        }
+                        flowInfo.setUpdatedAt(Instant.now());
+                        flowInfoRepository.save(flowInfo);
+                        logger.info("Successfully synced updated standalone steps to FlowInfo for flow: {}", flow.getId());
+                    } else if (standaloneSteps.size() < stepItems.size()) {
+                        // A standalone step was deleted
+                        List<FlowItem> remainingItems = new ArrayList<>();
+                        int standaloneIdx = 0;
+                        for (FlowItem item : flowInfo.getFlowItems()) {
+                            if (item.getType() == FlowItemType.COMPONENT) {
+                                remainingItems.add(item);
+                            } else if (item.getType() == FlowItemType.STEP) {
+                                if (standaloneIdx < standaloneSteps.size()) {
+                                    FlowStep updated = standaloneSteps.get(standaloneIdx++);
+                                    if (item.getStep() == null) {
+                                        item.setStep(new FlowStep());
+                                    }
+                                    copyStepProperties(updated, item.getStep());
+                                    remainingItems.add(item);
+                                }
+                            }
+                        }
+                        for (int i = 0; i < remainingItems.size(); i++) {
+                            remainingItems.get(i).setOrder(i + 1);
+                        }
+                        flowInfo.setFlowItems(remainingItems);
+                        flowInfo.setUpdatedAt(Instant.now());
+                        flowInfoRepository.save(flowInfo);
+                        logger.info("Successfully synced deleted step to FlowInfo for flow: {}", flow.getId());
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to sync steps to FlowInfo for flow {}: {}", flow.getId(), e.getMessage());
+        }
+    }
+
+    private void copyStepProperties(FlowStep updated, FlowStep existingStep) {
+        if (updated.getId() != null && !updated.getId().isBlank()) {
+            existingStep.setId(updated.getId());
+        }
+        existingStep.setName(updated.getName());
+        existingStep.setDescription(updated.getDescription());
+        existingStep.setActionType(updated.getActionType());
+        existingStep.setVerificationType(updated.getVerificationType());
+        existingStep.setSelector(updated.getSelector());
+        existingStep.setValue(updated.getValue());
+        existingStep.setUrl(updated.getUrl());
+        existingStep.setExpectedValue(updated.getExpectedValue());
+        existingStep.setAttribute(updated.getAttribute());
+        existingStep.setTextSource(updated.getTextSource());
+        existingStep.setOverrideWait(updated.getOverrideWait());
+        existingStep.setWait(updated.getWait());
+        existingStep.setRetryCount(updated.getRetryCount());
+        existingStep.setContinueOnFailure(updated.getContinueOnFailure());
+        existingStep.setCaptureScreenshot(updated.getCaptureScreenshot());
     }
 
     public Flow saveAsDraft(Flow flow) {

@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
@@ -2259,7 +2259,7 @@
                             <input type="checkbox" class="step-comp-checkbox" data-step-order="${step.stepOrder}" ${selectedStepsForComponent.has(step.stepOrder) ? 'checked' : ''} onchange="toggleComponentStep(this, ${step.stepOrder})" style="accent-color: var(--pri); width: 16px; height: 16px; cursor: pointer;">
                         </div>
                         <div style="flex:1; display: flex; align-items: center; gap: 8px;">
-                            <h3 style="margin: 0; color: var(--tx); font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; white-space: pre-wrap;">${esc(step.description || '')}</h3>
+                            <h3 style="margin: 0; color: var(--tx); font-size: 15px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.1em; white-space: pre-wrap;">${esc(step.description || step.name || step.value || 'Instruction')}</h3>
                         </div>
                         <div style="display:flex; gap:8px; margin-left:16px; align-items:center;">
                             ${step.isComp ? `
@@ -3035,7 +3035,7 @@
                     ${step.actionType === 'INFO' ? `
                     <div>
                         <label class="form-label" style="font-size:12px;color:var(--tx2)">Information / Context</label>
-                        <textarea id="edit-step-description" class="inp" style="min-height:80px; resize:vertical" placeholder="Enter information...">${esc(step.description || '')}</textarea>
+                        <textarea id="edit-step-description" class="inp" style="min-height:80px; resize:vertical" placeholder="Enter information...">${esc(step.description || step.name || '')}</textarea>
                     </div>
                     ` : `
                     <div>
@@ -3085,7 +3085,9 @@
         if (!step) return;
 
         if (step.actionType === 'INFO') {
-            step.description = document.getElementById('edit-step-description').value;
+            const desc = document.getElementById('edit-step-description').value;
+            step.description = desc;
+            step.name = desc;
         } else {
             step.selector = document.getElementById('edit-step-selector').value;
             step.value = document.getElementById('edit-step-value').value;
@@ -3102,11 +3104,47 @@
         }
 
         try {
-            await api.flows.update(flow.id, flow);
+            if (flow.partComp) {
+                // One-Way Flow: Update FlowInfo directly, which automatically rematerializes Flow cleanly
+                const fi = await api.components.getFlowInfo(flow.id);
+                if (fi && Array.isArray(fi.flowItems)) {
+                    const standaloneSteps = (flow.steps || []).filter(s => !s.isComp);
+                    const standaloneIdx = standaloneSteps.findIndex(s => s.stepOrder === stepOrder);
+                    const stepItems = fi.flowItems.filter(it => it.type === 'STEP');
+                    if (standaloneIdx >= 0 && standaloneIdx < stepItems.length) {
+                        const targetStep = stepItems[standaloneIdx].step || {};
+                        if (step.actionType === 'INFO') {
+                            targetStep.actionType = 'INFO';
+                            targetStep.description = step.description;
+                            targetStep.name = step.name;
+                        } else {
+                            targetStep.selector = step.selector;
+                            targetStep.value = step.value;
+                            targetStep.expectedValue = step.expectedValue;
+                            targetStep.wait = step.wait;
+                            targetStep.retryCount = step.retryCount;
+                            targetStep.continueOnFailure = step.continueOnFailure;
+                            targetStep.captureScreenshot = step.captureScreenshot;
+                            if (step.name) targetStep.name = step.name;
+                        }
+                        stepItems[standaloneIdx].step = targetStep;
+                        await api.components.saveFlowInfo(flow.id, fi);
+                        flow = await api.flows.get(flowId);
+                    } else {
+                        await api.flows.update(flow.id, flow);
+                    }
+                } else {
+                    await api.flows.update(flow.id, flow);
+                }
+            } else {
+                await api.flows.update(flow.id, flow);
+            }
+
             toast('Step updated successfully', 'success');
             closeModal();
             rebuildMaps();
-            renderDetailPanel(step);
+            const updatedStep = (flow.steps || []).find(s => s.stepOrder === stepOrder) || step;
+            renderDetailPanel(updatedStep);
             updateStepList();
 
             // Re-select to show panel properly if closed
@@ -3117,7 +3155,7 @@
                     const card = document.getElementById('step-card-' + stepOrder);
                     if (card) {
                         card.classList.add('selected');
-                        renderDetailPanel(step);
+                        renderDetailPanel(updatedStep);
                     }
                 }
             }, 50);
@@ -3156,26 +3194,56 @@
 
     window.confirmDeleteStep = async function (stepOrder) {
         closeModal();
-        const stepIndex = (flow.steps || []).findIndex(s => s.stepOrder === stepOrder);
-        if (stepIndex === -1) return;
+        const step = (flow.steps || []).find(s => s.stepOrder === stepOrder);
+        if (!step) return;
 
-        // Remove the step
-        flow.steps.splice(stepIndex, 1);
-
-        // Re-number remaining steps
-        flow.steps.sort((a, b) => a.stepOrder - b.stepOrder).forEach((s, idx) => {
-            s.stepOrder = idx + 1;
-        });
+        if (step.isComp) {
+            toast('This step is part of a component and cannot be deleted from the flow. Please edit the component or flow structure.', 'warning', 5000);
+            return;
+        }
 
         try {
-            await api.flows.update(flow.id, flow);
-            toast('Step deleted successfully', 'success');
-            
-            // Adjust slideshow index if needed
-            if (stepSlideshowIndex >= flow.steps.length) {
-                stepSlideshowIndex = Math.max(0, flow.steps.length - 1);
+            if (flow.partComp) {
+                // One-Way Flow: Remove from FlowInfo, which cleanly rematerializes the flow without ghost steps
+                const fi = await api.components.getFlowInfo(flow.id);
+                if (fi && Array.isArray(fi.flowItems)) {
+                    const standaloneSteps = (flow.steps || []).filter(s => !s.isComp);
+                    const standaloneIdx = standaloneSteps.findIndex(s => s.stepOrder === stepOrder);
+                    const stepItems = fi.flowItems.filter(it => it.type === 'STEP');
+
+                    if (standaloneIdx >= 0 && standaloneIdx < stepItems.length) {
+                        const targetItem = stepItems[standaloneIdx];
+                        fi.flowItems = fi.flowItems.filter(it => it !== targetItem);
+                        fi.flowItems.forEach((it, idx) => {
+                            it.order = idx + 1;
+                        });
+                        await api.components.saveFlowInfo(flow.id, fi);
+                        flow = await api.flows.get(flowId);
+                        toast('Step deleted successfully', 'success');
+                    } else {
+                        flow.steps = (flow.steps || []).filter(s => s.stepOrder !== stepOrder);
+                        flow.steps.sort((a, b) => a.stepOrder - b.stepOrder).forEach((s, idx) => { s.stepOrder = idx + 1; });
+                        await api.flows.update(flow.id, flow);
+                        toast('Step deleted successfully', 'success');
+                    }
+                } else {
+                    flow.steps = (flow.steps || []).filter(s => s.stepOrder !== stepOrder);
+                    flow.steps.sort((a, b) => a.stepOrder - b.stepOrder).forEach((s, idx) => { s.stepOrder = idx + 1; });
+                    await api.flows.update(flow.id, flow);
+                    toast('Step deleted successfully', 'success');
+                }
+            } else {
+                flow.steps = (flow.steps || []).filter(s => s.stepOrder !== stepOrder);
+                flow.steps.sort((a, b) => a.stepOrder - b.stepOrder).forEach((s, idx) => { s.stepOrder = idx + 1; });
+                await api.flows.update(flow.id, flow);
+                toast('Step deleted successfully', 'success');
             }
-            
+
+            // Adjust slideshow index if needed
+            if (stepSlideshowIndex >= (flow.steps || []).length) {
+                stepSlideshowIndex = Math.max(0, (flow.steps || []).length - 1);
+            }
+
             selectedStepOrder = null;
             rebuildMaps();
             renderPage();
