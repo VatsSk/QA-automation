@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.entities.component;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.testingautomation.testautomation.entities.baseEntity.BaseEntity;
 import lombok.ToString;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
@@ -14,6 +15,7 @@ import java.util.List;
 
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "flow_info")
 @ToString
 @CompoundIndexes({
@@ -30,6 +32,8 @@ public class FlowInfo extends BaseEntity {
     private String flowId;
     
     private Boolean containsComp = false;
+
+    private Boolean isDebugEnabled = false;
     
     private List<FlowItem> flowItems = new ArrayList<>();
 }

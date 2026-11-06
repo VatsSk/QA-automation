@@ -1,5 +1,7 @@
 package com.testingautomation.testautomation.entities.flow;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.testingautomation.testautomation.entities.baseEntity.ExecutionEntity;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -13,6 +15,7 @@ import java.util.Map;
 
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "flows")
 public class Flow extends ExecutionEntity {
 
@@ -42,6 +45,7 @@ public class Flow extends ExecutionEntity {
 
     private boolean isPartComp;
 
+    @JsonAlias({"debugEnabled", "debug_enabled", "debug"})
     private Boolean isDebugEnabled = false;
 
     private List<FlowStep> steps = new ArrayList<>();

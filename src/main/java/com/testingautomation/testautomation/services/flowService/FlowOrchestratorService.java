@@ -110,6 +110,15 @@ public class FlowOrchestratorService {
                 logger.warn("Error quitting driver for stopped flow [{}]: {}", flowId, e.getMessage());
             }
         }
+        FlowExecutionContext pausedContext = webDriverRegistry.getContext(flowId);
+        if (pausedContext != null && pausedContext.getDriver() != null && pausedContext.getDriver() != driver) {
+            try {
+                logger.info("Quitting paused WebDriver for stopped flow [{}]", flowId);
+                pausedContext.getDriver().quit();
+            } catch (Exception ignored) {}
+        }
+        webDriverRegistry.removeContext(flowId);
+
         Flow flow = activeFlows.get(flowId);
         if (flow != null) {
             flow.setExecutionStatus(ExecutionStatus.CANCELLED);
@@ -345,6 +354,9 @@ public class FlowOrchestratorService {
                 context.setRuntimeVariables(runtimeVars);
                 logger.info("Flow [{}]: initialized runtime variable context with [{}] variable(s).",
                         flow.getName(), runtimeVars.size());
+                if (Boolean.TRUE.equals(flow.getIsDebugEnabled())) {
+                    webDriverRegistry.registerContext(flow.getId(), context);
+                }
             }
             if (isCancelled(flow)) {
                 logger.info("Flow [{}] execution cancelled after driver creation.", flow.getName());
@@ -428,6 +440,7 @@ public class FlowOrchestratorService {
                 activeFlows.remove(flow.getId());
                 activeDrivers.remove(flow.getId());
                 cancelledFlowIds.remove(flow.getId());
+                webDriverRegistry.removeContext(flow.getId());
                 flow.setExecutionCompletedAt(Instant.now());
                 flow.setUpdatedAt(Instant.now());
                 flowRepository.save(flow);
@@ -596,6 +609,147 @@ public class FlowOrchestratorService {
         } catch (IOException e) {
             logger.warn("Failed to delete local flow directory for flow [{}]: {}", flow.getId(), e.getMessage());
         }
+    }
+
+    public Map<String, Object> getActiveDebugTabsForFlow(String flowId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (flowId == null || flowId.isBlank()) {
+            result.put("activeTabsCount", 0);
+            result.put("sessionAlive", false);
+            result.put("message", "flowId is required");
+            return result;
+        }
+
+        FlowExecutionContext context = webDriverRegistry.getContext(flowId);
+        WebDriver driver = context != null ? context.getDriver() : activeDrivers.get(flowId);
+
+        if (driver == null) {
+            result.put("flowId", flowId);
+            result.put("activeTabsCount", 0);
+            result.put("sessionAlive", false);
+            result.put("message", "No active debug browser session found for flow " + flowId);
+            return result;
+        }
+
+        try {
+            Set<String> windowHandles = driver.getWindowHandles();
+            String currentHandle = null;
+            String currentUrl = null;
+            String currentTitle = null;
+
+            try {
+                currentHandle = driver.getWindowHandle();
+            } catch (Exception ignored) {}
+
+            try {
+                currentUrl = driver.getCurrentUrl();
+            } catch (Exception ignored) {}
+
+            try {
+                currentTitle = driver.getTitle();
+            } catch (Exception ignored) {}
+
+            Flow flow = activeFlows.get(flowId);
+            if (flow == null) {
+                flow = flowRepository.findById(flowId).orElse(null);
+            }
+
+            Map<String, String> tabRefToHandle = (context != null && context.getTabRefToHandle() != null)
+                    ? context.getTabRefToHandle()
+                    : Collections.emptyMap();
+
+            Map<String, String> handleToTabRef = new HashMap<>();
+            for (Map.Entry<String, String> entry : tabRefToHandle.entrySet()) {
+                handleToTabRef.put(entry.getValue(), entry.getKey());
+            }
+
+            List<Map<String, Object>> tabList = new ArrayList<>();
+            for (String handle : windowHandles) {
+                Map<String, Object> tabInfo = new LinkedHashMap<>();
+                tabInfo.put("windowHandle", handle);
+                tabInfo.put("tabRef", handleToTabRef.getOrDefault(handle, null));
+                boolean isCurrent = handle.equals(currentHandle);
+                tabInfo.put("isCurrent", isCurrent);
+                if (isCurrent) {
+                    tabInfo.put("url", currentUrl);
+                    tabInfo.put("title", currentTitle);
+                }
+                tabList.add(tabInfo);
+            }
+
+            result.put("flowId", flowId);
+            result.put("flowName", flow != null ? flow.getName() : "Unknown");
+            result.put("projectId", flow != null ? flow.getProjectId() : null);
+            result.put("moduleId", flow != null ? flow.getModuleId() : null);
+            result.put("executionStatus", flow != null && flow.getExecutionStatus() != null ? flow.getExecutionStatus().name() : "PAUSED");
+            result.put("activeTabsCount", windowHandles.size());
+            result.put("currentTabRef", context != null ? context.getCurrentTabRef() : null);
+            result.put("currentUrl", currentUrl);
+            result.put("currentTitle", currentTitle);
+            result.put("sessionAlive", true);
+            result.put("tabRefToHandle", tabRefToHandle);
+            result.put("tabs", tabList);
+            result.put("windowHandles", new ArrayList<>(windowHandles));
+            return result;
+
+        } catch (Exception e) {
+            logger.warn("Debug browser session for flow [{}] is no longer reachable: {}", flowId, e.getMessage());
+            webDriverRegistry.removeContext(flowId);
+            activeDrivers.remove(flowId);
+
+            result.put("flowId", flowId);
+            result.put("activeTabsCount", 0);
+            result.put("sessionAlive", false);
+            result.put("message", "Browser session closed or expired: " + e.getMessage());
+            return result;
+        }
+    }
+
+    public Map<String, Object> getAllActiveDebugTabs() {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        int totalTabs = 0;
+        List<Map<String, Object>> sessions = new ArrayList<>();
+
+        Map<String, FlowExecutionContext> allContexts = webDriverRegistry.getAllContexts();
+        Set<String> processedFlowIds = new HashSet<>();
+
+        if (allContexts != null) {
+            for (Map.Entry<String, FlowExecutionContext> entry : allContexts.entrySet()) {
+                String flowId = entry.getKey();
+                processedFlowIds.add(flowId);
+                Map<String, Object> sessionInfo = getActiveDebugTabsForFlow(flowId);
+                if (Boolean.TRUE.equals(sessionInfo.get("sessionAlive"))) {
+                    sessions.add(sessionInfo);
+                    Number tabsCount = (Number) sessionInfo.get("activeTabsCount");
+                    if (tabsCount != null) {
+                        totalTabs += tabsCount.intValue();
+                    }
+                }
+            }
+        }
+
+        // Also check any activeDrivers where flow has debug enabled but not yet in registry
+        for (Map.Entry<String, WebDriver> entry : activeDrivers.entrySet()) {
+            String flowId = entry.getKey();
+            if (!processedFlowIds.contains(flowId)) {
+                Flow flow = activeFlows.get(flowId);
+                if (flow != null && Boolean.TRUE.equals(flow.getIsDebugEnabled())) {
+                    Map<String, Object> sessionInfo = getActiveDebugTabsForFlow(flowId);
+                    if (Boolean.TRUE.equals(sessionInfo.get("sessionAlive"))) {
+                        sessions.add(sessionInfo);
+                        Number tabsCount = (Number) sessionInfo.get("activeTabsCount");
+                        if (tabsCount != null) {
+                            totalTabs += tabsCount.intValue();
+                        }
+                    }
+                }
+            }
+        }
+
+        summary.put("totalActiveTabs", totalTabs);
+        summary.put("totalDebugSessions", sessions.size());
+        summary.put("sessions", sessions);
+        return summary;
     }
 
 }

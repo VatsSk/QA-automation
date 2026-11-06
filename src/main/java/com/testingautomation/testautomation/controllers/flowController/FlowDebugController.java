@@ -55,4 +55,17 @@ public class FlowDebugController {
         flowOrchestratorService.resumeFlow(flowId, stepNo);
         return ResponseEntity.ok("Flow resumption initiated");
     }
+
+    @GetMapping({"/active-tabs", "/tabs"})
+    public ResponseEntity<?> getActiveTabs(@RequestParam(required = false) String flowId) {
+        if (flowId != null && !flowId.trim().isEmpty()) {
+            return ResponseEntity.ok(flowOrchestratorService.getActiveDebugTabsForFlow(flowId.trim()));
+        }
+        return ResponseEntity.ok(flowOrchestratorService.getAllActiveDebugTabs());
+    }
+
+    @GetMapping({"/{flowId}/active-tabs", "/{flowId}/tabs"})
+    public ResponseEntity<?> getActiveTabsForFlow(@PathVariable String flowId) {
+        return ResponseEntity.ok(flowOrchestratorService.getActiveDebugTabsForFlow(flowId));
+    }
 }

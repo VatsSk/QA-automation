@@ -22,4 +22,12 @@ public class WebDriverRegistry {
     public void removeContext(String flowId) {
         registry.remove(flowId);
     }
+
+    public Map<String, FlowExecutionContext> getAllContexts() {
+        return java.util.Collections.unmodifiableMap(registry);
+    }
+
+    public int getContextCount() {
+        return registry.size();
+    }
 }

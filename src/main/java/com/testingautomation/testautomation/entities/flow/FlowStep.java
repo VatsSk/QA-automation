@@ -1,5 +1,6 @@
 package com.testingautomation.testautomation.entities.flow;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.testingautomation.testautomation.entities.baseEntity.ExecutionEntity;
 import com.testingautomation.testautomation.enums.flow.ActionType;
 import com.testingautomation.testautomation.enums.flow.VerificationType;
@@ -8,6 +9,7 @@ import lombok.Setter;
 
 @Getter
 @Setter
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class FlowStep extends ExecutionEntity {
 
     private Integer stepOrder;
